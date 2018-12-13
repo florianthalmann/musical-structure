@@ -1,6 +1,7 @@
 import * as fs from 'fs';
-import { DymoStructureInducer, DymoGenerator, DymoTemplates, DymoManager } from 'dymo-core';
+import { DymoGenerator, DymoTemplates, DymoManager } from 'dymo-core';
 import { IterativeSmithWatermanResult, QUANT_FUNCS } from 'siafun';
+import { DymoStructureInducer } from './dymo-structure';
 import { FileManager } from './file-manager';
 import { FeatureExtractor } from './feature-extractor';
 import { AVAILABLE_FEATURES, OPTIONS, FeatureConfig } from './config';
