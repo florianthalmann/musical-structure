@@ -2,7 +2,7 @@ import * as math from 'mathjs';
 import * as _ from 'lodash';
 import { SuperDymoStore, uris } from 'dymo-core';
 import { StructureInducer, IterativeSmithWatermanResult, Similarity, Quantizer, SmithWaterman } from 'siafun'
-import { mapSeries } from './util';
+import { mapSeries, printPatterns } from './util';
 
 export class DymoStructureInducer {
   
@@ -30,6 +30,9 @@ export class DymoStructureInducer {
     var surfaceDymos = await this.getAllParts([dymoUri]);
     var points = await this.toVectors(surfaceDymos, false, true);
     var occurrences = new StructureInducer(points, options).getOccurrences(options.patternIndices);
+    
+    printPatterns(occurrences);
+    //console.log(JSON.stringify(occurrences));
     await this.createStructure(occurrences, dymoUri, surfaceDymos);
   }
 

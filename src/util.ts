@@ -51,3 +51,13 @@ async function recursivePrintDymo(store: SuperDymoStore, uri: string, level = 0)
   const parts = await store.findParts(uri);
   return mapSeries(parts, p => recursivePrintDymo(store, p, level+1));
 }
+
+export function printPatterns(patterns: number[][][]) {
+  patterns.forEach(p => {
+    const patternString = _.times((_.max(_.flatten(p)))+1, _.constant(' '));
+    const code = 97;
+    p.forEach((o,i) =>
+      o.forEach(k => patternString[k] = String.fromCharCode(code+i)));
+    console.log(patternString.join(''));
+  });
+}
