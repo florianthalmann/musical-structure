@@ -52,6 +52,32 @@ async function recursivePrintDymo(store: SuperDymoStore, uri: string, level = 0)
   return mapSeries(parts, p => recursivePrintDymo(store, p, level+1));
 }
 
+export async function printDymoStructure(store: SuperDymoStore, uri?: string) {
+  uri = uri || (await store.findTopDymos())[0];
+  const structure = await recursiveGetDymoStructure(store, uri);
+  structure.forEach(l => console.log(l));
+}
+
+async function recursiveGetDymoStructure(store: SuperDymoStore, uri?: string): Promise<string[]> {
+  uri = uri || (await store.findTopDymos())[0];
+  const parts = await store.findParts(uri);
+  if (!parts || parts.length == 0) return ['|'];
+  const partStruct = concatStringMatrices(...await Promise.all(parts.map(p =>
+      recursiveGetDymoStructure(store, p))));
+  return ['|' + _.repeat(' ', partStruct[0].length-1)].concat(partStruct);
+}
+
+function concatStringMatrices(...ms: string[][]) {
+  const maxDepth = _.max(ms.map(m => m.length));
+  //pad up to max depth
+  ms.forEach(m => {
+    const width = m[0].length;
+    while (m.length < maxDepth) m.push(_.repeat(' ', width));
+  });
+  //concat row by row
+  return ms[0].map((_,i) => ms.map(m => m[i]).join(''));
+}
+
 export function printPatterns(patterns: number[][][]) {
   patterns.forEach(p => {
     const patternString = _.times((_.max(_.flatten(p)))+1, _.constant(' '));

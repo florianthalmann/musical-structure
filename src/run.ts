@@ -5,7 +5,7 @@ import { DymoStructureInducer } from './dymo-structure';
 import { FileManager } from './file-manager';
 import { FeatureExtractor } from './feature-extractor';
 import { AVAILABLE_FEATURES, OPTIONS, FeatureConfig } from './config';
-import { NodeFetcher, printDymo } from './util';
+import { NodeFetcher, printDymo, printDymoStructure } from './util';
 
 const SALAMI = '/Users/flo/Projects/Code/FAST/grateful-dead/structure/SALAMI/';
 const FILE = '955';
@@ -36,13 +36,13 @@ async function induceStructure(audioFile: string): Promise<any> {
   const filtered = filterSelectedFeatures(featureFiles);
   const dymo = await DymoTemplates.createSingleSourceDymoFromFeatures(
     generator, audioFile, filtered.segs, filtered.segConditions, filtered.feats);
-  //await printDymo(generator.getStore(), dymo)
+  await printDymoStructure(generator.getStore(), dymo)
   const QF = QUANT_FUNCS;
   OPTIONS["quantizerFunctions"] = [QF.CONSTANT(0), QF.CONSTANT(0), QF.ORDER(), QF.CONSTANT(0), QF.SORTED_SUMMARIZE(3)]//[QF.SORTED_SUMMARIZE(4), QF.CONSTANT(0), QF.ORDER()];
   //options.optimizationDimension: 5,
   //DymoStructureInducer.flattenStructure(generator.getCurrentTopDymo(), generator.getStore());
   await new DymoStructureInducer(generator.getStore()).addStructureToDymo(generator.getCurrentTopDymo(), OPTIONS);
-  //await printDymo(generator.getStore(), dymo);
+  await printDymoStructure(generator.getStore(), dymo);
 }
 
 function postJson(path, json) {
