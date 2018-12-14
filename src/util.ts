@@ -61,3 +61,22 @@ export function printPatterns(patterns: number[][][]) {
     console.log(patternString.join(''));
   });
 }
+
+export function printSegments(patterns: number[][][]) {
+  patterns = trim(patterns);
+  patterns.forEach(p => {
+    const pstring = _.times((_.max(_.flatten(p)))+1, _.constant(' '));
+    p.forEach(o => pstring[o[0]] = '|');
+    p.forEach(o => _.range(o[0]+1, _.last(o)+1).forEach(k => pstring[k] = '-'));
+    console.log(pstring.join(''));
+  });
+}
+
+/**mutates the original patterns (sorts them)*/
+function trim(patterns: number[][][]) {
+  return patterns.map(p => {
+    p.forEach(o => o.sort((a,b) => a-b));
+    p[0] = p[0].filter(i => i < p[1][0]);
+    return p.map(o => o.slice(0, p[0].length));
+  });
+}
