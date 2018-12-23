@@ -1,10 +1,10 @@
 import * as fs from 'fs';
 import { DymoGenerator, DymoTemplates, DymoManager } from 'dymo-core';
-import { IterativeSmithWatermanResult, QUANT_FUNCS } from 'siafun';
+import { IterativeSmithWatermanResult, QUANT_FUNCS as QF, OPTIMIZATION, HEURISTICS } from 'siafun';
 import { DymoStructureInducer } from './dymo-structure';
 import { FileManager } from './file-manager';
 import { FeatureExtractor } from './feature-extractor';
-import { AVAILABLE_FEATURES, OPTIONS, FeatureConfig } from './config';
+import { AVAILABLE_FEATURES, FeatureConfig } from './config';
 import { NodeFetcher, printDymo, printDymoStructure } from './util';
 
 const SALAMI = '/Users/flo/Projects/Code/FAST/grateful-dead/structure/SALAMI/';
@@ -36,13 +36,20 @@ async function induceStructure(audioFile: string): Promise<any> {
   const filtered = filterSelectedFeatures(featureFiles);
   const dymo = await DymoTemplates.createSingleSourceDymoFromFeatures(
     generator, audioFile, filtered.segs, filtered.segConditions, filtered.feats);
-  await printDymoStructure(generator.getStore(), dymo)
-  const QF = QUANT_FUNCS;
-  OPTIONS["quantizerFunctions"] = [QF.CONSTANT(0), QF.CONSTANT(0), QF.ORDER(), QF.CONSTANT(0), QF.SORTED_SUMMARIZE(3)]//[QF.SORTED_SUMMARIZE(4), QF.CONSTANT(0), QF.ORDER()];
-  //options.optimizationDimension: 5,
-  //DymoStructureInducer.flattenStructure(generator.getCurrentTopDymo(), generator.getStore());
-  await new DymoStructureInducer(generator.getStore()).addStructureToDymo(generator.getCurrentTopDymo(), OPTIONS);
   await printDymoStructure(generator.getStore(), dymo);
+  await new DymoStructureInducer(generator.getStore())
+    .addStructureToDymo(generator.getCurrentTopDymo(), {
+      quantizerFunctions: [QF.CONSTANT(0), QF.CONSTANT(0), QF.ORDER(), QF.CONSTANT(0), QF.SORTED_SUMMARIZE(3)], //QF.CLUSTER(50)],//QF.SORTED_SUMMARIZE(3)],
+      selectionHeuristic: HEURISTICS.SIZE_AND_1D_COMPACTNESS(2),
+      overlapping: false,
+      optimizationMethod: OPTIMIZATION.MINIMIZE,
+      optimizationHeuristic: HEURISTICS.SIZE_AND_1D_COMPACTNESS(2),
+      optimizationDimension: 2,
+      minPatternLength: 3,
+      minHeuristicValue: 1
+      //TRY AGAIN ON
+    });
+  //await printDymoStructure(generator.getStore(), dymo);
 }
 
 function postJson(path, json) {

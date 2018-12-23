@@ -1,8 +1,8 @@
 import * as math from 'mathjs';
 import * as _ from 'lodash';
 import { SuperDymoStore, uris } from 'dymo-core';
-import { StructureInducer, IterativeSmithWatermanResult, Similarity, Quantizer, SmithWaterman } from 'siafun'
-import { mapSeries, printPatterns, printSegments } from './util';
+import { StructureInducer, IterativeSmithWatermanResult, Similarity, Quantizer, SmithWaterman, Hierarchizer, Segmentation } from 'siafun'
+import { mapSeries, printPatterns, printPatternSegments } from './util';
 
 export class DymoStructureInducer {
   
@@ -29,9 +29,11 @@ export class DymoStructureInducer {
   async addStructureToDymo(dymoUri, options) {
     var surfaceDymos = await this.getAllParts([dymoUri]);
     var points = await this.toVectors(surfaceDymos, false, true);
-    var patterns = new StructureInducer(points, options).getOccurrences(options.patternIndices);
+    var patterns = new StructureInducer(points, options).getCosiatecPatterns(options.patternIndices);
     patterns = patterns.filter(p => p[0].length > 1);
-    printSegments(patterns);
+    printPatterns(_.cloneDeep(patterns));
+    printPatternSegments(_.cloneDeep(patterns));
+    const hierarchy = new Hierarchizer().inferHierarchyFromPatterns(patterns);
     //console.log(JSON.stringify(patterns));
     await this.createStructure(patterns, dymoUri, surfaceDymos);
   }
