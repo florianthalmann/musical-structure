@@ -41,8 +41,8 @@ async function induceStructure(audioFile: string): Promise<any> {
     .addStructureToDymo(generator.getCurrentTopDymo(), {
       quantizerFunctions: [QF.CONSTANT(0), QF.CONSTANT(0), QF.ORDER(), QF.CONSTANT(0), QF.SORTED_SUMMARIZE(3)], //QF.CLUSTER(50)],//QF.SORTED_SUMMARIZE(3)],
       selectionHeuristic: HEURISTICS.SIZE_AND_1D_COMPACTNESS(2),
-      overlapping: false,
-      optimizationMethod: OPTIMIZATION.MINIMIZE,
+      overlapping: true,
+      optimizationMethod: OPTIMIZATION.PARTITION,
       optimizationHeuristic: HEURISTICS.SIZE_AND_1D_COMPACTNESS(2),
       optimizationDimension: 2,
       minPatternLength: 3,

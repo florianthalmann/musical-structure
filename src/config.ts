@@ -1,6 +1,6 @@
 export var PORT = '4199';
 export var SERVER_PATH = 'http://localhost:' + PORT + '/';
-import { QUANT_FUNCS, OPTIMIZATION } from 'siafun';
+import { QUANT_FUNCS, OPTIMIZATION, HEURISTICS } from 'siafun';
 import * as math from 'mathjs';
 
 export const FEATURES_DIR = 'features/';
@@ -55,7 +55,7 @@ export const OPTIONS = {
     var gaps = getPointsInBoundingBox(pattern, allPoints).length - pattern.length;
     return pattern.length // Math.pow(1+gaps, 1/dim);
   },
-  optimizationDimension: 5,
+  optimizationDimension: 2,
   //patternIndices: patternIndices
 }
 
