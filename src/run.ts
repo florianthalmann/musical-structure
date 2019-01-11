@@ -1,11 +1,9 @@
-import * as fs from 'fs';
-import { DymoGenerator, DymoTemplates, DymoManager } from 'dymo-core';
+import { DymoGenerator, DymoTemplates } from 'dymo-core';
 import { IterativeSmithWatermanResult, QUANT_FUNCS as QF, OPTIMIZATION, HEURISTICS } from 'siafun';
 import { DymoStructureInducer } from './dymo-structure';
 import { FileManager } from './file-manager';
-import { FeatureExtractor } from './feature-extractor';
-import { AVAILABLE_FEATURES, FeatureConfig } from './config';
-import { NodeFetcher, printDymo, printDymoStructure } from './util';
+import { FeatureExtractor, FEATURES, FeatureConfig } from './feature-extractor';
+import { NodeFetcher, printDymoStructure } from './util';
 
 const SALAMI = '/Users/flo/Projects/Code/FAST/grateful-dead/structure/SALAMI/';
 const FILE = '955';
@@ -13,13 +11,15 @@ const FILE = '955';
 const FILE_NAME = SALAMI+'lma-audio/'+FILE+'.mp3';
 const ANNOTATION = SALAMI+'salami-data-public/annotations/'+FILE+'/textfile1.txt';
 
+const SELECTED_FEATURES = [FEATURES.BARS, FEATURES.JOHAN_CHORDS];
+
 const fileManager = new FileManager();
 const featureExtractor = new FeatureExtractor();
+
 run();
 
 async function run() {
-  await featureExtractor.extractFeatures([FILE_NAME],
-      AVAILABLE_FEATURES.filter(f => f.selected));
+  await featureExtractor.extractFeatures([FILE_NAME], SELECTED_FEATURES);
   await induceStructure(FILE_NAME);
   //await plot();
 }
@@ -42,11 +42,11 @@ async function induceStructure(audioFile: string): Promise<any> {
       quantizerFunctions: [QF.CONSTANT(0), QF.CONSTANT(0), QF.ORDER(), QF.CONSTANT(0), QF.SORTED_SUMMARIZE(3)], //QF.CLUSTER(50)],//QF.SORTED_SUMMARIZE(3)],
       selectionHeuristic: HEURISTICS.SIZE_AND_1D_COMPACTNESS(2),
       overlapping: true,
-      optimizationMethod: OPTIMIZATION.PARTITION,
+      //optimizationMethods: [OPTIMIZATION.PARTITION],//, OPTIMIZATION.DIVIDE],
       optimizationHeuristic: HEURISTICS.SIZE_AND_1D_COMPACTNESS(2),
       optimizationDimension: 2,
       minPatternLength: 3,
-      minHeuristicValue: 1
+      //minHeuristicValue: 0.1
       //TRY AGAIN ON
     });
   //await printDymoStructure(generator.getStore(), dymo);
@@ -57,11 +57,10 @@ function postJson(path, json) {
 }
 
 function filterSelectedFeatures(featureFiles: string[]) {
-  const selected = AVAILABLE_FEATURES.filter(f => f.selected);
-  const segs = selected.filter(f => f.isSegmentation);
+  const segs = SELECTED_FEATURES.filter(f => f.isSegmentation);
   const segFiles = getFiles(segs, featureFiles);
-  const segConditions = segFiles.map((_,i) => segs[i].subset);
-  const others = getFiles(selected.filter(f => !f.isSegmentation), featureFiles);
+  const segConditions = segFiles.map((_,i) => segs[i]['subset']);
+  const others = getFiles(SELECTED_FEATURES.filter(f => !f.isSegmentation), featureFiles);
   return {
     segs:segFiles.filter(s=>s),
     segConditions:segConditions.filter((_,i)=>segFiles[i]),

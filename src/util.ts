@@ -8,7 +8,7 @@ export function audioPathToDirName(audioPath: string) {
 }
 
 export function execute(command: string, callback: Function) {
-  let options = {}//{stdio: ['pipe', 'pipe', 'ignore']};
+  let options = {shell: '/bin/bash'}//{stdio: ['pipe', 'pipe', 'ignore']};
   exec(command, options, function(error, _stdout, stderr) {
     if (error) {
       console.log(stderr);
