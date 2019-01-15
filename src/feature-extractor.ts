@@ -88,7 +88,6 @@ export class FeatureExtractor {
           const command = 'echo -n /srv/'+audioFile+' | docker run --rm -i -v '
             +outPath+':/srv audiocommons/faas-confident-chord-estimator python3 index.py > '
             +featureOutFile;
-          console.log(command)
           execute(command, (success, err) => {
             if (success) {
               execute('mv '+featureOutFile+' '+featureDestPath, resolve);
