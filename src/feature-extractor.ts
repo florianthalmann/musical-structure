@@ -41,55 +41,44 @@ export const FEATURES = {
 export class FeatureExtractor {
 
   extractFeatures(audioFiles: string[], features: FeatureConfig[]): Promise<any> {
-    return mapSeries(audioFiles, a => mapSeries(features, f => {
-      if (f.hasOwnProperty('plugin')) return this.extractVampFeature(a, <VampFeatureConfig>f);
-      else if (f === FEATURES.JOHAN_CHORDS) this.extractJohanChords(a);
-    }));
+    return mapSeries(audioFiles, a => mapSeries(features, f =>
+      f.hasOwnProperty('plugin') ? this.extractVampFeature(a, <VampFeatureConfig>f)
+        : f === FEATURES.JOHAN_CHORDS ? this.extractJohanChords(a) : null
+    ));
   }
 
   //extracts the given feature from the audio file (path) if it doesn't exist yet
   private extractVampFeature(audioPath: string, feature: VampFeatureConfig): Promise<any> {
-    const outFileName = audioPathToDirName(audioPath);
-    const extension = audioPath.slice(audioPath.lastIndexOf('.'));
-    const featureOutFile = audioPath.replace(extension, '.json');
-    const featureDestDir = FEATURES_DIR+outFileName+'/';
-    fs.existsSync(featureDestDir) || fs.mkdirSync(featureDestDir);
-    const featureDestPath = featureDestDir+outFileName+'_'+feature.name+'.json';
-    return new Promise(resolve =>
-      fs.stat(featureDestPath, err => {
-        if (err) { //only extract if file doesn't exist yet
-          console.log('extracting '+feature.name+' for '+audioPath);
-          execute('sonic-annotator -d ' + feature.plugin + ' ' + audioPath + ' -w jams --jams-force', success => {
-            if (success) {
-              execute('mv '+featureOutFile+' '+featureDestPath, resolve);
-            }
-          });
-        } else {
-          resolve();
-        }
-      }));
+    return this.extractAndMove(audioPath, feature,
+      () => 'sonic-annotator -d ' + feature.plugin + ' ' + audioPath + ' -w jams --jams-force');
   }
   
   //extracts the given feature from the audio file (path) if it doesn't exist yet
   private extractJohanChords(audioPath: string): Promise<any> {
+    return this.extractAndMove(audioPath, FEATURES.JOHAN_CHORDS,
+      (featureOutFile) => {
+        const audioFile = audioPath.slice(audioPath.lastIndexOf('/')+1);
+        const outPath = audioPath.slice(0, audioPath.lastIndexOf('/'));
+        return 'echo -n /srv/'+audioFile+' | docker run --rm -i -v '
+        +outPath+':/srv audiocommons/faas-confident-chord-estimator python3 index.py > '
+        +featureOutFile
+      });
+  }
+  
+  private extractAndMove(audioPath: string, feature: FeatureConfig,
+      commandFunc: (featureOutFile: string) => string) {
     const outFileName = audioPathToDirName(audioPath);
     const extension = audioPath.slice(audioPath.lastIndexOf('.'));
     const featureOutFile = audioPath.replace(extension, '.json');
     const featureDestDir = FEATURES_DIR+outFileName+'/';
-    const feature = FEATURES.JOHAN_CHORDS;
-    const outPath = audioPath.slice(0, audioPath.lastIndexOf('/'));
-    const audioFile = audioPath.slice(audioPath.lastIndexOf('/')+1);
-    fs.existsSync(featureDestDir) || fs.mkdirSync(featureDestDir);
     const featureDestPath = featureDestDir+outFileName+'_'+feature.name+'.json';
     return new Promise(resolve =>
       fs.stat(featureDestPath, err => {
         if (err) { //only extract if file doesn't exist yet
           console.log('extracting '+feature.name+' for '+audioPath);
-          const command = 'echo -n /srv/'+audioFile+' | docker run --rm -i -v '
-            +outPath+':/srv audiocommons/faas-confident-chord-estimator python3 index.py > '
-            +featureOutFile;
-          execute(command, (success, err) => {
+          execute(commandFunc(featureOutFile), success => {
             if (success) {
+              fs.existsSync(featureDestDir) || fs.mkdirSync(featureDestDir);
               execute('mv '+featureOutFile+' '+featureDestPath, resolve);
             }
           });
