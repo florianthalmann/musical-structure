@@ -13,7 +13,7 @@ import { printPatterns, printPatternSegments } from './util';
 const SALAMI = '/Users/flo/Projects/Code/FAST/grateful-dead/structure/SALAMI/';
 const FILE = '955';
 
-const GD = 'Volumes/gspeed1/thomasw/grateful_dead/lma_soundboards/sbd/';
+const GD = '/Volumes/gspeed1/thomasw/grateful_dead/lma_soundboards/sbd/';
 
 const FILE_NAME = SALAMI+'lma-audio/'+FILE+'.mp3';
 const ANNOTATION = SALAMI+'salami-data-public/annotations/'+FILE+'/textfile1.txt';
