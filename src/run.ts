@@ -36,8 +36,8 @@ async function runSalami() {
 
 async function runGd() {
   const songs = JSON.parse(fs.readFileSync('data/top_song_map2.json', 'utf8'));
-  await mapSeries(Object.keys(songs).slice(-1), k =>
-    mapSeries(songs[k].slice(-1), async (s: any) => {
+  await mapSeries(Object.keys(songs), k =>
+    mapSeries(songs[k], async (s: any) => {
       const songPath = GD+s.recording+'/'+s.track;
       console.log('working on', k, ' - ', s.track);
       await featureExtractor.extractFeatures([songPath], SELECTED_FEATURES);
