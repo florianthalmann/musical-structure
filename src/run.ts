@@ -15,7 +15,7 @@ const FILE = '955';
 const FILE_NAME = SALAMI+'lma-audio/'+FILE+'.mp3';
 const ANNOTATION = SALAMI+'salami-data-public/annotations/'+FILE+'/textfile1.txt';
 
-const SELECTED_FEATURES = [FEATURES.BARS, FEATURES.CHROMA]; //FEATURES.JOHAN_CHORDS];
+const SELECTED_FEATURES = [FEATURES.BEATS, FEATURES.JOHAN_CHORDS];
 
 const fileManager = new FileManager();
 const featureExtractor = new FeatureExtractor();
@@ -35,7 +35,7 @@ async function run() {
 }*/
 
 const OPTIONS = {
-  quantizerFunctions: [QF.ORDER(), QF.SORTED_SUMMARIZE(3)], //QF.CLUSTER(50)],//QF.SORTED_SUMMARIZE(3)],
+  quantizerFunctions: [QF.ORDER(), QF.IDENTITY()], //QF.SORTED_SUMMARIZE(3)], //QF.CLUSTER(50)],//QF.SORTED_SUMMARIZE(3)],
   selectionHeuristic: HEURISTICS.SIZE_AND_1D_COMPACTNESS(0),
   overlapping: true,
   optimizationMethods: [OPTIMIZATION.PARTITION],//, OPTIMIZATION.DIVIDE],
