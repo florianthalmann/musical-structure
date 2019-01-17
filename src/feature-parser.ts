@@ -2,6 +2,7 @@ import * as fs from 'fs';
 import * as _ from 'lodash';
 import { indexOfMax } from 'arrayutils';
 import { FEATURES } from './feature-extractor';
+import { loadJsonFile } from './file-manager';
 
 interface VampValue {
   time: number,
@@ -14,9 +15,9 @@ interface JohanChord {
   label: string
 }
 
-export function generatePoints(featureFiles: string[], condition?: any) {
+export function generatePoints(featureFiles: string[], condition?: any, add7ths?: boolean) {
   const points: any = initPoints(featureFiles[0], condition);
-  return featureFiles.slice(1).reduce((p,f) => addFeature(f, p), points);
+  return featureFiles.slice(1).reduce((p,f) => addFeature(f, p, add7ths), points);
 }
 
 function initPoints(filename: string, condition?: any): number[][] {
@@ -27,9 +28,9 @@ function initPoints(filename: string, condition?: any): number[][] {
   return values.map(v => [v.time]);
 }
 
-function addFeature(filename: string, points: number[][]) {
+function addFeature(filename: string, points: number[][], add7ths?: boolean) {
   if (filename.indexOf(FEATURES.JOHAN_CHORDS.name) >= 0) {
-    return addJohanChords(filename, points);
+    return addJohanChords(filename, points, add7ths);
   }
   return addVampFeature(filename, points);
 }
@@ -47,14 +48,14 @@ function addVampFeature(filename: string, points: number[][]) {
   return _.zip(points, grouped.slice(1).map(g => mean(g)));
 }
 
-function addJohanChords(filename: string, points: number[][]) {
+function addJohanChords(filename: string, points: number[][], add7ths?: boolean) {
   points.push([Infinity]); //add helper point for last segment
   const chords = getJohanChordValues(filename);
   const durations = _.initial(points).map((p,i) => chords.map(c =>
     intersectDuration(p[0], points[i+1][0], c)));
   const longest = durations.map(ds => chords[indexOfMax(ds)]);
   points.pop();//remove helper point
-  const pcsets = longest.map(l => toPCSet(l.label));
+  const pcsets = longest.map(l => toPCSet(l.label, add7ths));
   return _.zip(points, pcsets);
 }
 
@@ -62,7 +63,7 @@ function intersectDuration(start: number, end: number, chord: JohanChord) {
   return Math.min(end, chord.end) - Math.max(start, chord.start);
 }
 
-function toPCSet(chordLabel: string) {
+function toPCSet(chordLabel: string, add7ths?: boolean) {
   const quality = getChordQuality(chordLabel);
   const rootString = quality.length > 0 ? chordLabel.split(quality)[0]
     : chordLabel.split('7')[0];
@@ -71,7 +72,7 @@ function toPCSet(chordLabel: string) {
   const pcset = [root];
   pcset.push(quality === 'min' ? (root+3)%12 : (root+4)%12);
   pcset.push((root+7)%12);
-  if (hasSeventh) {
+  if (add7ths && hasSeventh) {
     pcset.push(quality === 'maj' ? (root+11)%12 : (root+10)%12);
   }
   pcset.sort((a,b)=>a-b);
@@ -99,8 +100,7 @@ function toPitchClass(pitch: string) {
 }
 
 function getVampValues(filename: string): VampValue[] {
-  const json = JSON.parse(fs.readFileSync(filename, 'utf8'));
-  return json['annotations'][0]['data'];
+  return loadJsonFile(filename)['annotations'][0]['data'];
 }
 
 function getJohanChordValues(filename: string): JohanChord[] {

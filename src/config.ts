@@ -5,6 +5,7 @@ import * as math from 'mathjs';
 
 export const FEATURES_DIR = 'features/';
 export const RESULTS_DIR = 'results/';
+export const PATTERNS_DIR = RESULTS_DIR+'patterns/';
 
 export const OPTIONS2 = {
   iterative: true,

@@ -7,6 +7,11 @@ export function audioPathToDirName(audioPath: string) {
   return audioPath.slice(audioPath.lastIndexOf('/')+1).replace('.', '_');
 }
 
+export function audioPathToJsonFileName(audioPath: string) {
+  return audioPath.slice(audioPath.lastIndexOf('/')+1)
+    .replace(audioPath.slice(audioPath.lastIndexOf('.')), '.json');
+}
+
 export function execute(command: string, callback: Function) {
   let options = {shell: '/bin/bash'}//{stdio: ['pipe', 'pipe', 'ignore']};
   exec(command, options, function(error, _stdout, stderr) {
