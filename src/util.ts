@@ -4,12 +4,15 @@ import * as _ from 'lodash';
 import { Fetcher, SuperDymoStore, uris } from 'dymo-core';
 
 export function audioPathToDirName(audioPath: string) {
-  return audioPath.slice(audioPath.lastIndexOf('/')+1).replace('.', '_');
+  return audioPathToUniqueName(audioPath);
 }
 
 export function audioPathToJsonFileName(audioPath: string) {
-  return audioPath.slice(audioPath.lastIndexOf('/')+1)
-    .replace(audioPath.slice(audioPath.lastIndexOf('.')), '.json');
+  return audioPathToUniqueName(audioPath)+'.json';
+}
+
+function audioPathToUniqueName(audioPath: string) {
+  return audioPath.split('/').slice(-2).join('_').replace(/\./g, '_');
 }
 
 export function execute(command: string, callback: Function) {

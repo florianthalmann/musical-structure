@@ -41,9 +41,11 @@ async function analyzeGd() {
       const s: any = songs["good lovin'"][i];
       const songPath = GD_LOCAL+s.recording+'/'+s.track;
       console.log('working on', "good lovin'", ' - ', s.track);
-      if (!loadPatterns(songPath)) {
+      if (!loadPatterns(songPath) && fs.existsSync(songPath)) {
         await featureExtractor.extractFeatures([songPath], SELECTED_FEATURES);
         await induceStructure(songPath);
+      } else {
+        console.log("\nNOT FOUND:", songPath, "\n");
       }
     }
   //);
@@ -67,7 +69,7 @@ const OPTIONS = {
   quantizerFunctions: [QF.ORDER(), QF.IDENTITY()], //QF.SORTED_SUMMARIZE(3)], //QF.CLUSTER(50)],//QF.SORTED_SUMMARIZE(3)],
   selectionHeuristic: HEURISTICS.SIZE_AND_1D_COMPACTNESS(0),
   overlapping: true,
-  optimizationMethods: [OPTIMIZATION.MINIMIZE],//, OPTIMIZATION.DIVIDE],
+  optimizationMethods: [OPTIMIZATION.DIVIDE],//, OPTIMIZATION.DIVIDE],
   optimizationHeuristic: HEURISTICS.SIZE_AND_1D_COMPACTNESS(0),
   optimizationDimension: 0,
   minPatternLength: 3,

@@ -6,7 +6,7 @@ export function comparePatterns(patterns: number[][][][][]) {
   counts.sort((a,b)=>b[1]-a[1]);
   console.log("TOTAL DISTINCT PATTERNS:", counts.length);
   console.log("MOST COMMON PATTERN", counts[0][1], "TIMES:", counts[0][0]);
-  console.log(counts.slice(0,10));
+  //console.log(counts.slice(0,10));
 }
 
 function toNormalForm(pattern: number[][][]) {
