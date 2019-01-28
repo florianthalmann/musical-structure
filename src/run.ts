@@ -6,30 +6,34 @@ import { DymoStructureInducer } from './dymo-structure';
 import { getFeatureFiles, savePatternsFile, loadPatterns } from './file-manager';
 import { FeatureExtractor, FEATURES, FeatureConfig } from './feature-extractor';
 import { generatePoints } from './feature-parser';
+import { parseAnnotations } from './salami-parser';
 import { NodeFetcher, printDymoStructure, mapSeries, printPatterns, printPatternSegments } from './util';
 import { comparePatterns } from './pattern-stats';
 
 const SALAMI = '/Users/flo/Projects/Code/FAST/grateful-dead/structure/SALAMI/';
+const SALAMI_AUDIO = SALAMI+'lma-audio/';
+const SALAMI_ANNOTATIONS = SALAMI+'salami-data-public/annotations/';
 const FILE = '955';
 
 const GD = '/Volumes/gspeed1/thomasw/grateful_dead/lma_soundboards/sbd/';
 const GD_LOCAL = '/Users/flo/Projects/Code/FAST/musical-structure/data/goodlovin/';
 
-const FILE_NAME = SALAMI+'lma-audio/'+FILE+'.mp3';
-const ANNOTATION = SALAMI+'salami-data-public/annotations/'+FILE+'/textfile1.txt';
-
 const SELECTED_FEATURES = [FEATURES.BARS, FEATURES.JOHAN_CHORDS];
 
 const featureExtractor = new FeatureExtractor();
 
-analyzeGd();
+runSalami();
+//analyzeGd();
 //compareGd();
 
 async function runSalami() {
-  await featureExtractor.extractFeatures([FILE_NAME], SELECTED_FEATURES);
-  console.log('inducing structure for', FILE_NAME);
-  await induceStructure(FILE_NAME);
-  //await plot();
+  const audio = SALAMI_AUDIO+FILE+'.mp3';
+  const annotations = SALAMI_ANNOTATIONS+FILE+'/textfile1.txt';
+  parseAnnotations(annotations);
+  /*await featureExtractor.extractFeatures([audio], SELECTED_FEATURES);
+  console.log('inducing structure for', audio);
+  await induceStructure(audio);
+  //await plot();*/
 }
 
 async function analyzeGd() {
