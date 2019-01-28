@@ -18,7 +18,7 @@ const GD_LOCAL = '/Users/flo/Projects/Code/FAST/musical-structure/data/goodlovin
 const FILE_NAME = SALAMI+'lma-audio/'+FILE+'.mp3';
 const ANNOTATION = SALAMI+'salami-data-public/annotations/'+FILE+'/textfile1.txt';
 
-const SELECTED_FEATURES = [FEATURES.BEATS, FEATURES.JOHAN_CHORDS];
+const SELECTED_FEATURES = [FEATURES.BARS, FEATURES.JOHAN_CHORDS];
 
 const featureExtractor = new FeatureExtractor();
 
@@ -41,11 +41,13 @@ async function analyzeGd() {
       const s: any = songs["good lovin'"][i];
       const songPath = GD_LOCAL+s.recording+'/'+s.track;
       console.log('working on', "good lovin'", ' - ', s.track);
-      if (!loadPatterns(songPath) && fs.existsSync(songPath)) {
-        await featureExtractor.extractFeatures([songPath], SELECTED_FEATURES);
-        await induceStructure(songPath);
-      } else {
-        console.log("\nNOT FOUND:", songPath, "\n");
+      if (!loadPatterns(songPath)) {
+        if (fs.existsSync(songPath)) {
+          await featureExtractor.extractFeatures([songPath], SELECTED_FEATURES);
+          await induceStructure(songPath);
+        } else {
+          console.log("\nNOT FOUND:", songPath, "\n");
+        }
       }
     }
   //);
@@ -69,11 +71,11 @@ const OPTIONS = {
   quantizerFunctions: [QF.ORDER(), QF.IDENTITY()], //QF.SORTED_SUMMARIZE(3)], //QF.CLUSTER(50)],//QF.SORTED_SUMMARIZE(3)],
   selectionHeuristic: HEURISTICS.SIZE_AND_1D_COMPACTNESS(0),
   overlapping: true,
-  optimizationMethods: [OPTIMIZATION.DIVIDE],//, OPTIMIZATION.DIVIDE],
+  optimizationMethods: [OPTIMIZATION.PARTITION],//, OPTIMIZATION.DIVIDE],
   optimizationHeuristic: HEURISTICS.SIZE_AND_1D_COMPACTNESS(0),
   optimizationDimension: 0,
-  minPatternLength: 3,
-  loggingOn: false
+  minPatternLength: 2,
+  loggingOn: true
   //minHeuristicValue: 0.1
   //TRY AGAIN ON
 }
@@ -83,13 +85,14 @@ async function induceStructure(audioFile: string): Promise<any> {
   const filtered = filterSelectedFeatures(featureFiles);
   const points = generatePoints([filtered.segs[0]].concat(...filtered.feats),
     filtered.segConditions[0], false); //no 7th chords for now
-  let patterns = new StructureInducer(points, OPTIONS).getCosiatecOccurrences();
+  //let patterns = new StructureInducer(points, OPTIONS).getCosiatecOccurrences();
+  let patterns = new StructureInducer(points, OPTIONS).getCosiatecPatterns();
   patterns = patterns.filter(p => p[0].length > 1);
   if (OPTIONS.loggingOn) {
-    //printPatterns(_.cloneDeep(patterns));
-    //printPatternSegments(_.cloneDeep(patterns));
+    printPatterns(_.cloneDeep(patterns));
+    printPatternSegments(_.cloneDeep(patterns));
   }
-  await savePatternsFile(audioFile, patterns);
+  //await savePatternsFile(audioFile, patterns);
 }
 
 async function induceStructureWithDymos(audioFile: string): Promise<any> {
