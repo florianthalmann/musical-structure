@@ -7,7 +7,9 @@ interface Section {
   length: number
 }
 
-export function parseAnnotations(filename: string): [number[], number[][][]] {
+/** if ignoreVariations is true, section variations are considered identical,
+    e.g. A == A' */
+export function parseAnnotations(filename: string, ignoreVariations?: boolean): [number[], number[][][]] {
   const sections = fs.readFileSync(filename, 'utf8')
     .split('\n').map(t => t.split('\t'));
   const times = sections.map(t => parseFloat(t[0]));
@@ -16,10 +18,10 @@ export function parseAnnotations(filename: string): [number[], number[][][]] {
   const patterns: Map<string, number[][]> = new Map();
   //add all reoccurring major sections (capital letters)
   const major = findSections(labels, l => l.length <= 2 && l == _.toUpper(l));
-  major.forEach(s => addMultiOccurrences(patterns, s, major));
+  major.forEach(s => addMultiOccurrences(patterns, s, major, ignoreVariations));
   //add all reoccurring minor sections
   const minor = findSections(labels, l => l.length <= 2 && l == _.toLower(l))
-  minor.forEach(s => addMultiOccurrences(patterns, s, minor));
+  minor.forEach(s => addMultiOccurrences(patterns, s, minor, ignoreVariations));
   return [times, [...patterns.values()]];
 }
 
@@ -34,7 +36,11 @@ function findSections(labels: string[][], condition: (s: string) => boolean): Se
 }
 
 /** adds all sections that occur multiple times to the pattern map*/
-function addMultiOccurrences(patterns: Map<string, number[][]>, section: Section, sections: Section[]) {
+function addMultiOccurrences(patterns: Map<string, number[][]>, section: Section, sections: Section[], ignoreVariations?: boolean) {
+  if (ignoreVariations) {
+    section.label = section.label.replace('\'', '');
+    sections.forEach(s => s.label = s.label.replace('\'', ''));
+  }
   const occurrences = sections.filter(s => s.label === section.label); //TODO ignore variations (e.g. A')
   if (occurrences.length > 1 && !patterns.has(section.label)) {
     patterns.set(section.label,

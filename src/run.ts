@@ -29,7 +29,7 @@ runSalami();
 async function runSalami() {
   const audio = SALAMI_AUDIO+FILE+'.mp3';
   const annotations = SALAMI_ANNOTATIONS+FILE+'/textfile1.txt';
-  const patterns = parseAnnotations(annotations)[1];
+  const patterns = parseAnnotations(annotations, true)[1];
   printPatterns(_.cloneDeep(patterns));
   printPatternSegments(_.cloneDeep(patterns));
   /*await featureExtractor.extractFeatures([audio], SELECTED_FEATURES);
