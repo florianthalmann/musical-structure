@@ -21,11 +21,7 @@ export function generatePoints(featureFiles: string[], condition?: any, add7ths?
 }
 
 function initPoints(filename: string, condition?: any): number[][] {
-  let values = getVampValues(filename);
-  if (condition != null) {
-    values = values.filter(v => v.value === condition);
-  }
-  return values.map(v => [v.time]);
+  return getVampValues(filename, condition).map(v => [v.time]);
 }
 
 function addFeature(filename: string, points: number[][], add7ths?: boolean) {
@@ -99,8 +95,12 @@ function toPitchClass(pitch: string) {
   return pitch[1] === 'b' ? name-1 : name;
 }
 
-function getVampValues(filename: string): VampValue[] {
-  return loadJsonFile(filename)['annotations'][0]['data'];
+export function getVampValues(filename: string, condition?: boolean): VampValue[] {
+  let values = loadJsonFile(filename)['annotations'][0]['data'];
+  if (condition != null) {
+    values = values.filter(v => v.value === condition);
+  }
+  return values;
 }
 
 function getJohanChordValues(filename: string): JohanChord[] {

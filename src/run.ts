@@ -5,7 +5,7 @@ import { StructureInducer, QUANT_FUNCS as QF, OPTIMIZATION, HEURISTICS } from 's
 import { DymoStructureInducer } from './dymo-structure';
 import { getFeatureFiles, savePatternsFile, loadPatterns } from './file-manager';
 import { FeatureExtractor, FEATURES, FeatureConfig } from './feature-extractor';
-import { generatePoints } from './feature-parser';
+import { generatePoints, getVampValues } from './feature-parser';
 import { parseAnnotations } from './salami-parser';
 import { NodeFetcher, printDymoStructure, mapSeries, printPatterns, printPatternSegments } from './util';
 import { comparePatterns } from './pattern-stats';
@@ -28,16 +28,33 @@ runSalami();
 
 async function runSalami() {
   const audio = SALAMI_AUDIO+FILE+'.mp3';
+  await featureExtractor.extractFeatures([audio], SELECTED_FEATURES);
+  const featureFiles = await getFeatureFiles(audio);
+  const filtered = filterSelectedFeatures(featureFiles);
+  const timegrid = getVampValues(filtered.segs[0], filtered.segConditions[0])
+    .map(v => v.time);
+  
   const annotations = _.range(1,3).map(n => SALAMI_ANNOTATIONS+FILE+'/textfile'+n+'.txt');
-  const patterns = annotations.map(a => parseAnnotations(a, true)[1]);
-  patterns.forEach(p => {
-    printPatterns(_.cloneDeep(p));
+  let groundPatterns = annotations.map(a => parseAnnotations(a, true));
+  //map ground patterns to timegrid
+  groundPatterns.forEach(ps => ps[1] = mapToTimegrid(ps[0], ps[1], timegrid));
+  
+  groundPatterns.forEach(p => {
+    printPatterns(_.cloneDeep(p[1]));
     //printPatternSegments(_.cloneDeep(p));
   })
-  /*await featureExtractor.extractFeatures([audio], SELECTED_FEATURES);
+  /*
   console.log('inducing structure for', audio);
   await induceStructure(audio);
   //await plot();*/
+}
+
+function mapToTimegrid(times: number[], patterns: number[][][], timegrid: number[]): number[][][] {
+  return patterns.map(p => p.map(o => {
+    const startInGrid = timegrid.findIndex(t => t > times[_.first(o)]) - 1;
+    const endInGrid = timegrid.findIndex(t => t > times[_.last(o)]) - 1;
+    return _.range(startInGrid, endInGrid+2);
+  }));
 }
 
 async function analyzeGd() {
