@@ -28,10 +28,12 @@ runSalami();
 
 async function runSalami() {
   const audio = SALAMI_AUDIO+FILE+'.mp3';
-  const annotations = SALAMI_ANNOTATIONS+FILE+'/textfile1.txt';
-  const patterns = parseAnnotations(annotations, true)[1];
-  printPatterns(_.cloneDeep(patterns));
-  printPatternSegments(_.cloneDeep(patterns));
+  const annotations = _.range(1,3).map(n => SALAMI_ANNOTATIONS+FILE+'/textfile'+n+'.txt');
+  const patterns = annotations.map(a => parseAnnotations(a, true)[1]);
+  patterns.forEach(p => {
+    printPatterns(_.cloneDeep(p));
+    //printPatternSegments(_.cloneDeep(p));
+  })
   /*await featureExtractor.extractFeatures([audio], SELECTED_FEATURES);
   console.log('inducing structure for', audio);
   await induceStructure(audio);
