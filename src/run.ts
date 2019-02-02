@@ -37,7 +37,7 @@ async function runSalami() {
   const annotations = _.range(1,3).map(n => SALAMI_ANNOTATIONS+FILE+'/textfile'+n+'.txt');
   let groundPatterns = annotations.map(a => parseAnnotations(a, true));
   //map ground patterns to timegrid
-  groundPatterns.forEach(ps => ps[1] = mapToTimegrid(ps[0], ps[1], timegrid));
+  groundPatterns.forEach(ps => ps[1] = mapToTimegrid(ps[0], ps[1], timegrid, true));
   
   groundPatterns.forEach(p => {
     printPatterns(_.cloneDeep(p[1]));
@@ -49,12 +49,23 @@ async function runSalami() {
   //await plot();*/
 }
 
-function mapToTimegrid(times: number[], patterns: number[][][], timegrid: number[]): number[][][] {
+function mapToTimegrid(times: number[], patterns: number[][][], timegrid: number[], round?: boolean): number[][][] {
   return patterns.map(p => p.map(o => {
-    const startInGrid = timegrid.findIndex(t => t > times[_.first(o)]) - 1;
-    const endInGrid = timegrid.findIndex(t => t > times[_.last(o)]) - 1;
-    return _.range(startInGrid, endInGrid+2);
+    const start = times[_.first(o)];
+    const end = times[_.last(o)];
+    let iStart = timegrid.findIndex(t => t > start) - 1;
+    let iEnd = timegrid.findIndex(t => t > end) - 1;
+    if (round) {
+      iStart += indexOfClosest(start, [timegrid[iStart], timegrid[iStart+1]]);
+      iEnd += indexOfClosest(end, [timegrid[iEnd], timegrid[iEnd+1]]);
+    }
+    return _.range(iStart, iEnd+2);
   }));
+}
+
+function indexOfClosest(b: number, as: number[]): number {
+  const absDists = as.map(a => Math.abs(b-a));
+  return absDists.reduce((iMin,d,i) => d < absDists[iMin] ? i : iMin, 0);
 }
 
 async function analyzeGd() {
