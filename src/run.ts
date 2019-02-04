@@ -38,8 +38,8 @@ async function runSalami() {
   let groundPatterns = annotations.map(a => parseAnnotations(a, true));
   //map ground patterns to timegrid
   groundPatterns.forEach(ps => ps[1] = mapToTimegrid(ps[0], ps[1], timegrid, true));
-  
   groundPatterns.forEach(p => {
+    console.log('\n')
     printPatterns(_.cloneDeep(p[1]));
     //printPatternSegments(_.cloneDeep(p));
   })
@@ -52,14 +52,15 @@ async function runSalami() {
 function mapToTimegrid(times: number[], patterns: number[][][], timegrid: number[], round?: boolean): number[][][] {
   return patterns.map(p => p.map(o => {
     const start = times[_.first(o)];
-    const end = times[_.last(o)];
+    const end = times[_.last(o)+1];
     let iStart = timegrid.findIndex(t => t > start) - 1;
     let iEnd = timegrid.findIndex(t => t > end) - 1;
+    iEnd = iEnd >= 0 ? iEnd : timegrid.length-1;
     if (round) {
       iStart += indexOfClosest(start, [timegrid[iStart], timegrid[iStart+1]]);
       iEnd += indexOfClosest(end, [timegrid[iEnd], timegrid[iEnd+1]]);
     }
-    return _.range(iStart, iEnd+2);
+    return _.range(iStart, iEnd);
   }));
 }
 
