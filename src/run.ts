@@ -9,6 +9,7 @@ import { generatePoints, getVampValues } from './feature-parser';
 import { parseAnnotations } from './salami-parser';
 import { NodeFetcher, printDymoStructure, mapSeries, printPatterns, printPatternSegments } from './util';
 import { comparePatterns } from './pattern-stats';
+import { evaluate } from './eval';
 
 const SALAMI = '/Users/flo/Projects/Code/FAST/grateful-dead/structure/SALAMI/';
 const SALAMI_AUDIO = SALAMI+'lma-audio/';
@@ -21,6 +22,19 @@ const GD_LOCAL = '/Users/flo/Projects/Code/FAST/musical-structure/data/goodlovin
 const SELECTED_FEATURES = [FEATURES.BARS, FEATURES.JOHAN_CHORDS];
 
 const featureExtractor = new FeatureExtractor();
+
+const OPTIONS = {
+  quantizerFunctions: [QF.ORDER(), QF.IDENTITY()], //QF.SORTED_SUMMARIZE(3)], //QF.CLUSTER(50)],//QF.SORTED_SUMMARIZE(3)],
+  selectionHeuristic: HEURISTICS.SIZE_AND_1D_COMPACTNESS(0),
+  overlapping: true,
+  optimizationMethods: [OPTIMIZATION.PARTITION, OPTIMIZATION.MINIMIZE],//, OPTIMIZATION.DIVIDE],
+  optimizationHeuristic: HEURISTICS.SIZE_AND_1D_COMPACTNESS(0),
+  optimizationDimension: 0,
+  minPatternLength: 3,
+  loggingOn: false
+  //minHeuristicValue: 0.1
+  //TRY AGAIN ON
+}
 
 runSalami();
 //analyzeGd();
@@ -38,15 +52,19 @@ async function runSalami() {
   let groundPatterns = annotations.map(a => parseAnnotations(a, true, true));
   //map ground patterns to timegrid
   groundPatterns.forEach(ps => ps[1] = mapToTimegrid(ps[0], ps[1], timegrid, true));
-  groundPatterns.forEach(p => {
+  
+  const points = generatePoints([filtered.segs[0]].concat(...filtered.feats),
+    filtered.segConditions[0], false); //no 7th chords for now
+  const patterns = new StructureInducer(points, OPTIONS).getCosiatecPatterns();
+  
+  groundPatterns.map(p => p[1]).concat([patterns]).forEach(p => {
     console.log('\n')
-    printPatterns(_.cloneDeep(p[1]));
+    printPatterns(_.cloneDeep(p));
     //printPatternSegments(_.cloneDeep(p));
-  })
-  /*
-  console.log('inducing structure for', audio);
-  await induceStructure(audio);
-  //await plot();*/
+  });
+  
+  evaluate(patterns, groundPatterns[0][1]);
+  //evaluate(patterns, groundPatterns[1][1]);
 }
 
 function mapToTimegrid(times: number[], patterns: number[][][], timegrid: number[], round?: boolean): number[][][] {
@@ -103,19 +121,6 @@ async function compareGd() {
     execute('python '+ROOT+'../plot.py '+ROOT+DIRS.out, success => resolve());
   })
 }*/
-
-const OPTIONS = {
-  quantizerFunctions: [QF.ORDER(), QF.IDENTITY()], //QF.SORTED_SUMMARIZE(3)], //QF.CLUSTER(50)],//QF.SORTED_SUMMARIZE(3)],
-  selectionHeuristic: HEURISTICS.SIZE_AND_1D_COMPACTNESS(0),
-  overlapping: true,
-  optimizationMethods: [OPTIMIZATION.PARTITION],//, OPTIMIZATION.DIVIDE],
-  optimizationHeuristic: HEURISTICS.SIZE_AND_1D_COMPACTNESS(0),
-  optimizationDimension: 0,
-  minPatternLength: 2,
-  loggingOn: true
-  //minHeuristicValue: 0.1
-  //TRY AGAIN ON
-}
 
 async function induceStructure(audioFile: string): Promise<any> {
   const featureFiles = await getFeatureFiles(audioFile);
