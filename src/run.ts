@@ -35,7 +35,7 @@ async function runSalami() {
     .map(v => v.time);
   
   const annotations = _.range(1,3).map(n => SALAMI_ANNOTATIONS+FILE+'/textfile'+n+'.txt');
-  let groundPatterns = annotations.map(a => parseAnnotations(a, true));
+  let groundPatterns = annotations.map(a => parseAnnotations(a, true, true));
   //map ground patterns to timegrid
   groundPatterns.forEach(ps => ps[1] = mapToTimegrid(ps[0], ps[1], timegrid, true));
   groundPatterns.forEach(p => {
