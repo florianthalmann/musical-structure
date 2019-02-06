@@ -14,7 +14,7 @@ import { evaluate } from './eval';
 const SALAMI = '/Users/flo/Projects/Code/FAST/grateful-dead/structure/SALAMI/';
 const SALAMI_AUDIO = SALAMI+'lma-audio/';
 const SALAMI_ANNOTATIONS = SALAMI+'salami-data-public/annotations/';
-const FILE = '955';
+const FILE = '957';
 
 const GD = '/Volumes/gspeed1/thomasw/grateful_dead/lma_soundboards/sbd/';
 const GD_LOCAL = '/Users/flo/Projects/Code/FAST/musical-structure/data/goodlovin/';
@@ -63,8 +63,8 @@ async function runSalami() {
     //printPatternSegments(_.cloneDeep(p));
   });
   
-  evaluate(patterns, groundPatterns[0][1]);
-  //evaluate(patterns, groundPatterns[1][1]);
+  //console.log(evaluate(patterns, groundPatterns[0][1]));
+  console.log(evaluate(patterns, groundPatterns[1][1]));
 }
 
 function mapToTimegrid(times: number[], patterns: number[][][], timegrid: number[], round?: boolean): number[][][] {

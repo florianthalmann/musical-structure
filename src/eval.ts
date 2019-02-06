@@ -17,18 +17,36 @@ function ratePattern(pattern: number[][], groundtruth: number[][][]) {
 
 /** returns the proportion of pattern2 contained in pattern1 */
 function contains(pattern1: number[][], pattern2: number[][]) {
-  const positions = pattern2.map(o => findPositionInAnyOccurrence(o[0], pattern1))
+  const posAndProp = pattern2.map(o => findPositionInAnyOccurrence(o, pattern1))
     .filter(p => p != null);
+  //console.log(JSON.stringify(posAndProp))
+  const positions = posAndProp.map(p => p[0]);
   //all occs with reoccurring indices are explained by the patterns
   const reoccurring = positions.filter((p,i) => _.includes(positions, p, i+1));
   //filter involved segments
-  const involved = positions.filter(p => _.includes(reoccurring, p));
-  //return proportion
-  return involved.length / pattern2.length;
+  const involved = posAndProp.filter(p => _.includes(reoccurring, p[0]));
+  //overlap proportion of involved pattern2 segments compared to all segments
+  return _.sum(involved.map(p => p[1])) / pattern2.length;
 }
 
-function findPositionInAnyOccurrence(point: number, pattern: number[][]) {
-  return pattern.map(occ =>
-    occ[0] <= point && point <= occ[occ.length-1] ? point - occ[0] : null)
-  .filter(pos => pos != null)[0];
+/** returns relative position and overlapping proportion of the segment and the
+  * first overlapping occurrence of the given pattern */
+function findPositionInAnyOccurrence(segment: number[], pattern: number[][]): [number, number] {
+  const firstOverlap = pattern.find(occ => overlap(segment, occ));
+  if (firstOverlap) {
+    const spos = _.first(segment) - _.first(firstOverlap);
+    const epos = _.last(segment) - _.last(firstOverlap);
+    const len = _.last(segment) - _.first(segment) + 1;
+    const proportion = (len - Math.max(-spos, 0) - Math.max(epos, 0)) / len;
+    return [spos, proportion];
+  }
+}
+
+function overlap(segment1: number[], segment2: number[]) {
+  return inSegment(_.first(segment1), segment2)
+    || inSegment(_.last(segment1), segment2);
+}
+
+function inSegment(point: number, segment: number[]) {
+  return _.first(segment) <= point && point <= _.last(segment);
 }
