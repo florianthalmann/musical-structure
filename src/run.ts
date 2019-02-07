@@ -14,7 +14,7 @@ import { evaluate } from './eval';
 const SALAMI = '/Users/flo/Projects/Code/FAST/grateful-dead/structure/SALAMI/';
 const SALAMI_AUDIO = SALAMI+'lma-audio/';
 const SALAMI_ANNOTATIONS = SALAMI+'salami-data-public/annotations/';
-const FILE = '957';
+const FILE = '955';
 
 const GD = '/Volumes/gspeed1/thomasw/grateful_dead/lma_soundboards/sbd/';
 const GD_LOCAL = '/Users/flo/Projects/Code/FAST/musical-structure/data/goodlovin/';
@@ -27,7 +27,7 @@ const OPTIONS = {
   quantizerFunctions: [QF.ORDER(), QF.IDENTITY()], //QF.SORTED_SUMMARIZE(3)], //QF.CLUSTER(50)],//QF.SORTED_SUMMARIZE(3)],
   selectionHeuristic: HEURISTICS.SIZE_AND_1D_COMPACTNESS(0),
   overlapping: true,
-  optimizationMethods: [OPTIMIZATION.PARTITION, OPTIMIZATION.MINIMIZE],//, OPTIMIZATION.DIVIDE],
+  optimizationMethods: [OPTIMIZATION.PARTITION],//, OPTIMIZATION.MINIMIZE],//, OPTIMIZATION.DIVIDE],
   optimizationHeuristic: HEURISTICS.SIZE_AND_1D_COMPACTNESS(0),
   optimizationDimension: 0,
   minPatternLength: 3,
@@ -49,14 +49,15 @@ async function runSalami() {
     .map(v => v.time);
   
   const annotations = _.range(1,3).map(n => SALAMI_ANNOTATIONS+FILE+'/textfile'+n+'.txt');
-  let groundPatterns = annotations.map(a => parseAnnotations(a, true, true));
+  const groundPatterns = annotations.map(a => parseAnnotations(a, true, true));
   //map ground patterns to timegrid
   groundPatterns.forEach(ps =>
     ps[1] = normalize(mapToTimegrid(ps[0], ps[1], timegrid, true)));
   
   const points = generatePoints([filtered.segs[0]].concat(...filtered.feats),
     filtered.segConditions[0], false); //no 7th chords for now
-  const patterns = new StructureInducer(points, OPTIONS).getCosiatecPatterns();
+  const patterns = normalize(new StructureInducer(points, OPTIONS).getCosiatecPatterns());
+  
   
   groundPatterns.map(p => p[1]).concat([patterns]).forEach(p => {
     console.log('\n')
@@ -64,8 +65,11 @@ async function runSalami() {
     //printPatternSegments(_.cloneDeep(p));
   });
   
-  //console.log(evaluate(patterns, groundPatterns[0][1]));
+  console.log(evaluate(patterns, groundPatterns[0][1]));
   console.log(evaluate(patterns, groundPatterns[1][1]));
+  
+  console.log(evaluate(groundPatterns[0][1], patterns));
+  console.log(evaluate(groundPatterns[1][1], patterns));
 }
 
 async function analyzeGd() {

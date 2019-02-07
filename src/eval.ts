@@ -1,21 +1,28 @@
 import * as _ from 'lodash';
 
 export function evaluate(patterns: number[][][], groundtruth: number[][][]) {
-  const ratings = patterns.map(p => ratePattern(p, groundtruth));
-  //console.log(ratings)
-  //TODO MEAN OF NON-ZERO?????
-  return _.mean(ratings);
+  //calculate for each patterns how much it covers of each gt pattern
+  const coverages = patterns.map(p => getPatternCoverage(p, groundtruth));
+  //get max coverage for each gt pattern
+  const maxCoverages = _.zipWith(_.zip(...coverages), _.max);
+  //return the proportion of gt explained by the patterns
+  return _.sum(maxCoverages) / groundtruth.length;
 }
 
-function ratePattern(pattern: number[][], groundtruth: number[][][]) {
-  //find where groundtruth occs occur in pattern occs
-  const proportions = groundtruth.map(p => contains(pattern, p));
-  //console.log(JSON.stringify(proportions))
-  //TODO MEAN OF NON-ZERO?????
-  return _.mean(proportions);
+/** this was the first, not very effective evaluation function */
+export function evaluateWithMeans(patterns: number[][][], groundtruth: number[][][]) {
+  return _.mean(patterns.map(p => _.mean(getPatternCoverage(p, groundtruth))));
 }
 
-/** returns the proportion of pattern2 contained in pattern1 */
+/** find how much of each groundtruth pattern can be explained by the pattern */
+function getPatternCoverage(pattern: number[][], groundtruth: number[][][]) {
+  return groundtruth.map(p => contains(pattern, p));
+}
+
+/** returns the proportion of pattern2 contained in pattern1
+  * only includes segments of p2 that overlap with different segments of p1
+  * and at the same relative positions
+  * result is the sum of proportions of the contained segments */
 function contains(pattern1: number[][], pattern2: number[][]) {
   const posAndProp = pattern2.map(o => findPositionInAnyOccurrence(o, pattern1))
     .filter(p => p != null);
