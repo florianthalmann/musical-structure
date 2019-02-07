@@ -8,7 +8,7 @@ import { FeatureExtractor, FEATURES, FeatureConfig } from './feature-extractor';
 import { generatePoints, getVampValues } from './feature-parser';
 import { parseAnnotations } from './salami-parser';
 import { NodeFetcher, printDymoStructure, mapSeries, printPatterns, printPatternSegments } from './util';
-import { comparePatterns } from './pattern-stats';
+import { comparePatterns, mapToTimegrid, normalize } from './pattern-stats';
 import { evaluate } from './eval';
 
 const SALAMI = '/Users/flo/Projects/Code/FAST/grateful-dead/structure/SALAMI/';
@@ -51,7 +51,8 @@ async function runSalami() {
   const annotations = _.range(1,3).map(n => SALAMI_ANNOTATIONS+FILE+'/textfile'+n+'.txt');
   let groundPatterns = annotations.map(a => parseAnnotations(a, true, true));
   //map ground patterns to timegrid
-  groundPatterns.forEach(ps => ps[1] = mapToTimegrid(ps[0], ps[1], timegrid, true));
+  groundPatterns.forEach(ps =>
+    ps[1] = normalize(mapToTimegrid(ps[0], ps[1], timegrid, true)));
   
   const points = generatePoints([filtered.segs[0]].concat(...filtered.feats),
     filtered.segConditions[0], false); //no 7th chords for now
@@ -65,26 +66,6 @@ async function runSalami() {
   
   //console.log(evaluate(patterns, groundPatterns[0][1]));
   console.log(evaluate(patterns, groundPatterns[1][1]));
-}
-
-function mapToTimegrid(times: number[], patterns: number[][][], timegrid: number[], round?: boolean): number[][][] {
-  return patterns.map(p => p.map(o => {
-    const start = times[_.first(o)];
-    const end = times[_.last(o)+1];
-    let iStart = timegrid.findIndex(t => t > start) - 1;
-    let iEnd = timegrid.findIndex(t => t > end) - 1;
-    iEnd = iEnd >= 0 ? iEnd : timegrid.length-1;
-    if (round) {
-      iStart += indexOfClosest(start, [timegrid[iStart], timegrid[iStart+1]]);
-      iEnd += indexOfClosest(end, [timegrid[iEnd], timegrid[iEnd+1]]);
-    }
-    return _.range(iStart, iEnd);
-  }));
-}
-
-function indexOfClosest(b: number, as: number[]): number {
-  const absDists = as.map(a => Math.abs(b-a));
-  return absDists.reduce((iMin,d,i) => d < absDists[iMin] ? i : iMin, 0);
 }
 
 async function analyzeGd() {
