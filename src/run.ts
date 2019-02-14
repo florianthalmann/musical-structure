@@ -1,15 +1,16 @@
 import * as fs from 'fs';
 import * as _ from 'lodash';
 import { DymoGenerator, DymoTemplates } from 'dymo-core';
-import { StructureInducer, QUANT_FUNCS as QF, OPTIMIZATION, HEURISTICS } from 'siafun';
+import { StructureInducer, QUANT_FUNCS as QF, OPTIMIZATION, HEURISTICS, StructureOptions } from 'siafun';
 import { DymoStructureInducer } from './dymo-structure';
 import { getFeatureFiles, savePatternsFile, loadPatterns } from './file-manager';
 import { FeatureExtractor, FEATURES, FeatureConfig } from './feature-extractor';
 import { generatePoints, getVampValues } from './feature-parser';
 import { parseAnnotations } from './salami-parser';
-import { NodeFetcher, printDymoStructure, mapSeries, printPatterns, printPatternSegments } from './util';
+import { NodeFetcher, printDymoStructure, mapSeries, printPatterns, printPatternSegments, audioPathToDirName } from './util';
 import { comparePatterns, mapToTimegrid, normalize } from './pattern-stats';
 import { evaluate } from './eval';
+import { RESULTS_DIR } from './config';
 
 const SALAMI = '/Users/flo/Projects/Code/FAST/grateful-dead/structure/SALAMI/';
 const SALAMI_AUDIO = SALAMI+'lma-audio/';
@@ -19,21 +20,25 @@ const FILE = '955';
 const GD = '/Volumes/gspeed1/thomasw/grateful_dead/lma_soundboards/sbd/';
 const GD_LOCAL = '/Users/flo/Projects/Code/FAST/musical-structure/data/goodlovin/';
 
-const SELECTED_FEATURES = [FEATURES.BARS, FEATURES.JOHAN_CHORDS];
+const SELECTED_FEATURES = [FEATURES.BEATS, FEATURES.JOHAN_CHORDS];
+//!!folder name should contain features, quantfuncs, heuristic. everything else cached
+const CACHE_DIR = RESULTS_DIR+'salami/johanbeats/';
+fs.existsSync(CACHE_DIR) || fs.mkdirSync(CACHE_DIR);
 
 const featureExtractor = new FeatureExtractor();
 
-const OPTIONS = {
+const OPTIONS: StructureOptions = {
   quantizerFunctions: [QF.ORDER(), QF.IDENTITY()], //QF.SORTED_SUMMARIZE(3)], //QF.CLUSTER(50)],//QF.SORTED_SUMMARIZE(3)],
+  //quantizerFunctions: [QF.ORDER(), QF.SORTED_SUMMARIZE(3)],
   selectionHeuristic: HEURISTICS.SIZE_AND_1D_COMPACTNESS(0),
   overlapping: true,
   optimizationMethods: [OPTIMIZATION.PARTITION],//, OPTIMIZATION.MINIMIZE],//, OPTIMIZATION.DIVIDE],
   optimizationHeuristic: HEURISTICS.SIZE_AND_1D_COMPACTNESS(0),
   optimizationDimension: 0,
-  minPatternLength: 3,
-  loggingOn: false
-  //minHeuristicValue: 0.1
-  //TRY AGAIN ON
+  minPatternLength: 5,
+  loggingLevel: 1,
+  //minHeuristicValue: .1,
+  //numPatterns: 100
 }
 
 runSalami();
@@ -41,14 +46,25 @@ runSalami();
 //compareGd();
 
 async function runSalami() {
-  const audio = SALAMI_AUDIO+FILE+'.mp3';
+  const files = fs.readdirSync(SALAMI_AUDIO).filter(f => f.indexOf(".mp3") > 0)
+    .map(f => parseInt(f.slice(0, f.indexOf(".mp3"))));
+  files.sort((a,b) => a-b);
+  const result = {};
+  await mapSeries(files.slice(0,2), async f => result[f] = await evaluateSalamiFile(f));
+  fs.writeFileSync(CACHE_DIR+'salami.json', JSON.stringify(result));
+}
+
+async function evaluateSalamiFile(filename: number) {
+  console.log('working on SALAMI file', filename);
+  const audio = SALAMI_AUDIO+filename+'.mp3';
   await featureExtractor.extractFeatures([audio], SELECTED_FEATURES);
   const featureFiles = await getFeatureFiles(audio);
   const filtered = filterSelectedFeatures(featureFiles);
   const timegrid = getVampValues(filtered.segs[0], filtered.segConditions[0])
     .map(v => v.time);
   
-  const annotations = _.range(1,3).map(n => SALAMI_ANNOTATIONS+FILE+'/textfile'+n+'.txt');
+  console.log('    processing annotations', filename);
+  const annotations = _.range(1,3).map(n => SALAMI_ANNOTATIONS+filename+'/textfile'+n+'.txt');
   const groundPatterns = annotations.map(a => parseAnnotations(a, true, true));
   //map ground patterns to timegrid
   groundPatterns.forEach(ps =>
@@ -56,20 +72,30 @@ async function runSalami() {
   
   const points = generatePoints([filtered.segs[0]].concat(...filtered.feats),
     filtered.segConditions[0], false); //no 7th chords for now
-  const patterns = normalize(new StructureInducer(points, OPTIONS).getCosiatecPatterns());
   
+  console.log('    inferring structure', filename);
+  OPTIONS.cacheDir = CACHE_DIR+audioPathToDirName(audio)+'/';
+  fs.existsSync(OPTIONS.cacheDir) || fs.mkdirSync(OPTIONS.cacheDir);
+  const patterns = new StructureInducer(points, OPTIONS).getCosiatecPatterns();
   
-  groundPatterns.map(p => p[1]).concat([patterns]).forEach(p => {
-    console.log('\n')
-    printPatterns(_.cloneDeep(p));
-    //printPatternSegments(_.cloneDeep(p));
-  });
+  console.log('    evaluating', filename);
+  const evals = {};
+  _.range(0,2).forEach(g => {
+    evals[g] = {};
+    evals[g]["precision"] = evaluate(patterns, groundPatterns[g][1]);
+    evals[g]["accuracy"] = evaluate(groundPatterns[g][1], patterns);
+  })
   
-  console.log(evaluate(patterns, groundPatterns[0][1]));
-  console.log(evaluate(patterns, groundPatterns[1][1]));
+  if (OPTIONS.loggingLevel > 1) {
+    groundPatterns.map(p => p[1]).concat([patterns]).forEach(p => {
+      console.log('\n')
+      printPatterns(_.cloneDeep(p));
+      //printPatternSegments(_.cloneDeep(p));
+    });
+    console.log(evals);
+  }
   
-  console.log(evaluate(groundPatterns[0][1], patterns));
-  console.log(evaluate(groundPatterns[1][1], patterns));
+  return evals;
 }
 
 async function analyzeGd() {
@@ -115,7 +141,7 @@ async function induceStructure(audioFile: string): Promise<any> {
   //let patterns = new StructureInducer(points, OPTIONS).getCosiatecOccurrences();
   let patterns = new StructureInducer(points, OPTIONS).getCosiatecPatterns();
   patterns = patterns.filter(p => p[0].length > 1);
-  if (OPTIONS.loggingOn) {
+  if (OPTIONS.loggingLevel > 1) {
     printPatterns(_.cloneDeep(patterns));
     printPatternSegments(_.cloneDeep(patterns));
   }
