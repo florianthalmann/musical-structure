@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import * as _ from 'lodash';
 import { DymoGenerator, DymoTemplates } from 'dymo-core';
-import { StructureInducer, QUANT_FUNCS as QF, OPTIMIZATION, HEURISTICS, StructureOptions } from 'siafun';
+import { StructureInducer, QUANT_FUNCS as QF, OPTIMIZATION, HEURISTICS, StructureOptions, getCosiatecOptionsString } from 'siafun';
 import { DymoStructureInducer } from './dymo-structure';
 import { getFeatureFiles, savePatternsFile, loadPatterns } from './file-manager';
 import { FeatureExtractor, FEATURES, FeatureConfig } from './feature-extractor';
@@ -20,26 +20,29 @@ const FILE = '955';
 const GD = '/Volumes/gspeed1/thomasw/grateful_dead/lma_soundboards/sbd/';
 const GD_LOCAL = '/Users/flo/Projects/Code/FAST/musical-structure/data/goodlovin/';
 
-const SELECTED_FEATURES = [FEATURES.BEATS, FEATURES.JOHAN_CHORDS];
-//!!folder name should contain features, quantfuncs, heuristic. everything else cached
-const CACHE_DIR = RESULTS_DIR+'salami/johanbeats/';
-fs.existsSync(CACHE_DIR) || fs.mkdirSync(CACHE_DIR);
-
 const featureExtractor = new FeatureExtractor();
+
+const SELECTED_FEATURES = [FEATURES.BARS, FEATURES.JOHAN_CHORDS];
 
 const OPTIONS: StructureOptions = {
   quantizerFunctions: [QF.ORDER(), QF.IDENTITY()], //QF.SORTED_SUMMARIZE(3)], //QF.CLUSTER(50)],//QF.SORTED_SUMMARIZE(3)],
   //quantizerFunctions: [QF.ORDER(), QF.SORTED_SUMMARIZE(3)],
   selectionHeuristic: HEURISTICS.SIZE_AND_1D_COMPACTNESS(0),
   overlapping: true,
-  optimizationMethods: [OPTIMIZATION.PARTITION],//, OPTIMIZATION.MINIMIZE],//, OPTIMIZATION.DIVIDE],
+  optimizationMethods: [],//OPTIMIZATION.PARTITION],//, OPTIMIZATION.MINIMIZE],//, OPTIMIZATION.DIVIDE],
   optimizationHeuristic: HEURISTICS.SIZE_AND_1D_COMPACTNESS(0),
   optimizationDimension: 0,
-  minPatternLength: 5,
+  minPatternLength: 1,
   loggingLevel: 1,
   //minHeuristicValue: .1,
   //numPatterns: 100
 }
+//!!folder name should contain features, quantfuncs, heuristic. everything else cached
+const CACHE_DIR = RESULTS_DIR+'salami/johanbars/';
+fs.existsSync(CACHE_DIR) || fs.mkdirSync(CACHE_DIR);
+const EVAL_FILE = CACHE_DIR+'*salami_'+getCosiatecOptionsString(OPTIONS)+'.json';
+
+
 
 runSalami();
 //analyzeGd();
@@ -50,8 +53,8 @@ async function runSalami() {
     .map(f => parseInt(f.slice(0, f.indexOf(".mp3"))));
   files.sort((a,b) => a-b);
   const result = {};
-  await mapSeries(files.slice(0,2), async f => result[f] = await evaluateSalamiFile(f));
-  fs.writeFileSync(CACHE_DIR+'salami.json', JSON.stringify(result));
+  await mapSeries(files.slice(0,5), async f => result[f] = await evaluateSalamiFile(f));
+  fs.writeFileSync(EVAL_FILE, JSON.stringify(result));
 }
 
 async function evaluateSalamiFile(filename: number) {
@@ -64,7 +67,12 @@ async function evaluateSalamiFile(filename: number) {
     .map(v => v.time);
   
   console.log('    processing annotations', filename);
-  const annotations = _.range(1,3).map(n => SALAMI_ANNOTATIONS+filename+'/textfile'+n+'.txt');
+  const annotations = fs.existsSync(SALAMI_ANNOTATIONS+filename+'/') ?
+    fs.readdirSync(SALAMI_ANNOTATIONS+filename+'/')
+      .filter(f => f.indexOf(".txt") > 0)
+      .map(f => SALAMI_ANNOTATIONS+filename+'/'+f)
+    : [];
+  
   const groundPatterns = annotations.map(a => parseAnnotations(a, true, true));
   //map ground patterns to timegrid
   groundPatterns.forEach(ps =>
@@ -80,11 +88,11 @@ async function evaluateSalamiFile(filename: number) {
   
   console.log('    evaluating', filename);
   const evals = {};
-  _.range(0,2).forEach(g => {
-    evals[g] = {};
-    evals[g]["precision"] = evaluate(patterns, groundPatterns[g][1]);
-    evals[g]["accuracy"] = evaluate(groundPatterns[g][1], patterns);
-  })
+  groundPatterns.forEach((g,i) => {
+    evals[i] = {};
+    evals[i]["precision"] = evaluate(patterns, g[1]);
+    evals[i]["accuracy"] = evaluate(g[1], patterns);
+  });
   
   if (OPTIONS.loggingLevel > 1) {
     groundPatterns.map(p => p[1]).concat([patterns]).forEach(p => {
