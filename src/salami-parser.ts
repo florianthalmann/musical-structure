@@ -13,7 +13,8 @@ export function parseAnnotations(filename: string, ignoreVariations?: boolean, u
   const sections = fs.readFileSync(filename, 'utf8')
     .split('\n').map(t => t.split('\t'));
   const times = sections.map(s => parseFloat(s[0]));
-  let labels = sections.map(s => s[1].split(',').map(l => _.trim(l)));
+  let labels = sections.filter(s => s[1])
+    .map(s => s[1].split(',').map(l => _.trim(l)));
   if (ignoreVariations) {
     labels = labels.map(ls => ls.map(l => l.replace(/\'/g, '')));
   }

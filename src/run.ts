@@ -53,7 +53,7 @@ async function runSalami() {
     .map(f => parseInt(f.slice(0, f.indexOf(".mp3"))));
   files.sort((a,b) => a-b);
   const result = {};
-  await mapSeries(files.slice(0,5), async f => result[f] = await evaluateSalamiFile(f));
+  await mapSeries(files, async f => result[f] = await evaluateSalamiFile(f));
   fs.writeFileSync(EVAL_FILE, JSON.stringify(result));
 }
 
