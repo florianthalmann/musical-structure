@@ -41,7 +41,10 @@ function addVampFeature(filename: string, points: number[][]) {
     }
     return grp;
   }, [[]]).map(g => g.map(v => v.value));
-  return _.zip(points, grouped.slice(1).map(g => mean(g)));
+  const means = grouped.slice(1).map(g => mean(g));
+  let zip = _.zip(points, means);
+  if (_.last(zip)[1] == undefined) zip = zip.slice(0, -1);
+  return zip;
 }
 
 function addJohanChords(filename: string, points: number[][], add7ths?: boolean) {
