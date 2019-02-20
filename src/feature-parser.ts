@@ -2,7 +2,6 @@ import * as fs from 'fs';
 import * as _ from 'lodash';
 import { indexOfMax } from 'arrayutils';
 import { FEATURES } from './feature-extractor';
-import { loadJsonFile } from './file-manager';
 
 interface VampValue {
   time: number,
@@ -99,7 +98,8 @@ function toPitchClass(pitch: string) {
 }
 
 export function getVampValues(filename: string, condition?: boolean): VampValue[] {
-  let values = loadJsonFile(filename)['annotations'][0]['data'];
+  const json = JSON.parse(fixVampBuggyJson(fs.readFileSync(filename, 'utf8')));
+  let values = json['annotations'][0]['data'];
   if (condition != null) {
     values = values.filter(v => v.value === condition);
   }
@@ -109,4 +109,31 @@ export function getVampValues(filename: string, condition?: boolean): VampValue[
 function getJohanChordValues(filename: string): JohanChord[] {
   const json = JSON.parse(fs.readFileSync(filename, 'utf8'));
   return json['chordSequence'];
+}
+
+function fixVampBuggyJson(j: string) {
+  return j.split('{').map(k =>
+    k.split('}').map(l =>
+      l.split(',').map(m =>
+        m.split(':').map(n =>
+          escapeVampBuggyQuotes(n)
+        ).join(':')
+      ).join(",")
+    ).join("}")
+  ).join("{");
+}
+
+function escapeVampBuggyQuotes(s: string) {
+  const is = indexesOf(s, '"');
+  if (is.length > 2) {
+    const chars = s.split("");
+    _.reverse(is.slice(1, -1))
+      .forEach(i => chars.splice(i, 0, '\\'));
+    return chars.join("");
+  }
+  return s;
+}
+
+function indexesOf(s: string, char: string) {
+  return s.split("").map((c,i) => c == char ? i : -1).filter((i => i >= 0));
 }
