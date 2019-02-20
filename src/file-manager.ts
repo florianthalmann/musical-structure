@@ -1,10 +1,22 @@
 import * as fs from 'fs';
+import * as _ from 'lodash';
 import { FEATURES_DIR, RESULTS_DIR, PATTERNS_DIR } from './config';
 import { audioPathToDirName, audioPathToJsonFileName } from './util';
 
 fs.existsSync(FEATURES_DIR) || fs.mkdirSync(FEATURES_DIR);
 fs.existsSync(RESULTS_DIR) || fs.mkdirSync(RESULTS_DIR);
 fs.existsSync(PATTERNS_DIR) || fs.mkdirSync(PATTERNS_DIR);
+
+export async function cleanOptimizationCaches(path: string) {
+  const subpaths = fs.readdirSync(path)
+    .filter(p => p.indexOf('lma-audio') >= 0)
+    .map(p => path+'/'+p);
+  const filepaths = _.flatten(subpaths.map(p => fs.readdirSync(p)
+    .filter(f => f.indexOf('optimized') >= 0)
+    .map(f => p+'/'+f)));
+  console.log('removing', filepaths.length, 'files');
+  filepaths.forEach(f => fs.unlinkSync(f));
+}
 
 export async function getFeatureFiles(audioPath: string): Promise<string[]> {
   var folder = FEATURES_DIR + audioPathToDirName(audioPath) + '/';
