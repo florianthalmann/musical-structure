@@ -11,6 +11,7 @@ import { NodeFetcher, printDymoStructure, mapSeries, printPatterns, printPattern
 import { comparePatterns, mapToTimegrid, normalize } from './pattern-stats';
 import { evaluate } from './eval';
 import { RESULTS_DIR } from './config';
+import { cleanOptimizationCaches } from './file-manager';
 
 const SALAMI = '/Users/flo/Projects/Code/FAST/grateful-dead/structure/SALAMI/';
 const SALAMI_AUDIO = SALAMI+'lma-audio/';
@@ -29,11 +30,11 @@ const OPTIONS: StructureOptions = {
   //quantizerFunctions: [QF.ORDER(), QF.SORTED_SUMMARIZE(3)],
   selectionHeuristic: HEURISTICS.SIZE_AND_1D_COMPACTNESS(0),
   overlapping: true,
-  optimizationMethods: [],//OPTIMIZATION.PARTITION],//, OPTIMIZATION.MINIMIZE],//, OPTIMIZATION.DIVIDE],
+  optimizationMethods: [OPTIMIZATION.PARTITION, OPTIMIZATION.MINIMIZE],//, OPTIMIZATION.MINIMIZE],//, OPTIMIZATION.DIVIDE],
   optimizationHeuristic: HEURISTICS.SIZE_AND_1D_COMPACTNESS(0),
   optimizationDimension: 0,
   minPatternLength: 1,
-  loggingLevel: 1,
+  loggingLevel: 0,
   //minHeuristicValue: .1,
   //numPatterns: 100
 }
@@ -47,6 +48,7 @@ const EVAL_FILE = CACHE_DIR+'*salami_'+getCosiatecOptionsString(OPTIONS)+'.json'
 runSalami();
 //analyzeGd();
 //compareGd();
+//cleanOptimizationCaches(RESULTS_DIR+'salami/chroma3bars')
 
 async function runSalami() {
   const files = fs.readdirSync(SALAMI_AUDIO).filter(f => f.indexOf(".mp3") > 0)
