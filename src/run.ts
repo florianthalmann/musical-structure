@@ -27,13 +27,13 @@ const SELECTED_FEATURES = [FEATURES.BARS, FEATURES.JOHAN_CHORDS];
 
 const OPTIONS: StructureOptions = {
   quantizerFunctions: [QF.ORDER(), QF.IDENTITY()], //QF.SORTED_SUMMARIZE(3)], //QF.CLUSTER(50)],//QF.SORTED_SUMMARIZE(3)],
-  //quantizerFunctions: [QF.ORDER(), QF.SORTED_SUMMARIZE(3)],
+  //quantizerFunctions: [QF.ORDER(), QF.SORTED_SUMMARIZE(4)],
   selectionHeuristic: HEURISTICS.SIZE_AND_1D_COMPACTNESS(0),
   overlapping: true,
-  optimizationMethods: [OPTIMIZATION.PARTITION, OPTIMIZATION.MINIMIZE],//, OPTIMIZATION.MINIMIZE],//, OPTIMIZATION.DIVIDE],
+  optimizationMethods: [OPTIMIZATION.PARTITION],//, OPTIMIZATION.MINIMIZE],//, OPTIMIZATION.DIVIDE],
   optimizationHeuristic: HEURISTICS.SIZE_AND_1D_COMPACTNESS(0),
   optimizationDimension: 0,
-  minPatternLength: 1,
+  minPatternLength: 7,
   loggingLevel: 0,
   //minHeuristicValue: .1,
   //numPatterns: 100
@@ -41,7 +41,7 @@ const OPTIONS: StructureOptions = {
 //!!folder name should contain features, quantfuncs, heuristic. everything else cached
 const CACHE_DIR = RESULTS_DIR+'salami/johanbars/';
 fs.existsSync(CACHE_DIR) || fs.mkdirSync(CACHE_DIR);
-const EVAL_FILE = CACHE_DIR+'*salami_'+getCosiatecOptionsString(OPTIONS)+'.json';
+const EVAL_FILE = CACHE_DIR+getCosiatecOptionsString(OPTIONS)+'.json';
 
 
 
@@ -51,16 +51,39 @@ runSalami();
 //cleanOptimizationCaches(RESULTS_DIR+'salami/chroma3bars')
 
 async function runSalami() {
-  const files = fs.readdirSync(SALAMI_AUDIO).filter(f => f.indexOf(".mp3") > 0)
+  console.log('gathering files and parsing annotations');
+  //gather available files and annotations
+  let files = fs.readdirSync(SALAMI_AUDIO).filter(f => f.indexOf(".mp3") > 0)
     .map(f => parseInt(f.slice(0, f.indexOf(".mp3"))));
+  const groundtruth = {};
+  files.forEach(f => groundtruth[f] = getGroundtruth(f));
+  //forget files with empty annotations and sort
+  files = files.filter(f => groundtruth[f]);
   files.sort((a,b) => a-b);
   const result = {};
-  await mapSeries(files, async f => result[f] = await evaluateSalamiFile(f));
+  await mapSeries(files, async f =>
+    result[f] = await evaluateSalamiFile(f, groundtruth[f]));
   fs.writeFileSync(EVAL_FILE, JSON.stringify(result));
 }
 
-async function evaluateSalamiFile(filename: number) {
+function getGroundtruth(filename: number) {
+  //find available annotation files
+  const annotations = fs.existsSync(SALAMI_ANNOTATIONS+filename+'/') ?
+    fs.readdirSync(SALAMI_ANNOTATIONS+filename+'/')
+      .filter(f => f.indexOf(".txt") > 0)
+      .map(f => SALAMI_ANNOTATIONS+filename+'/'+f)
+    : [];
+  //parse ground truth and filter out annotations without repetitions (and empty ones like 964)
+  const groundPatterns = annotations.map(a => parseAnnotations(a, true, true))
+    .filter(g => g[1].length > 0);
+  
+  return groundPatterns.length > 0 ? groundPatterns : undefined;
+}
+
+async function evaluateSalamiFile(filename: number, groundtruth: [number[], number[][][]][]) {
   console.log('working on SALAMI file', filename);
+  
+  console.log('    extracting and parsing features', filename);
   const audio = SALAMI_AUDIO+filename+'.mp3';
   await featureExtractor.extractFeatures([audio], SELECTED_FEATURES);
   const featureFiles = await getFeatureFiles(audio);
@@ -68,36 +91,28 @@ async function evaluateSalamiFile(filename: number) {
   const timegrid = getVampValues(filtered.segs[0], filtered.segConditions[0])
     .map(v => v.time);
   
-  console.log('    processing annotations', filename);
-  const annotations = fs.existsSync(SALAMI_ANNOTATIONS+filename+'/') ?
-    fs.readdirSync(SALAMI_ANNOTATIONS+filename+'/')
-      .filter(f => f.indexOf(".txt") > 0)
-      .map(f => SALAMI_ANNOTATIONS+filename+'/'+f)
-    : [];
-  
-  const groundPatterns = annotations.map(a => parseAnnotations(a, true, true));
+  console.log('    mapping annotations to timegrid', filename);
   //map ground patterns to timegrid
-  groundPatterns.forEach(ps =>
+  groundtruth.forEach(ps =>
     ps[1] = normalize(mapToTimegrid(ps[0], ps[1], timegrid, true)));
   
+  console.log('    inferring structure', filename);
   const points = generatePoints([filtered.segs[0]].concat(...filtered.feats),
     filtered.segConditions[0], false); //no 7th chords for now
-  
-  console.log('    inferring structure', filename);
   OPTIONS.cacheDir = CACHE_DIR+audioPathToDirName(audio)+'/';
   fs.existsSync(OPTIONS.cacheDir) || fs.mkdirSync(OPTIONS.cacheDir);
   const patterns = new StructureInducer(points, OPTIONS).getCosiatecPatterns();
   
   console.log('    evaluating', filename);
   const evals = {};
-  groundPatterns.forEach((g,i) => {
+  groundtruth.forEach((g,i) => {
     evals[i] = {};
     evals[i]["precision"] = evaluate(patterns, g[1]);
     evals[i]["accuracy"] = evaluate(g[1], patterns);
   });
   
   if (OPTIONS.loggingLevel > 1) {
-    groundPatterns.map(p => p[1]).concat([patterns]).forEach(p => {
+    groundtruth.map(p => p[1]).concat([patterns]).forEach(p => {
       console.log('\n')
       printPatterns(_.cloneDeep(p));
       //printPatternSegments(_.cloneDeep(p));
