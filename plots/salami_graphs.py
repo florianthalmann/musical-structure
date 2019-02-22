@@ -4,11 +4,20 @@
 # In[1]:
 
 
+#needs to be before default fig size in next code cell
+get_ipython().magic(u'matplotlib inline')
 import os, json
 import numpy as np
 import pandas as pd
 
 BASE = '../results/salami/'
+
+FE = 'features'
+OM = 'optim_methods'
+OD = 'optim_dim'
+ML = 'min_length'
+OV = 'overlapping'
+NP = 'num_patterns'
 
 dirs = [os.path.join(BASE, d) for d in os.listdir(BASE) if d != '.DS_Store']
 files = [os.path.join(d, f) for d in dirs for f in os.listdir(d) if f.endswith('.json')]
@@ -31,12 +40,12 @@ def get_configs_df(files):
     fields = [f[f.index('salami/')+7 : f.index('.json')] for f in files]
     params = [f.split('/')[1].split('_') for f in fields]
     configs = [
-        ['features', [f.split('/')[0] for f in fields]],
-        ['optim_methods', [p[0] for p in params]],
-        ['optim_dim', [int(p[1]) for p in params]],
-        ['min_length', [int(p[2]) for p in params]],
-        ['overlapping', [bool(p[3]) for p in params]],
-        ['num_patterns', [int(p[4]) if len(p) > 4 else 0 for p in params]],
+        [FE, [f.split('/')[0] for f in fields]],
+        [OM, [p[0] for p in params]],
+        [OD, [int(p[1]) for p in params]],
+        [ML, [int(p[2]) for p in params]],
+        [OV, [bool(p[3]) for p in params]],
+        [NP, [int(p[4]) if len(p) > 4 else 0 for p in params]],
     ]
     return pd.DataFrame([c[1] for c in configs], index=[c[0] for c in configs]).T
 
@@ -46,12 +55,10 @@ mean_accs = jsons_to_df(jsons, 'accuracy', np.mean)
 max_precs = jsons_to_df(jsons, 'precision', np.max)
 max_accs = jsons_to_df(jsons, 'accuracy', np.max)
 
-fe = configs['features']
-om = configs['optim_methods']
-od = configs['optim_dim']
-ml = configs['min_length']
-ov = configs['overlapping']
-np = configs['num_patterns']
+fe = configs[FE]
+om = configs[OM]
+ml = configs[ML]
+np = configs[NP]
 
 
 # # johanbars with different optimizations
@@ -61,31 +68,30 @@ np = configs['num_patterns']
 # In[2]:
 
 
-get_ipython().magic(u'matplotlib notebook')
 from matplotlib import pyplot as plt
-#plt.rcParams['figure.figsize'] = [12, 9]
+plt.rcParams['figure.figsize'] = (8, 6)
 
-selection = configs.loc[(fe == 'johanbars') & (np == 0) & (ml == 1)]
+sel = configs.loc[(fe == 'johanbars') & (np == 0) & (ml == 1)]
 fig, ax = plt.subplots()
-mean_precs.iloc[selection.index.tolist()].T.boxplot()
+mean_precs.iloc[sel.index.tolist()].T.boxplot()
 ax.set_title('johanbars by optimization method')
-ax.set_xticklabels(selection['optim_methods']);
+ax.set_xticklabels(sel[OM]);
 
 
 # # partitioned johanbars with different pattern restrictions
 # 
 # min length has no longer an effect when num patterns is restricted (top patterns are all long)
 # 
-# thus maybe always do min length = 3. num patterns says how good the top patterns are
+# thus maybe always do min length == 3. num patterns says how good the top patterns are
 
 # In[3]:
 
 
-selection = configs.loc[(fe == 'johanbars') & (om == '2')]
+sel = configs.loc[(fe == 'johanbars') & (om == '2')]
 fig, ax = plt.subplots()
-mean_precs.iloc[selection.index.tolist()].T.boxplot()
+mean_precs.iloc[sel.index.tolist()].T.boxplot()
 ax.set_title('partitioned johanbars by num patterns and min length')
-ax.set_xticklabels([str(a)+' '+str(b) for (a,b) in zip(np, ml)]);
+ax.set_xticklabels([str(a)+' '+str(b) for (a,b) in zip(sel[NP], sel[ML])]);
 
 
 # # different subsets of best cosiatec patterns
@@ -95,11 +101,11 @@ ax.set_xticklabels([str(a)+' '+str(b) for (a,b) in zip(np, ml)]);
 # In[4]:
 
 
-selection = configs.loc[(fe == 'johanbars') & (ml == 3)]
+sel = configs.loc[(fe == 'johanbars') & (ml == 3)]
 fig, ax = plt.subplots()
-mean_precs.iloc[selection.index.tolist()].T.boxplot()
+mean_precs.iloc[sel.index.tolist()].T.boxplot()
 ax.set_title('johanbars by optim method and num patterns')
-ax.set_xticklabels([str(a)+' '+str(b) for (a,b) in zip(om, np)]);
+ax.set_xticklabels([str(a)+' '+str(b) for (a,b) in zip(sel[OM], sel[NP])]);
 
 
 # # chroma triads, tetrachords, clusters, and mfcc added
@@ -114,11 +120,11 @@ ax.set_xticklabels([str(a)+' '+str(b) for (a,b) in zip(om, np)]);
 # In[5]:
 
 
-selection = configs.loc[(ml == 3) & (om.isin(['2'])) & (np == 0)]
+sel = configs.loc[(ml == 3) & (om.isin(['2'])) & (np == 0)]
 fig, ax = plt.subplots()
-mean_precs.iloc[selection.index.tolist()].T.boxplot()
+mean_precs.iloc[sel.index.tolist()].T.boxplot()
 ax.set_title('johanbars by optim method and num patterns')
-ax.set_xticklabels([str(a)+' '+str(b) for (a,b) in zip(fe, om)], rotation=60);
+ax.set_xticklabels([str(a)+' '+str(b) for (a,b) in zip(sel[FE], sel[OM])], rotation=60);
 
 
 # # see if same tracks best when optimized
@@ -128,26 +134,26 @@ ax.set_xticklabels([str(a)+' '+str(b) for (a,b) in zip(fe, om)], rotation=60);
 # In[6]:
 
 
-def add_scatter(selection, ax, label):
-    two = mean_precs.iloc[selection].T
-    ax.scatter(two[selection[1]], two[selection[0]])
+def add_scatter(sel, ax, label):
+    two = mean_precs.iloc[sel].T
+    ax.scatter(two[sel[1]], two[sel[0]])
     ax.plot(ax.get_xlim(), ax.get_xlim(), ls='--')
-    ax.set_xlabel(configs.T[selection[1]][label])
-    ax.set_ylabel(configs.T[selection[0]][label])
+    ax.set_xlabel(configs.T[sel[1]][label])
+    ax.set_ylabel(configs.T[sel[0]][label])
 
 fig, ax = plt.subplots(2,2)
 
-selection = configs.loc[(fe == 'johanbars') & (ml == 3) & (om.isin(['','2'])) & (np == 0)].index.tolist()
-add_scatter(selection, ax[0,0], 'optim_methods')
+sel = configs.loc[(fe == 'johanbars') & (ml == 3) & (om.isin(['','2'])) & (np == 0)].index.tolist()
+add_scatter(sel, ax[0,0], OM)
 
-selection = configs.loc[(fe == 'johanbars') & (ml == 3) & (om.isin(['','1'])) & (np == 0)].index.tolist()
-add_scatter(selection, ax[0,1], 'optim_methods')
+sel = configs.loc[(fe == 'johanbars') & (ml == 3) & (om.isin(['','1'])) & (np == 0)].index.tolist()
+add_scatter(sel, ax[0,1], OM)
 
-selection = configs.loc[(fe == 'johanbars') & (ml == 3) & (om.isin(['','0'])) & (np == 0)].index.tolist()
-add_scatter(selection, ax[1,0], 'optim_methods')
+sel = configs.loc[(fe == 'johanbars') & (ml == 3) & (om.isin(['','0'])) & (np == 0)].index.tolist()
+add_scatter(sel, ax[1,0], OM)
 
-selection = configs.loc[(fe == 'johanbars') & (ml == 3) & (om.isin(['0','1'])) & (np == 0)].index.tolist()
-add_scatter(selection, ax[1,1], 'optim_methods')
+sel = configs.loc[(fe == 'johanbars') & (ml == 3) & (om.isin(['0','1'])) & (np == 0)].index.tolist()
+add_scatter(sel, ax[1,1], OM)
 
 
 # # compare best results with chroma triads and johanchords
@@ -159,9 +165,9 @@ add_scatter(selection, ax[1,1], 'optim_methods')
 
 fig, ax = plt.subplots()
 
-selection = configs.loc[(fe.isin(['johanbars', 'chroma3bars'])) & (ml == 3)
-                        & (om.isin(['2'])) & (np == 0)].index.tolist()
-add_scatter(selection, ax, 'features')
+sel = configs.loc[(fe.isin(['johanbars', 'chroma3bars'])) & (ml == 3)
+                  & (om.isin(['2'])) & (np == 0)].index.tolist()
+add_scatter(sel, ax, FE)
 
 
 # In[ ]:
