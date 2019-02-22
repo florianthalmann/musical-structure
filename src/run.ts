@@ -1,5 +1,6 @@
 import * as fs from 'fs';
 import * as _ from 'lodash';
+import * as readline from 'readline';
 import { DymoGenerator, DymoTemplates } from 'dymo-core';
 import { StructureInducer, QUANT_FUNCS as QF, OPTIMIZATION, HEURISTICS, StructureOptions, getCosiatecOptionsString } from 'siafun';
 import { DymoStructureInducer } from './dymo-structure';
@@ -23,10 +24,10 @@ const GD_LOCAL = '/Users/flo/Projects/Code/FAST/musical-structure/data/goodlovin
 
 const featureExtractor = new FeatureExtractor();
 
-const SELECTED_FEATURES = [FEATURES.BARS, FEATURES.JOHAN_CHORDS];
+const SELECTED_FEATURES = [FEATURES.BARS, FEATURES.MFCC];
 
 //!!folder name should contain features, quantfuncs, heuristic. everything else cached
-const CACHE_DIR = RESULTS_DIR+'salami/johanbars/';
+const CACHE_DIR = RESULTS_DIR+'salami/mfcc3bars/';
 fs.existsSync(CACHE_DIR) || fs.mkdirSync(CACHE_DIR);
 
 const CONSTANT = {
@@ -38,13 +39,13 @@ const CONSTANT = {
 }
 
 const BASIS = {
-  quantizerFunctions: [QF.ORDER(), QF.IDENTITY()], //QF.SORTED_SUMMARIZE(3)], //QF.CLUSTER(50)],//QF.SORTED_SUMMARIZE(3)],
-  //quantizerFunctions: [QF.ORDER(), QF.SORTED_SUMMARIZE(4)],
+  //quantizerFunctions: [QF.ORDER(), QF.IDENTITY()], //QF.SORTED_SUMMARIZE(3)], //QF.CLUSTER(50)],//QF.SORTED_SUMMARIZE(3)],
+  quantizerFunctions: [QF.ORDER(), QF.SORTED_SUMMARIZE(3)],
   //minHeuristicValue: .1,
 };
 
 const VARIATIONS: [string, any[]][] = [
-  ["optimizationMethods", [[], [OPTIMIZATION.PARTITION], [OPTIMIZATION.MINIMIZE], [OPTIMIZATION.DIVIDE]]],
+  ["optimizationMethods", [[], [OPTIMIZATION.PARTITION]]],
   ["minPatternLength", [1, 3, 5]],
   ["numPatterns", [undefined, 5, 10]]
 ]
@@ -62,8 +63,10 @@ async function runBatchSalami(basis: StructureOptions, variations?: [string, any
     const evalFile = CACHE_DIR + getCosiatecOptionsString(currentOptions)
       + (currentOptions.numPatterns != null ? '_'+currentOptions.numPatterns : '')
       + '.json';
-    console.log(evalFile)
-    return runSalami(currentOptions, evalFile);
+    console.log('working on config', evalFile);
+    if (!fs.existsSync(evalFile)) {
+      await runSalami(currentOptions, evalFile);
+    }
   });
 
 }
@@ -98,8 +101,13 @@ function getGroundtruth(filename: number) {
   return groundPatterns.length > 0 ? groundPatterns : undefined;
 }
 
+function updateStatus(s: string) {
+  readline.cursorTo(process.stdout, 0);
+  process.stdout.write(s);
+}
+
 async function evaluateSalamiFile(filename: number, groundtruth: [number[], number[][][]][], options: StructureOptions) {
-  console.log('  working on SALAMI file', filename);
+  updateStatus('  working on SALAMI file ' + filename);
   
   if (options.loggingLevel >= 0) console.log('    extracting and parsing features', filename);
   const audio = SALAMI_AUDIO+filename+'.mp3';
