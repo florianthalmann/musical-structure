@@ -24,10 +24,10 @@ const GD_LOCAL = '/Users/flo/Projects/Code/FAST/musical-structure/data/goodlovin
 
 const featureExtractor = new FeatureExtractor();
 
-const SELECTED_FEATURES = [FEATURES.BARS, FEATURES.MFCC];
+const SELECTED_FEATURES = [FEATURES.BARS, FEATURES.CHROMA];
 
 //!!folder name should contain features, quantfuncs, heuristic. everything else cached
-const CACHE_DIR = RESULTS_DIR+'salami/mfcc3bars/';
+const CACHE_DIR = RESULTS_DIR+'salami/chromaclusters5bars/';
 fs.existsSync(CACHE_DIR) || fs.mkdirSync(CACHE_DIR);
 
 const CONSTANT = {
@@ -40,13 +40,13 @@ const CONSTANT = {
 
 const BASIS = {
   //quantizerFunctions: [QF.ORDER(), QF.IDENTITY()], //QF.SORTED_SUMMARIZE(3)], //QF.CLUSTER(50)],//QF.SORTED_SUMMARIZE(3)],
-  quantizerFunctions: [QF.ORDER(), QF.SORTED_SUMMARIZE(3)],
+  quantizerFunctions: [QF.ORDER(), QF.CLUSTER(5)],
   //minHeuristicValue: .1,
 };
 
 const VARIATIONS: [string, any[]][] = [
   ["optimizationMethods", [[], [OPTIMIZATION.PARTITION]]],
-  ["minPatternLength", [1, 3, 5]],
+  ["minPatternLength", [3]],
   ["numPatterns", [undefined, 5, 10]]
 ]
 
@@ -56,7 +56,6 @@ runBatchSalami(Object.assign({}, CONSTANT, BASIS), VARIATIONS);
 //cleanOptimizationCaches(RESULTS_DIR+'salami/chroma3bars')
 
 async function runBatchSalami(basis: StructureOptions, variations?: [string, any[]][]) {
-  console.log(cartesianProduct(variations.map(v => v[1])))
   await mapSeries(cartesianProduct(variations.map(v => v[1])), async combo => {
     const currentOptions = Object.assign({}, basis);
     combo.forEach((c: any, i: number) => currentOptions[variations[i][0]] = c);
@@ -84,6 +83,7 @@ async function runSalami(options: StructureOptions, evalFile: string) {
   const result = {};
   await mapSeries(files, async f =>
     result[f] = await evaluateSalamiFile(f, groundtruth[f], options));
+  console.log(); //TODO deal with status update properly
   fs.writeFileSync(evalFile, JSON.stringify(result));
 }
 
