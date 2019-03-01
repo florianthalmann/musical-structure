@@ -28,12 +28,12 @@ export function execute(command: string, callback: Function) {
 }
 
 export async function mapSeries<T,S>(array: T[], func: (arg: T, i: number) => Promise<S>): Promise<S[]> {
-    let result = [];
-    for (let i = 0; i < array.length; i++) {
-      result.push(await func(array[i], i));
-    }
-    return result;
+  let result = [];
+  for (let i = 0; i < array.length; i++) {
+    result.push(await func(array[i], i));
   }
+  return result;
+}
 
 export class NodeFetcher implements Fetcher {
   async fetchText(url: string) {

@@ -4,7 +4,7 @@
   "description": "",
   "main": "src/run.ts",
   "scripts": {
-    "batch2": "node -r ts-node/register --max-old-space-size=16384 src/run.ts",
+    "batch2": "node -r ts-node/register --max-old-space-size=65536 src/run.ts",
     "batch": "ts-node -O '{\"target\": \"es2015\"}' --max-old-space-size=8192 src/run.ts",
     "test": "echo \"Error: no test specified\" && exit 1"
   },

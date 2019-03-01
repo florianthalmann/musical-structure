@@ -15,8 +15,10 @@ interface JohanChord {
 }
 
 export function generatePoints(featureFiles: string[], condition?: any, add7ths?: boolean) {
-  const points: any = initPoints(featureFiles[0], condition);
-  return featureFiles.slice(1).reduce((p,f) => addFeature(f, p, add7ths), points);
+  const points: any[][] = initPoints(featureFiles[0], condition);
+  return featureFiles.slice(1)
+    .reduce((p,f) => addFeature(f, p, add7ths), points)
+    .filter(p => p.every(x => x != null));
 }
 
 function initPoints(filename: string, condition?: any): number[][] {
@@ -42,7 +44,6 @@ function addVampFeature(filename: string, points: number[][]) {
   }, [[]]).map(g => g.map(v => v.value));
   const means = grouped.slice(1).map(g => mean(g));
   let zip = _.zip(points, means);
-  if (_.last(zip)[1] == undefined) zip = zip.slice(0, -1);
   return zip;
 }
 
