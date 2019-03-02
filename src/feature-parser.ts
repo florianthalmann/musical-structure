@@ -98,7 +98,7 @@ function toPitchClass(pitch: string) {
   return pitch[1] === 'b' ? name-1 : name;
 }
 
-export function getVampValues(filename: string, condition?: boolean): VampValue[] {
+export function getVampValues(filename: string, condition?: string): VampValue[] {
   const json = JSON.parse(fixVampBuggyJson(fs.readFileSync(filename, 'utf8')));
   let values = json['annotations'][0]['data'];
   if (condition != null) {

@@ -7,12 +7,12 @@ fs.existsSync(FEATURES_DIR) || fs.mkdirSync(FEATURES_DIR);
 fs.existsSync(RESULTS_DIR) || fs.mkdirSync(RESULTS_DIR);
 fs.existsSync(PATTERNS_DIR) || fs.mkdirSync(PATTERNS_DIR);
 
-export async function cleanOptimizationCaches(path: string) {
+export async function cleanCaches(path: string, search: string) {
   const subpaths = fs.readdirSync(path)
     .filter(p => p.indexOf('lma-audio') >= 0)
     .map(p => path+'/'+p);
   const filepaths = _.flatten(subpaths.map(p => fs.readdirSync(p)
-    .filter(f => f.indexOf('optimized') >= 0)
+    .filter(f => f.indexOf(search) >= 0)
     .map(f => p+'/'+f)));
   console.log('removing', filepaths.length, 'files');
   filepaths.forEach(f => fs.unlinkSync(f));

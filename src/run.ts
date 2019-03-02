@@ -2,7 +2,7 @@ import * as fs from 'fs';
 import * as _ from 'lodash';
 import * as readline from 'readline';
 import { DymoGenerator, DymoTemplates } from 'dymo-core';
-import { StructureInducer, QUANT_FUNCS as QF, OPTIMIZATION, HEURISTICS, StructureOptions, getCosiatecOptionsString } from 'siafun';
+import { StructureInducer, QUANT_FUNCS as QF, ArrayMap, OPTIMIZATION, HEURISTICS, StructureOptions, CosiatecHeuristic, getCosiatecOptionsString } from 'siafun';
 import { DymoStructureInducer } from './dymo-structure';
 import { getFeatureFiles, savePatternsFile, loadPatterns } from './file-manager';
 import { FeatureExtractor, FEATURES, FeatureConfig } from './feature-extractor';
@@ -11,51 +11,85 @@ import { parseAnnotations } from './salami-parser';
 import { NodeFetcher, printDymoStructure, mapSeries, printPatterns, printPatternSegments, audioPathToDirName, cartesianProduct } from './util';
 import { comparePatterns, mapToTimegrid, normalize } from './pattern-stats';
 import { evaluate } from './eval';
-import { RESULTS_DIR } from './config';
-import { cleanOptimizationCaches } from './file-manager';
+import { cleanCaches } from './file-manager';
 
 const SALAMI = '/Users/flo/Projects/Code/FAST/grateful-dead/structure/SALAMI/';
 const SALAMI_AUDIO = SALAMI+'lma-audio/';
 const SALAMI_ANNOTATIONS = SALAMI+'salami-data-public/annotations/';
-const FILE = '955';
+const SALAMI_SSD = '/Volumes/FastSSD/salami/';
 
 const GD = '/Volumes/gspeed1/thomasw/grateful_dead/lma_soundboards/sbd/';
 const GD_LOCAL = '/Users/flo/Projects/Code/FAST/musical-structure/data/goodlovin/';
 
 const featureExtractor = new FeatureExtractor();
 
-const SELECTED_FEATURES = [FEATURES.BARS, FEATURES.CHROMA];
+let SELECTED_FEATURES: FeatureConfig[] = null;
+let SEVENTH_CHORDS: boolean = false;//no 7th chords for now
 
-//!!folder name should contain features, quantfuncs, heuristic. everything else cached
-const CACHE_DIR = RESULTS_DIR+'salami/chromaclusters5bars/';
-fs.existsSync(CACHE_DIR) || fs.mkdirSync(CACHE_DIR);
+let CACHE_DIR: string = null;
+let SIATEC_CACHE_DIR: string = null;//'/Volumes/FastSSD/salami/johanbars/';
 
-const CONSTANT = {
-  selectionHeuristic: HEURISTICS.SIZE_AND_1D_COMPACTNESS(0),
+let OPTIONS = {
   overlapping: true,
-  optimizationHeuristic: HEURISTICS.SIZE_AND_1D_COMPACTNESS(0),
   optimizationDimension: 0,
-  loggingLevel: -1,
+  loggingLevel: 0,
+  quantizerFunctions: null,
+  selectionHeuristic: null,
+  optimizationHeuristic: null
+  //minHeuristicValue: .1,
 }
 
-const BASIS = {
-  //quantizerFunctions: [QF.ORDER(), QF.IDENTITY()], //QF.SORTED_SUMMARIZE(3)], //QF.CLUSTER(50)],//QF.SORTED_SUMMARIZE(3)],
-  quantizerFunctions: [QF.ORDER(), QF.CLUSTER(5)],
-  //minHeuristicValue: .1,
-};
+function setFeaturesAndQuantizerFuncs(features: FeatureConfig[], quantizerFuncs: ArrayMap[]) {
+  SELECTED_FEATURES = features;
+  OPTIONS.quantizerFunctions = quantizerFuncs;
+}
 
-const VARIATIONS: [string, any[]][] = [
-  ["optimizationMethods", [[], [OPTIMIZATION.PARTITION]]],
-  ["minPatternLength", [3]],
-  ["numPatterns", [undefined, 5, 10]]
-]
+//!!folder name should contain features, quantfuncs, heuristic. everything else cached
+function setCacheDir(dir: string, siatecDir?: string) {
+  CACHE_DIR = dir;
+  fs.existsSync(CACHE_DIR) || fs.mkdirSync(CACHE_DIR);
+  SIATEC_CACHE_DIR = siatecDir;
+}
 
-runBatchSalami(Object.assign({}, CONSTANT, BASIS), VARIATIONS);
+function setHeuristic(heuristic: CosiatecHeuristic) {
+  OPTIONS.selectionHeuristic = heuristic;
+  OPTIONS.optimizationHeuristic = heuristic;
+}
+
+dayJob();
+//nightJob();
 //analyzeGd();
 //compareGd();
-//cleanOptimizationCaches(RESULTS_DIR+'salami/chroma3bars')
+//cleanCaches('/Volumes/FastSSD/salami/chroma4beats', 'cosiatec');
 
-async function runBatchSalami(basis: StructureOptions, variations?: [string, any[]][]) {
+//NEXT: chroma3bars and chroma4bars with new heuristics!!!!
+function dayJob() {
+  setFeaturesAndQuantizerFuncs([FEATURES.BEATS, FEATURES.CHROMA],
+    [QF.ORDER(), QF.SORTED_SUMMARIZE(3)]);
+  setCacheDir(SALAMI_SSD+'chroma3barsreg/', SALAMI_SSD+'chroma3bars/');
+  setHeuristic(HEURISTICS.SIZE_1D_COMPACTNESS_AND_REGULARITY(0));
+  const VARIATIONS: [string, any[]][] = [
+    ["optimizationMethods", [[], [OPTIMIZATION.PARTITION], [OPTIMIZATION.DIVIDE], [OPTIMIZATION.MINIMIZE]]],
+    ["minPatternLength", [1, 3, 5]],
+    ["numPatterns", [undefined, 5, 10]]
+  ]
+  runBatchSalami(OPTIONS, VARIATIONS, [], 0);
+}
+
+function nightJob() {
+  setFeaturesAndQuantizerFuncs([FEATURES.BEATS, FEATURES.CHROMA],
+    [QF.ORDER(), QF.SORTED_SUMMARIZE(4)]);
+  setCacheDir(SALAMI_SSD+'chroma4beats/');
+  setHeuristic(HEURISTICS.SIZE_AND_1D_COMPACTNESS(0));
+  const VARIATIONS: [string, any[]][] = [
+    ["optimizationMethods", [[], [OPTIMIZATION.PARTITION], [OPTIMIZATION.DIVIDE], [OPTIMIZATION.MINIMIZE]]],
+    ["minPatternLength", [1, 3, 5]],
+    ["numPatterns", [undefined, 5, 10]]
+  ]
+  runBatchSalami(OPTIONS, VARIATIONS, [], 600);
+}
+
+async function runBatchSalami(basis: StructureOptions, variations: [string, any[]][], exclude: number[], maxLength?: number) {
   await mapSeries(cartesianProduct(variations.map(v => v[1])), async combo => {
     const currentOptions = Object.assign({}, basis);
     combo.forEach((c: any, i: number) => currentOptions[variations[i][0]] = c);
@@ -63,18 +97,20 @@ async function runBatchSalami(basis: StructureOptions, variations?: [string, any
       + (currentOptions.numPatterns != null ? '_'+currentOptions.numPatterns : '')
       + '.json';
     console.log('working on config', evalFile);
-    if (!fs.existsSync(evalFile)) {
-      await runSalami(currentOptions, evalFile);
-    }
+    //if (!fs.existsSync(evalFile)) {
+      await runSalami(currentOptions, evalFile, exclude, maxLength);
+    //}
   });
 
 }
 
-async function runSalami(options: StructureOptions, evalFile: string) {
+async function runSalami(options: StructureOptions, evalFile: string, exclude: number[], maxLength?: number) {
   console.log('gathering files and parsing annotations');
   //gather available files and annotations
   let files = fs.readdirSync(SALAMI_AUDIO).filter(f => f.indexOf(".mp3") > 0)
     .map(f => parseInt(f.slice(0, f.indexOf(".mp3"))));
+  files = files.filter(f => exclude.indexOf(f) < 0);
+  
   const groundtruth = {};
   files.forEach(f => groundtruth[f] = getGroundtruth(f));
   //forget files with empty annotations and sort
@@ -82,7 +118,7 @@ async function runSalami(options: StructureOptions, evalFile: string) {
   files.sort((a,b) => a-b);
   const result = {};
   await mapSeries(files, async f =>
-    result[f] = await evaluateSalamiFile(f, groundtruth[f], options));
+    result[f] = await evaluateSalamiFile(f, groundtruth[f], options, maxLength));
   console.log(); //TODO deal with status update properly
   fs.writeFileSync(evalFile, JSON.stringify(result));
 }
@@ -106,7 +142,7 @@ function updateStatus(s: string) {
   process.stdout.write(s);
 }
 
-async function evaluateSalamiFile(filename: number, groundtruth: [number[], number[][][]][], options: StructureOptions) {
+async function evaluateSalamiFile(filename: number, groundtruth: [number[], number[][][]][], options: StructureOptions, maxLength = 0) {
   updateStatus('  working on SALAMI file ' + filename);
   
   if (options.loggingLevel >= 0) console.log('    extracting and parsing features', filename);
@@ -124,29 +160,37 @@ async function evaluateSalamiFile(filename: number, groundtruth: [number[], numb
   
   if (options.loggingLevel >= 0) console.log('    inferring structure', filename);
   const points = generatePoints([filtered.segs[0]].concat(...filtered.feats),
-    filtered.segConditions[0], false); //no 7th chords for now
-  options.cacheDir = CACHE_DIR+audioPathToDirName(audio)+'/';
-  fs.existsSync(options.cacheDir) || fs.mkdirSync(options.cacheDir);
-  const patterns = new StructureInducer(points, options).getCosiatecPatterns();
+    filtered.segConditions[0], SEVENTH_CHORDS);
   
-  if (options.loggingLevel >= 0) console.log('    evaluating', filename);
-  const evals = {};
-  groundtruth.forEach((g,i) => {
-    evals[i] = {};
-    evals[i]["precision"] = evaluate(patterns, g[1]);
-    evals[i]["accuracy"] = evaluate(g[1], patterns);
-  });
-  
-  if (options.loggingLevel > 1) {
-    groundtruth.map(p => p[1]).concat([patterns]).forEach(p => {
-      console.log('\n')
-      printPatterns(_.cloneDeep(p));
-      //printPatternSegments(_.cloneDeep(p));
+  if (!maxLength || points.length < maxLength) {
+    options.cacheDir = CACHE_DIR+audioPathToDirName(audio)+'/';
+    options.siatecCacheDir = SIATEC_CACHE_DIR ? SIATEC_CACHE_DIR+audioPathToDirName(audio)+'/' : undefined;
+    fs.existsSync(options.cacheDir) || fs.mkdirSync(options.cacheDir);
+    const inducer = new StructureInducer(points, options);
+    const patterns = inducer.getCosiatecPatterns();
+    
+    if (options.loggingLevel >= 0) console.log('    evaluating', filename);
+    const evals = {};
+    groundtruth.forEach((g,i) => {
+      evals[i] = {};
+      evals[i]["precision"] = evaluate(patterns, g[1]);
+      evals[i]["accuracy"] = evaluate(g[1], patterns);
     });
-    console.log(evals);
+    evals["numpoints"] = points.length;
+    evals["numcosiatec"] = patterns.length;
+    evals["numsiatec"] = inducer.getCachedSiatecPatternCount();
+    
+    if (options.loggingLevel > 1) {
+      groundtruth.map(p => p[1]).concat([patterns]).forEach(p => {
+        console.log('\n')
+        printPatterns(_.cloneDeep(p));
+        //printPatternSegments(_.cloneDeep(p));
+      });
+      console.log(evals);
+    }
+    
+    return evals;
   }
-  
-  return evals;
 }
 
 async function analyzeGd(options: StructureOptions) {
