@@ -10,7 +10,7 @@ import os, json
 import numpy as np
 import pandas as pd
 
-BASE = '../results/salami/'
+BASE = '/Volumes/FastSSD/salami/'
 
 FE = 'features'
 OM = 'optim_methods'
@@ -23,8 +23,9 @@ dirs = [os.path.join(BASE, d) for d in os.listdir(BASE) if d != '.DS_Store']
 files = [os.path.join(d, f) for d in dirs for f in os.listdir(d) if f.endswith('.json')]
 jsons = [json.load(open(f)) for f in files]
 
+#aggregates the fields at the given key of all objects saved at numeric keys in the given dict
 def aggregate_vals(dict, key, func):
-    vs = [v[key] for _, v in dict.iteritems() if v[key] is not None]
+    vs = [v[key] for k, v in dict.iteritems() if k.isdigit() and v[key] is not None]
     return func(vs) if len(vs) > 0 else None
 
 def json_to_series(json, field, func):
@@ -51,9 +52,9 @@ def get_configs_df(files):
 
 configs = get_configs_df(files)
 mean_precs = jsons_to_df(jsons, 'precision', np.mean)
-mean_accs = jsons_to_df(jsons, 'accuracy', np.mean)
+mean_accus = jsons_to_df(jsons, 'accuracy', np.mean)
 max_precs = jsons_to_df(jsons, 'precision', np.max)
-max_accs = jsons_to_df(jsons, 'accuracy', np.max)
+max_accus = jsons_to_df(jsons, 'accuracy', np.max)
 
 fe = configs[FE]
 om = configs[OM]
@@ -112,18 +113,49 @@ ax.set_xticklabels([str(a)+' '+str(b) for (a,b) in zip(sel[OM], sel[NP])]);
 # 
 # chroma triads always better than unoptimized johanchords
 # 
-# best:
+# best with ml=3, np=0:
+# - regularity johanbars
+# - partitioned regularity johanchords
 # - partitioned johanchords
-# - partitioned and minimized johanchords
-# - partitioned chroma triads
 
 # In[5]:
 
 
-sel = configs.loc[(ml == 3) & (om.isin(['2'])) & (np == 0)]
+sel = configs.loc[(ml == 3) & (om.isin(['2',''])) & (np == 0) & ~fe.str.contains('cluster')]
 fig, ax = plt.subplots()
 mean_precs.iloc[sel.index.tolist()].T.boxplot()
-ax.set_title('johanbars by optim method and num patterns')
+ax.set_title('proportion of repeating salami segments explained by found patterns')
+ax.set_xticklabels([str(a)+' '+str(b) for (a,b) in zip(sel[FE], sel[OM])], rotation=60);
+
+
+# best non-optimized with ml=3, np=0:
+# - by far regularity heuristic on johanbars!
+# - chroma4bars
+# - chroma3bars
+
+# In[6]:
+
+
+sel = configs.loc[(ml == 3) & (om.isin([''])) & (np == 0) & ~fe.str.contains('cluster')]
+fig, ax = plt.subplots()
+mean_precs.iloc[sel.index.tolist()].T.boxplot()
+ax.set_title('proportion of repeating salami segments explained by found patterns')
+ax.set_xticklabels([str(a)+' '+str(b) for (a,b) in zip(sel[FE], sel[OM])], rotation=60);
+
+
+# best with just 5 patterns (np=5, ml=3):
+# - johanbarsreg
+# - johanbarsaxis 2
+# - johanbars 2
+# - johanbeats 2
+
+# In[7]:
+
+
+sel = configs.loc[(ml == 3) & (om.isin(['','2'])) & (np == 10) & ~fe.str.contains('cluster')]
+fig, ax = plt.subplots()
+mean_precs.iloc[sel.index.tolist()].T.boxplot()
+ax.set_title('proportion of repeating salami segments explained by found patterns')
 ax.set_xticklabels([str(a)+' '+str(b) for (a,b) in zip(sel[FE], sel[OM])], rotation=60);
 
 
@@ -131,7 +163,7 @@ ax.set_xticklabels([str(a)+' '+str(b) for (a,b) in zip(sel[FE], sel[OM])], rotat
 # 
 # partitioned vs non-optimized
 
-# In[6]:
+# In[8]:
 
 
 def add_scatter(sel, ax, label):
@@ -160,7 +192,7 @@ add_scatter(sel, ax[1,1], OM)
 # 
 # some tracks work better with chroma, some with johanchords!!
 
-# In[7]:
+# In[9]:
 
 
 fig, ax = plt.subplots()
