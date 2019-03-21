@@ -8,5 +8,6 @@ features
 results
 
 plots/.ipynb_checkpoints
-plots/salami_graphs.ipynb
 plots/salami_graphs.html
+
+*.ipynb

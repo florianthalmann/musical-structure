@@ -2,7 +2,8 @@ import * as fs from 'fs';
 import * as _ from 'lodash';
 import * as readline from 'readline';
 import { DymoGenerator, DymoTemplates } from 'dymo-core';
-import { StructureInducer, QUANT_FUNCS as QF, ArrayMap, OPTIMIZATION, HEURISTICS, StructureOptions, CosiatecHeuristic, getCosiatecOptionsString } from 'siafun';
+import { StructureInducer, QUANT_FUNCS as QF, ArrayMap, OPTIMIZATION, HEURISTICS,
+  StructureOptions, CosiatecHeuristic, getCosiatecOptionsString, getConnectednessRatings } from 'siafun';
 import { DymoStructureInducer } from './dymo-structure';
 import { getFeatureFiles, savePatternsFile, loadPatterns } from './file-manager';
 import { FeatureExtractor, FEATURES, FeatureConfig } from './feature-extractor';
@@ -16,7 +17,7 @@ import { cleanCaches } from './file-manager';
 const SALAMI = '/Users/flo/Projects/Code/FAST/grateful-dead/structure/SALAMI/';
 const SALAMI_AUDIO = SALAMI+'lma-audio/';
 const SALAMI_ANNOTATIONS = SALAMI+'salami-data-public/annotations/';
-const SALAMI_SSD = '/Volumes/FastSSD/salami/';
+const SALAMI_RESULTS = './results/salami/'//'/Volumes/FastSSD/salami/';
 
 const GD = '/Volumes/gspeed1/thomasw/grateful_dead/lma_soundboards/sbd/';
 const GD_LOCAL = '/Users/flo/Projects/Code/FAST/musical-structure/data/goodlovin/';
@@ -32,7 +33,7 @@ let SIATEC_CACHE_DIR: string = null;//'/Volumes/FastSSD/salami/johanbars/';
 let OPTIONS = {
   overlapping: true,
   optimizationDimension: 0,
-  loggingLevel: 0,
+  loggingLevel: -1,
   quantizerFunctions: null,
   selectionHeuristic: null,
   optimizationHeuristic: null
@@ -56,6 +57,10 @@ function setHeuristic(heuristic: CosiatecHeuristic) {
   OPTIONS.optimizationHeuristic = heuristic;
 }
 
+/*fs.writeFileSync('connections3.json', JSON.stringify(
+  getConnectednessRatings(JSON.parse(fs.readFileSync(
+    SALAMI_SSD+'chroma3bars/lma-audio_955_mp3/cosiatec_2_0_3_true.json', 'utf8')))));*/
+
 dayJob();
 //nightJob();
 //analyzeGd();
@@ -63,30 +68,33 @@ dayJob();
 //cleanCaches('/Volumes/FastSSD/salami/chroma4beats', 'cosiatec');
 
 //NEXT: chroma3bars and chroma4bars with new heuristics!!!!
-function dayJob() {
-  setFeaturesAndQuantizerFuncs([FEATURES.BEATS, FEATURES.CHROMA],
-    [QF.ORDER(), QF.SORTED_SUMMARIZE(3)]);
-  setCacheDir(SALAMI_SSD+'chroma3barsreg/', SALAMI_SSD+'chroma3bars/');
-  setHeuristic(HEURISTICS.SIZE_1D_COMPACTNESS_AND_REGULARITY(0));
+async function dayJob() {
+  setFeaturesAndQuantizerFuncs([FEATURES.BARS, FEATURES.JOHAN_CHORDS],
+    //[QF.ORDER(), QF.SORTED_SUMMARIZE(3)]);
+    [QF.ORDER(), QF.IDENTITY()]);
+  setCacheDir(SALAMI_RESULTS+'johanbarscov/', SALAMI_RESULTS+'johanbars/');
+  setHeuristic(HEURISTICS.COVERAGE);
   const VARIATIONS: [string, any[]][] = [
     ["optimizationMethods", [[], [OPTIMIZATION.PARTITION], [OPTIMIZATION.DIVIDE], [OPTIMIZATION.MINIMIZE]]],
-    ["minPatternLength", [1, 3, 5]],
+    ["minPatternLength", [3]],
     ["numPatterns", [undefined, 5, 10]]
   ]
-  runBatchSalami(OPTIONS, VARIATIONS, [], 0);
+  const startTime = Date.now()
+  await runBatchSalami(OPTIONS, VARIATIONS, [], 0);
+  console.log("DURATION", (Date.now()-startTime)/1000, "secs")
 }
 
 function nightJob() {
   setFeaturesAndQuantizerFuncs([FEATURES.BEATS, FEATURES.CHROMA],
     [QF.ORDER(), QF.SORTED_SUMMARIZE(4)]);
-  setCacheDir(SALAMI_SSD+'chroma4beats/');
+  setCacheDir(SALAMI_RESULTS+'chroma4beats/');
   setHeuristic(HEURISTICS.SIZE_AND_1D_COMPACTNESS(0));
   const VARIATIONS: [string, any[]][] = [
     ["optimizationMethods", [[], [OPTIMIZATION.PARTITION], [OPTIMIZATION.DIVIDE], [OPTIMIZATION.MINIMIZE]]],
-    ["minPatternLength", [1, 3, 5]],
+    ["minPatternLength", [7, 15]],
     ["numPatterns", [undefined, 5, 10]]
   ]
-  runBatchSalami(OPTIONS, VARIATIONS, [], 600);
+  runBatchSalami(OPTIONS, VARIATIONS, [], 700);
 }
 
 async function runBatchSalami(basis: StructureOptions, variations: [string, any[]][], exclude: number[], maxLength?: number) {
@@ -97,9 +105,9 @@ async function runBatchSalami(basis: StructureOptions, variations: [string, any[
       + (currentOptions.numPatterns != null ? '_'+currentOptions.numPatterns : '')
       + '.json';
     console.log('working on config', evalFile);
-    //if (!fs.existsSync(evalFile)) {
+    if (!fs.existsSync(evalFile)) {
       await runSalami(currentOptions, evalFile, exclude, maxLength);
-    //}
+    }
   });
 
 }
@@ -166,22 +174,23 @@ async function evaluateSalamiFile(filename: number, groundtruth: [number[], numb
     options.cacheDir = CACHE_DIR+audioPathToDirName(audio)+'/';
     options.siatecCacheDir = SIATEC_CACHE_DIR ? SIATEC_CACHE_DIR+audioPathToDirName(audio)+'/' : undefined;
     fs.existsSync(options.cacheDir) || fs.mkdirSync(options.cacheDir);
-    const inducer = new StructureInducer(points, options);
-    const patterns = inducer.getCosiatecPatterns();
+    const result = new StructureInducer(points, options).getCosiatecIndexOccurrences();
+    const occurrences = result.occurrences;
     
     if (options.loggingLevel >= 0) console.log('    evaluating', filename);
     const evals = {};
     groundtruth.forEach((g,i) => {
       evals[i] = {};
-      evals[i]["precision"] = evaluate(patterns, g[1]);
-      evals[i]["accuracy"] = evaluate(g[1], patterns);
+      evals[i]["precision"] = evaluate(occurrences, g[1]);
+      evals[i]["accuracy"] = evaluate(g[1], occurrences);
     });
     evals["numpoints"] = points.length;
-    evals["numcosiatec"] = patterns.length;
-    evals["numsiatec"] = inducer.getCachedSiatecPatternCount();
+    evals["numcosiatec"] = occurrences.length;
+    evals["numoptimized"] = result.numOptimizedPatterns;
+    evals["numsiatec"] = result.numSiatecPatterns;
     
     if (options.loggingLevel > 1) {
-      groundtruth.map(p => p[1]).concat([patterns]).forEach(p => {
+      groundtruth.map(p => p[1]).concat([occurrences]).forEach(p => {
         console.log('\n')
         printPatterns(_.cloneDeep(p));
         //printPatternSegments(_.cloneDeep(p));
@@ -234,7 +243,7 @@ async function induceStructure(audioFile: string, options: StructureOptions): Pr
   const points = generatePoints([filtered.segs[0]].concat(...filtered.feats),
     filtered.segConditions[0], false); //no 7th chords for now
   //let patterns = new StructureInducer(points, options).getCosiatecOccurrences();
-  let patterns = new StructureInducer(points, options).getCosiatecPatterns();
+  let patterns = new StructureInducer(points, options).getCosiatecIndexOccurrences().occurrences;
   patterns = patterns.filter(p => p[0].length > 1);
   if (options.loggingLevel > 1) {
     printPatterns(_.cloneDeep(patterns));
