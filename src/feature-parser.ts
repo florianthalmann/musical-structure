@@ -125,6 +125,8 @@ function fixVampBuggyJson(j: string) {
 }
 
 function escapeVampBuggyQuotes(s: string) {
+  s = s.replace("\\'", "'");
+  
   const is = indexesOf(s, '"');
   if (is.length > 2) {
     const chars = s.split("");
