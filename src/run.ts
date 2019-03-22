@@ -14,6 +14,12 @@ import { comparePatterns, mapToTimegrid, normalize } from './pattern-stats';
 import { evaluate } from './eval';
 import { cleanCaches } from './file-manager';
 
+interface Features {
+  segmentations: string[],
+  segConditions: string[],
+  otherFeatures: string[],
+}
+
 const SALAMI = '/Users/flo/Projects/Code/FAST/grateful-dead/structure/SALAMI/';
 const SALAMI_AUDIO = SALAMI+'lma-audio/';
 const SALAMI_ANNOTATIONS = SALAMI+'salami-data-public/annotations/';
@@ -21,6 +27,7 @@ const SALAMI_RESULTS = './results/salami/'//'/Volumes/FastSSD/salami/';
 
 const GD = '/Volumes/gspeed1/thomasw/grateful_dead/lma_soundboards/sbd/';
 const GD_LOCAL = '/Users/flo/Projects/Code/FAST/musical-structure/data/goodlovin/';
+const GD_RESULTS = './results/gd/';
 
 const featureExtractor = new FeatureExtractor();
 
@@ -30,7 +37,7 @@ let SEVENTH_CHORDS: boolean = false;//no 7th chords for now
 let CACHE_DIR: string = null;
 let SIATEC_CACHE_DIR: string = null;//'/Volumes/FastSSD/salami/johanbars/';
 
-let OPTIONS = {
+let OPTIONS: StructureOptions = {
   overlapping: true,
   optimizationDimension: 0,
   loggingLevel: -1,
@@ -61,11 +68,21 @@ function setHeuristic(heuristic: CosiatecHeuristic) {
   getConnectednessRatings(JSON.parse(fs.readFileSync(
     SALAMI_SSD+'chroma3bars/lma-audio_955_mp3/cosiatec_2_0_3_true.json', 'utf8')))));*/
 
-dayJob();
+gdJob();
+//dayJob();
 //nightJob();
-//analyzeGd();
-//compareGd();
 //cleanCaches('/Volumes/FastSSD/salami/chroma4beats', 'cosiatec');
+
+async function gdJob() {
+  setFeaturesAndQuantizerFuncs([FEATURES.BARS, FEATURES.JOHAN_CHORDS],
+    [QF.ORDER(), QF.IDENTITY()]);
+  setCacheDir(GD_RESULTS+'johanbars/');
+  setHeuristic(HEURISTICS.SIZE_AND_1D_COMPACTNESS(0));
+  OPTIONS.minPatternLength = 3;
+  
+  await analyzeGd(Object.assign({}, OPTIONS));
+  //compareGd();
+}
 
 //NEXT: chroma3bars and chroma4bars with new heuristics!!!!
 async function dayJob() {
@@ -155,10 +172,9 @@ async function evaluateSalamiFile(filename: number, groundtruth: [number[], numb
   
   if (options.loggingLevel >= 0) console.log('    extracting and parsing features', filename);
   const audio = SALAMI_AUDIO+filename+'.mp3';
-  await featureExtractor.extractFeatures([audio], SELECTED_FEATURES);
-  const featureFiles = await getFeatureFiles(audio);
-  const filtered = filterSelectedFeatures(featureFiles);
-  const timegrid = getVampValues(filtered.segs[0], filtered.segConditions[0])
+  const features = await extractFeatures(audio);
+  
+  const timegrid = getVampValues(features.segmentations[0], features.segConditions[0])
     .map(v => v.time);
   
   if (options.loggingLevel >= 0) console.log('    mapping annotations to timegrid', filename);
@@ -167,27 +183,23 @@ async function evaluateSalamiFile(filename: number, groundtruth: [number[], numb
     ps[1] = normalize(mapToTimegrid(ps[0], ps[1], timegrid, true)));
   
   if (options.loggingLevel >= 0) console.log('    inferring structure', filename);
-  const points = generatePoints([filtered.segs[0]].concat(...filtered.feats),
-    filtered.segConditions[0], SEVENTH_CHORDS);
+  const points = getPoints(features);
   
   if (!maxLength || points.length < maxLength) {
-    options.cacheDir = CACHE_DIR+audioPathToDirName(audio)+'/';
-    options.siatecCacheDir = SIATEC_CACHE_DIR ? SIATEC_CACHE_DIR+audioPathToDirName(audio)+'/' : undefined;
-    fs.existsSync(options.cacheDir) || fs.mkdirSync(options.cacheDir);
-    const result = new StructureInducer(points, options).getCosiatecIndexOccurrences();
+    const result = await getCosiatecWithCaching(audio, points, options);
     const occurrences = result.occurrences;
     
     if (options.loggingLevel >= 0) console.log('    evaluating', filename);
     const evals = {};
+    evals["numpoints"] = points.length;
+    evals["numcosiatec"] = occurrences.length;
+    evals["numoptimized"] = result.numOptimizedPatterns;
+    evals["numsiatec"] = result.numSiatecPatterns;
     groundtruth.forEach((g,i) => {
       evals[i] = {};
       evals[i]["precision"] = evaluate(occurrences, g[1]);
       evals[i]["accuracy"] = evaluate(g[1], occurrences);
     });
-    evals["numpoints"] = points.length;
-    evals["numcosiatec"] = occurrences.length;
-    evals["numoptimized"] = result.numOptimizedPatterns;
-    evals["numsiatec"] = result.numSiatecPatterns;
     
     if (options.loggingLevel > 1) {
       groundtruth.map(p => p[1]).concat([occurrences]).forEach(p => {
@@ -213,7 +225,6 @@ async function analyzeGd(options: StructureOptions) {
       console.log('working on', "good lovin'", ' - ', s.track);
       if (!loadPatterns(songPath)) {
         if (fs.existsSync(songPath)) {
-          await featureExtractor.extractFeatures([songPath], SELECTED_FEATURES);
           await induceStructure(songPath, options);
         } else {
           console.log("\nNOT FOUND:", songPath, "\n");
@@ -238,26 +249,21 @@ async function compareGd() {
 }*/
 
 async function induceStructure(audioFile: string, options: StructureOptions): Promise<any> {
-  const featureFiles = await getFeatureFiles(audioFile);
-  const filtered = filterSelectedFeatures(featureFiles);
-  const points = generatePoints([filtered.segs[0]].concat(...filtered.feats),
-    filtered.segConditions[0], false); //no 7th chords for now
+  const points = getPoints(await extractFeatures(audioFile));
   //let patterns = new StructureInducer(points, options).getCosiatecOccurrences();
-  let patterns = new StructureInducer(points, options).getCosiatecIndexOccurrences().occurrences;
-  patterns = patterns.filter(p => p[0].length > 1);
+  const occs = (await getCosiatecWithCaching(audioFile, points, options)).occurrences;
   if (options.loggingLevel > 1) {
-    printPatterns(_.cloneDeep(patterns));
-    printPatternSegments(_.cloneDeep(patterns));
+    printPatterns(_.cloneDeep(occs));
+    printPatternSegments(_.cloneDeep(occs));
   }
   //await savePatternsFile(audioFile, patterns);
 }
 
 async function induceStructureWithDymos(audioFile: string): Promise<any> {
   const generator = new DymoGenerator(false, null, new NodeFetcher());
-  const featureFiles = await getFeatureFiles(audioFile);
-  const filtered = filterSelectedFeatures(featureFiles);
+  const fs = await extractFeatures(audioFile);
   const dymo = await DymoTemplates.createSingleSourceDymoFromFeatures(
-    generator, audioFile, filtered.segs, filtered.segConditions, filtered.feats);
+    generator, audioFile, fs.segmentations, fs.segConditions, fs.otherFeatures);
   await printDymoStructure(generator.getStore(), dymo);
   await new DymoStructureInducer(generator.getStore())
     .addStructureToDymo(generator.getCurrentTopDymo(), {
@@ -274,15 +280,35 @@ async function induceStructureWithDymos(audioFile: string): Promise<any> {
   //await printDymoStructure(generator.getStore(), dymo);
 }
 
-function filterSelectedFeatures(featureFiles: string[]) {
+async function getCosiatecWithCaching(audio: string, points: number[][], options: StructureOptions) {
+  options.cacheDir = CACHE_DIR+audioPathToDirName(audio)+'/';
+  options.siatecCacheDir = SIATEC_CACHE_DIR ? SIATEC_CACHE_DIR+audioPathToDirName(audio)+'/' : undefined;
+  fs.existsSync(options.cacheDir) || fs.mkdirSync(options.cacheDir);
+  return new StructureInducer(points, options).getCosiatecIndexOccurrences();
+}
+
+async function extractFeatures(audioPath: string) {
+  await featureExtractor.extractFeatures([audioPath], SELECTED_FEATURES);
+  const featureFiles = await getFeatureFiles(audioPath);
+  return filterSelectedFeatures(featureFiles);
+}
+
+function getPoints(features: Features) {
+  return generatePoints(
+    [features.segmentations[0]].concat(...features.otherFeatures),
+    features.segConditions[0],
+    SEVENTH_CHORDS);
+}
+
+function filterSelectedFeatures(featureFiles: string[]): Features {
   const segs = SELECTED_FEATURES.filter(f => f.isSegmentation);
+  const others = SELECTED_FEATURES.filter(f => !f.isSegmentation);
   const segFiles = getFiles(segs, featureFiles);
   const segConditions = segFiles.map((_,i) => segs[i]['subset']);
-  const others = getFiles(SELECTED_FEATURES.filter(f => !f.isSegmentation), featureFiles);
   return {
-    segs:segFiles.filter(s=>s),
-    segConditions:segConditions.filter((_,i)=>segFiles[i]),
-    feats:others.filter(f=>f),
+    segmentations: segFiles,
+    segConditions: segConditions.filter((_,i)=>segFiles[i]),
+    otherFeatures: getFiles(others, featureFiles),
   };
 }
 

@@ -29,7 +29,7 @@ export class DymoStructureInducer {
   async addStructureToDymo(dymoUri, options) {
     var surfaceDymos = await this.getAllParts([dymoUri]);
     var points = await this.toVectors(surfaceDymos, false, true);
-    var patterns = new StructureInducer(points, options).getCosiatecPatterns(options.patternIndices);
+    var patterns = new StructureInducer(points, options).getCosiatecIndexOccurrences().occurrences;
     patterns = patterns.filter(p => p[0].length > 1);
     printPatterns(_.cloneDeep(patterns));
     printPatternSegments(_.cloneDeep(patterns));
