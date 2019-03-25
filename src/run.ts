@@ -8,7 +8,7 @@ import { DymoStructureInducer } from './dymo-structure';
 import { getFeatureFiles, savePatternsFile, loadPatterns } from './file-manager';
 import { FeatureExtractor, FEATURES, FeatureConfig } from './feature-extractor';
 import { generatePoints, getVampValues } from './feature-parser';
-import { parseAnnotations } from './salami-parser';
+import { Annotation, getAnnotations } from './salami-parser';
 import { NodeFetcher, printDymoStructure, mapSeries, printPatterns, printPatternSegments, audioPathToDirName, cartesianProduct } from './util';
 import { comparePatterns, mapToTimegrid, normalize } from './pattern-stats';
 import { evaluate } from './eval';
@@ -27,7 +27,6 @@ const SALAMI_RESULTS = './results/salami/'//'/Volumes/FastSSD/salami/';
 
 const GD = '/Volumes/gspeed1/thomasw/grateful_dead/lma_soundboards/sbd/';
 const GD_LOCAL = '/Users/flo/Projects/Code/FAST/musical-structure/data/goodlovin/';
-const GD_RESULTS = './results/gd/';
 
 const featureExtractor = new FeatureExtractor();
 
@@ -76,11 +75,12 @@ gdJob();
 async function gdJob() {
   setFeaturesAndQuantizerFuncs([FEATURES.BARS, FEATURES.JOHAN_CHORDS],
     [QF.ORDER(), QF.IDENTITY()]);
-  setCacheDir(GD_RESULTS+'johanbars/');
+  setCacheDir('./results/gd/goodlovin/johanbars/');
   setHeuristic(HEURISTICS.SIZE_AND_1D_COMPACTNESS(0));
   OPTIONS.minPatternLength = 3;
+  OPTIONS.optimizationMethods = [OPTIMIZATION.PARTITION];
   
-  await analyzeGd(Object.assign({}, OPTIONS));
+  await analyzeGd(["good lovin'"], Object.assign({}, OPTIONS));
   //compareGd();
 }
 
@@ -89,7 +89,7 @@ async function dayJob() {
   setFeaturesAndQuantizerFuncs([FEATURES.BARS, FEATURES.JOHAN_CHORDS],
     //[QF.ORDER(), QF.SORTED_SUMMARIZE(3)]);
     [QF.ORDER(), QF.IDENTITY()]);
-  setCacheDir(SALAMI_RESULTS+'johanbarscov/', SALAMI_RESULTS+'johanbars/');
+  setCacheDir(SALAMI_RESULTS+'johanbarscov/', SALAMI_RESULTS+'johanbars/'); 
   setHeuristic(HEURISTICS.COVERAGE);
   const VARIATIONS: [string, any[]][] = [
     ["optimizationMethods", [[], [OPTIMIZATION.PARTITION], [OPTIMIZATION.DIVIDE], [OPTIMIZATION.MINIMIZE]]],
@@ -136,30 +136,17 @@ async function runSalami(options: StructureOptions, evalFile: string, exclude: n
     .map(f => parseInt(f.slice(0, f.indexOf(".mp3"))));
   files = files.filter(f => exclude.indexOf(f) < 0);
   
-  const groundtruth = {};
-  files.forEach(f => groundtruth[f] = getGroundtruth(f));
+  const groundtruth = new Map<number, Annotation[]>();
+  files.forEach(f => groundtruth.set(f, getAnnotations(SALAMI_ANNOTATIONS+f+'/')));
   //forget files with empty annotations and sort
-  files = files.filter(f => groundtruth[f]);
+  files = files.filter(f => groundtruth.get(f));
   files.sort((a,b) => a-b);
+  
   const result = {};
   await mapSeries(files, async f =>
-    result[f] = await evaluateSalamiFile(f, groundtruth[f], options, maxLength));
+    result[f] = await evaluateSalamiFile(f, groundtruth.get(f), options, maxLength));
   console.log(); //TODO deal with status update properly
   fs.writeFileSync(evalFile, JSON.stringify(result));
-}
-
-function getGroundtruth(filename: number) {
-  //find available annotation files
-  const annotations = fs.existsSync(SALAMI_ANNOTATIONS+filename+'/') ?
-    fs.readdirSync(SALAMI_ANNOTATIONS+filename+'/')
-      .filter(f => f.indexOf(".txt") > 0)
-      .map(f => SALAMI_ANNOTATIONS+filename+'/'+f)
-    : [];
-  //parse ground truth and filter out annotations without repetitions (and empty ones like 964)
-  const groundPatterns = annotations.map(a => parseAnnotations(a, true, true))
-    .filter(g => g[1].length > 0);
-  
-  return groundPatterns.length > 0 ? groundPatterns : undefined;
 }
 
 function updateStatus(s: string) {
@@ -167,7 +154,7 @@ function updateStatus(s: string) {
   process.stdout.write(s);
 }
 
-async function evaluateSalamiFile(filename: number, groundtruth: [number[], number[][][]][], options: StructureOptions, maxLength = 0) {
+async function evaluateSalamiFile(filename: number, groundtruth: Annotation[], options: StructureOptions, maxLength = 0) {
   updateStatus('  working on SALAMI file ' + filename);
   
   if (options.loggingLevel >= 0) console.log('    extracting and parsing features', filename);
@@ -180,7 +167,7 @@ async function evaluateSalamiFile(filename: number, groundtruth: [number[], numb
   if (options.loggingLevel >= 0) console.log('    mapping annotations to timegrid', filename);
   //map ground patterns to timegrid
   groundtruth.forEach(ps =>
-    ps[1] = normalize(mapToTimegrid(ps[0], ps[1], timegrid, true)));
+    ps.patterns = normalize(mapToTimegrid(ps.times, ps.patterns, timegrid, true)));
   
   if (options.loggingLevel >= 0) console.log('    inferring structure', filename);
   const points = getPoints(features);
@@ -197,12 +184,12 @@ async function evaluateSalamiFile(filename: number, groundtruth: [number[], numb
     evals["numsiatec"] = result.numSiatecPatterns;
     groundtruth.forEach((g,i) => {
       evals[i] = {};
-      evals[i]["precision"] = evaluate(occurrences, g[1]);
-      evals[i]["accuracy"] = evaluate(g[1], occurrences);
+      evals[i]["precision"] = evaluate(occurrences, g.patterns);
+      evals[i]["accuracy"] = evaluate(g.patterns, occurrences);
     });
     
     if (options.loggingLevel > 1) {
-      groundtruth.map(p => p[1]).concat([occurrences]).forEach(p => {
+      groundtruth.map(p => p.patterns).concat([occurrences]).forEach(p => {
         console.log('\n')
         printPatterns(_.cloneDeep(p));
         //printPatternSegments(_.cloneDeep(p));
@@ -214,15 +201,19 @@ async function evaluateSalamiFile(filename: number, groundtruth: [number[], numb
   }
 }
 
-async function analyzeGd(options: StructureOptions) {
-  const songs = JSON.parse(fs.readFileSync('data/top_song_map2.json', 'utf8'));
-  //await mapSeries(Object.keys(songs), k =>
-  //await mapSeries(["good lovin'"], k =>
-    //mapSeries(songs[k], async (s: any) => {
-    for (let i = 0; i < songs["good lovin'"].length; i++) {
-      const s: any = songs["good lovin'"][i];
-      const songPath = GD_LOCAL+s.recording+'/'+s.track;
-      console.log('working on', "good lovin'", ' - ', s.track);
+interface GdVersion {
+  recording: string,
+  track: string
+}
+
+async function analyzeGd(songnames: string[], options: StructureOptions) {
+  const json = JSON.parse(fs.readFileSync('data/top_song_map2.json', 'utf8'));
+  const songs = new Map<string, GdVersion[]>();
+  _.mapValues(json, (v,k) => songs.set(k, v));
+  await mapSeries(songnames, n =>
+    mapSeries(songs.get(n), async v => {
+      const songPath = GD_LOCAL+v.recording+'/'+v.track;
+      console.log('working on', n, ' - ', v.track);
       if (!loadPatterns(songPath)) {
         if (fs.existsSync(songPath)) {
           await induceStructure(songPath, options);
@@ -230,8 +221,8 @@ async function analyzeGd(options: StructureOptions) {
           console.log("\nNOT FOUND:", songPath, "\n");
         }
       }
-    }
-  //);
+    })
+  );
 }
 
 async function compareGd() {

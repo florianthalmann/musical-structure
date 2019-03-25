@@ -7,9 +7,32 @@ interface Section {
   length: number
 }
 
+export interface Annotation {
+  times: number[],
+  patterns: number[][][]
+}
+
+export function getAnnotations(folder: string): Annotation[] {
+  //parse ground truth and filter out annotations without repetitions (and empty ones like 964)
+  const patterns = getAnnotationFiles(folder)
+    .map(a => parseAnnotation(a))
+    .filter(g => g[1].length > 0);
+  if (patterns.length > 0) return patterns;
+}
+
+function getAnnotationFiles(folder: string): string[] {
+  //find available annotation files
+  if (fs.existsSync(folder)) {
+    return fs.readdirSync(folder)
+      .filter(f => f.indexOf(".txt") > 0)
+      .map(f => folder+f);
+  }
+  return [];
+}
+
 /** if ignoreVariations is true, section variations are considered identical,
     e.g. A == A' */
-export function parseAnnotations(filename: string, ignoreVariations?: boolean, useNamed?: boolean): [number[], number[][][]] {
+function parseAnnotation(filename: string, ignoreVariations = true, useNamed = true): Annotation {
   const sections = fs.readFileSync(filename, 'utf8')
     .split('\n').map(t => t.split('\t'));
   const times = sections.map(s => parseFloat(s[0]));
@@ -29,7 +52,7 @@ export function parseAnnotations(filename: string, ignoreVariations?: boolean, u
   }
   //add all reoccurring minor sections
   addRepeatedSections(patterns, labels, l => l.length <= 2 && l == _.toLower(l));
-  return [times, [...patterns.values()]];
+  return {times: times, patterns: [...patterns.values()]};
 }
 
 function addRepeatedSections(patterns: Map<string, number[][]>, labels: string[][], condition: (s: string) => boolean) {
