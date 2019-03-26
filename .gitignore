@@ -11,3 +11,5 @@ plots/.ipynb_checkpoints
 plots/salami_graphs.html
 
 *.ipynb
+
+connections*

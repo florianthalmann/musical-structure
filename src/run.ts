@@ -5,7 +5,7 @@ import { DymoGenerator, DymoTemplates } from 'dymo-core';
 import { StructureInducer, QUANT_FUNCS as QF, ArrayMap, OPTIMIZATION, HEURISTICS,
   StructureOptions, CosiatecHeuristic, getCosiatecOptionsString, getConnectednessRatings } from 'siafun';
 import { DymoStructureInducer } from './dymo-structure';
-import { getFeatureFiles, savePatternsFile, loadPatterns } from './file-manager';
+import { getFeatureFiles } from './file-manager';
 import { FeatureExtractor, FEATURES, FeatureConfig } from './feature-extractor';
 import { generatePoints, getVampValues } from './feature-parser';
 import { Annotation, getAnnotations } from './salami-parser';
@@ -81,7 +81,6 @@ async function gdJob() {
   OPTIONS.optimizationMethods = [OPTIMIZATION.PARTITION];
   
   await analyzeGd(["good lovin'"], Object.assign({}, OPTIONS));
-  //compareGd();
 }
 
 //NEXT: chroma3bars and chroma4bars with new heuristics!!!!
@@ -173,7 +172,8 @@ async function evaluateSalamiFile(filename: number, groundtruth: Annotation[], o
   const points = getPoints(features);
   
   if (!maxLength || points.length < maxLength) {
-    const result = await getCosiatecWithCaching(audio, points, options);
+    const result = await getInducerWithCaching(audio, points, options)
+      .getCosiatecIndexOccurrences();
     const occurrences = result.occurrences;
     
     if (options.loggingLevel >= 0) console.log('    evaluating', filename);
@@ -207,30 +207,30 @@ interface GdVersion {
 }
 
 async function analyzeGd(songnames: string[], options: StructureOptions) {
-  const json = JSON.parse(fs.readFileSync('data/top_song_map2.json', 'utf8'));
-  const songs = new Map<string, GdVersion[]>();
-  _.mapValues(json, (v,k) => songs.set(k, v));
-  await mapSeries(songnames, n =>
-    mapSeries(songs.get(n), async v => {
-      const songPath = GD_LOCAL+v.recording+'/'+v.track;
-      console.log('working on', n, ' - ', v.track);
-      if (!loadPatterns(songPath)) {
-        if (fs.existsSync(songPath)) {
-          await induceStructure(songPath, options);
-        } else {
-          console.log("\nNOT FOUND:", songPath, "\n");
-        }
-      }
-    })
-  );
+  const occurrences = await mapSeries(songnames, n => {
+    const vs = getGdVersions(n);
+    return mapSeries(vs, (v,i) => {
+      updateStatus('  working on ' + n + ' - ' + i + '/' + vs.length);
+      return induceStructure(v, options);
+    });
+  });
+  console.log();
+  occurrences.map(comparePatterns);
 }
 
-async function compareGd() {
-  const songs = JSON.parse(fs.readFileSync('data/top_song_map2.json', 'utf8'));
-  const patterns = songs["good lovin'"].map(s =>
-    loadPatterns(GD_LOCAL+s.recording+'/'+s.track)).filter(p => p);
-  console.log(patterns.length)
-  comparePatterns(patterns);
+function getGdVersions(songname: string) {
+  return getGdSongMap().get(songname).map(s => GD_LOCAL+s.recording+'/'+s.track);
+}
+
+var songMap: Map<string, GdVersion[]>;
+
+function getGdSongMap() {
+  if (!songMap) {
+    const json = JSON.parse(fs.readFileSync('data/top_song_map2.json', 'utf8'));
+    songMap = new Map<string, GdVersion[]>();
+    _.mapValues(json, (v,k) => songMap.set(k, v));
+  }
+  return songMap;
 }
 
 /*function plot(): Promise<any> {
@@ -239,15 +239,15 @@ async function compareGd() {
   })
 }*/
 
-async function induceStructure(audioFile: string, options: StructureOptions): Promise<any> {
-  const points = getPoints(await extractFeatures(audioFile));
-  //let patterns = new StructureInducer(points, options).getCosiatecOccurrences();
-  const occs = (await getCosiatecWithCaching(audioFile, points, options)).occurrences;
-  if (options.loggingLevel > 1) {
-    printPatterns(_.cloneDeep(occs));
-    printPatternSegments(_.cloneDeep(occs));
+async function induceStructure(audioFile: string, options: StructureOptions): Promise<number[][][][]> {
+  if (fs.existsSync(audioFile)) {
+    const points = getPoints(await extractFeatures(audioFile));
+    const occs = getInducerWithCaching(audioFile, points, options)
+      .getCosiatecOccurrences().patterns.map(p => p.occurrences);
+    return occs;
+  } else {
+    console.log("\nNOT FOUND:", audioFile, "\n");
   }
-  //await savePatternsFile(audioFile, patterns);
 }
 
 async function induceStructureWithDymos(audioFile: string): Promise<any> {
@@ -271,11 +271,11 @@ async function induceStructureWithDymos(audioFile: string): Promise<any> {
   //await printDymoStructure(generator.getStore(), dymo);
 }
 
-async function getCosiatecWithCaching(audio: string, points: number[][], options: StructureOptions) {
+function getInducerWithCaching(audio: string, points: number[][], options: StructureOptions) {
   options.cacheDir = CACHE_DIR+audioPathToDirName(audio)+'/';
   options.siatecCacheDir = SIATEC_CACHE_DIR ? SIATEC_CACHE_DIR+audioPathToDirName(audio)+'/' : undefined;
   fs.existsSync(options.cacheDir) || fs.mkdirSync(options.cacheDir);
-  return new StructureInducer(points, options).getCosiatecIndexOccurrences();
+  return new StructureInducer(points, options);
 }
 
 async function extractFeatures(audioPath: string) {
