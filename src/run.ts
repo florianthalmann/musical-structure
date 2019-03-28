@@ -27,6 +27,7 @@ const SALAMI_RESULTS = './results/salami/'//'/Volumes/FastSSD/salami/';
 
 const GD = '/Volumes/gspeed1/thomasw/grateful_dead/lma_soundboards/sbd/';
 const GD_LOCAL = '/Users/flo/Projects/Code/FAST/musical-structure/data/goodlovin/';
+const GD_RESULTS = '/Volumes/FastSSD/gd/';
 
 const featureExtractor = new FeatureExtractor();
 
@@ -73,14 +74,14 @@ gdJob();
 //cleanCaches('/Volumes/FastSSD/salami/chroma4beats', 'cosiatec');
 
 async function gdJob() {
-  setFeaturesAndQuantizerFuncs([FEATURES.BARS, FEATURES.JOHAN_CHORDS],
-    [QF.ORDER(), QF.IDENTITY()]);
-  setCacheDir('./results/gd/goodlovin/johanbars/');
+  setFeaturesAndQuantizerFuncs([FEATURES.BEATS, FEATURES.JOHAN_CHORDS],
+    [QF.ORDER(), QF.IDENTITY()]);//QF.SORTED_SUMMARIZE(4)]);
+  setCacheDir(GD_RESULTS+'goodlovin/johanbeats/');//'./results/gd/goodlovin/johanbeats/');
   setHeuristic(HEURISTICS.SIZE_AND_1D_COMPACTNESS(0));
-  OPTIONS.minPatternLength = 3;
+  OPTIONS.minPatternLength = 7;
   OPTIONS.optimizationMethods = [OPTIMIZATION.PARTITION];
   
-  await analyzeGd(["good lovin'"], Object.assign({}, OPTIONS));
+  await analyzeGd(["good lovin'"], Object.assign({}, OPTIONS), 700);
 }
 
 //NEXT: chroma3bars and chroma4bars with new heuristics!!!!
@@ -206,16 +207,16 @@ interface GdVersion {
   track: string
 }
 
-async function analyzeGd(songnames: string[], options: StructureOptions) {
+async function analyzeGd(songnames: string[], options: StructureOptions, maxLength?: number) {
   const occurrences = await mapSeries(songnames, n => {
     const vs = getGdVersions(n);
     return mapSeries(vs, (v,i) => {
-      updateStatus('  working on ' + n + ' - ' + i + '/' + vs.length);
-      return induceStructure(v, options);
+      updateStatus('  working on ' + n + ' - ' + (i+1) + '/' + vs.length);
+      return induceStructure(v, options, maxLength);
     });
   });
   console.log();
-  occurrences.map(comparePatterns);
+  occurrences.filter(r => r).map(comparePatterns);
 }
 
 function getGdVersions(songname: string) {
@@ -239,12 +240,13 @@ function getGdSongMap() {
   })
 }*/
 
-async function induceStructure(audioFile: string, options: StructureOptions): Promise<number[][][][]> {
+async function induceStructure(audioFile: string, options: StructureOptions, maxLength?: number): Promise<number[][][][]> {
   if (fs.existsSync(audioFile)) {
     const points = getPoints(await extractFeatures(audioFile));
-    const occs = getInducerWithCaching(audioFile, points, options)
-      .getCosiatecOccurrences().patterns.map(p => p.occurrences);
-    return occs;
+    if (!maxLength || points.length < maxLength) {
+      return getInducerWithCaching(audioFile, points, options)
+        .getCosiatecOccurrences();
+    }
   } else {
     console.log("\nNOT FOUND:", audioFile, "\n");
   }

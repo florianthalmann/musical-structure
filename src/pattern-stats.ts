@@ -1,12 +1,54 @@
 import * as _ from 'lodash';
+import { indexOfMax } from 'arrayutils';
 
-export function comparePatterns(patterns: number[][][][][]) {
-  const norms = patterns.map(ps => ps.map(p => JSON.stringify(toNormalForm(p))));
-  const counts = _.toPairs(_.countBy(_.flatten(norms)));
+type Pattern = number[][];
+type Occurrences = Pattern[];
+
+export function comparePatterns(occsByVersion: Occurrences[][]) {
+  const norms = occsByVersion.map(ps => ps.map(p => toNormalForm(p)));
+  const counts = _.toPairs(_.countBy(_.flatten(norms).map(n => JSON.stringify(n))));
   counts.sort((a,b)=>b[1]-a[1]);
   console.log("TOTAL DISTINCT PATTERNS:", counts.length);
   console.log("MOST COMMON PATTERN", counts[0][1], "TIMES:", counts[0][0]);
-  //console.log(counts.slice(0,10));
+  const superCount = countSuperPatternsByVersions(norms);
+  const lengths = norms.map(v => v.map(p => Math.pow(p.length, 1.4)));
+  const products = norms.map((v,i) =>
+    _.zipWith(superCount[i], lengths[i], (a:number, b:number) => a*b));
+  const superList = _.flatten(superCount.map((v,i) => v.map((p,j) => [p,i,j])));
+  superList.sort((a,b)=>b[0]-a[0]);
+  
+  /*const iOfMs: number[] = products.map(p => indexOfMax(p));
+  const maxes = iOfMs.map((i,k) => products[k][i]);
+  const maxmax: number = indexOfMax(maxes);
+  console.log("BEST SUBPATTERN", JSON.stringify(norms[maxmax][iOfMs[maxmax]]),
+    "VERSIONS:", superCount[maxmax][iOfMs[maxmax]]);*/
+  console.log("BEST SUBPATTERNS", superList.slice(0,10).map(s =>
+    JSON.stringify(norms[s[1]][s[2]]) + "VERSIONS:" + s[0]));
+  //console.log(counts.slice(0,20));
+}
+
+function countSuperPatternsByVersions(patternsByVersion: Pattern[][]): number[][] {
+  const stringPs = patternsByVersion.map(v =>
+    v.map(ps => ps.map(p => JSON.stringify(p))));
+  return stringPs.map(v => v.map(p =>
+    stringPs.map(w => hasSuperPatternIn(p, w))
+      .reduce((s,b) => b == true ? s+1 : s, 0)));
+}
+
+function hasSuperPatternIn(pattern: string[], others: string[][]) {
+  return others.some(o => subset(pattern, o));
+}
+
+//returns for each pattern the number of other patterns which contain it
+//(including identical ones)
+function countSuperPatterns(patterns: Pattern[]): number[] {
+  const stringPs = patterns.map(ps => ps.map(p => JSON.stringify(p)));
+  return stringPs.map(p1 => stringPs.map(p2 => subset(p1, p2)))
+    .map(ps => ps.reduce((s,b) => b == true ? s+1 : s, 0));
+}
+
+function subset(s1: string[], s2: string[]) {
+  return s1.every(s => s2.indexOf(s) >= 0);
 }
 
 function toNormalForm(pattern: number[][][]) {
