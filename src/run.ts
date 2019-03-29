@@ -10,7 +10,7 @@ import { FeatureExtractor, FEATURES, FeatureConfig } from './feature-extractor';
 import { generatePoints, getVampValues } from './feature-parser';
 import { Annotation, getAnnotations } from './salami-parser';
 import { NodeFetcher, printDymoStructure, mapSeries, printPatterns, printPatternSegments, audioPathToDirName, cartesianProduct } from './util';
-import { comparePatterns, mapToTimegrid, normalize } from './pattern-stats';
+import { comparePatterns, createPatternGraph, mapToTimegrid, normalize } from './pattern-stats';
 import { evaluate } from './eval';
 import { cleanCaches } from './file-manager';
 
@@ -74,14 +74,22 @@ gdJob();
 //cleanCaches('/Volumes/FastSSD/salami/chroma4beats', 'cosiatec');
 
 async function gdJob() {
-  setFeaturesAndQuantizerFuncs([FEATURES.BEATS, FEATURES.JOHAN_CHORDS],
+  /*setFeaturesAndQuantizerFuncs([FEATURES.BEATS, FEATURES.JOHAN_CHORDS],
     [QF.ORDER(), QF.IDENTITY()]);//QF.SORTED_SUMMARIZE(4)]);
   setCacheDir(GD_RESULTS+'goodlovin/johanbeats/');//'./results/gd/goodlovin/johanbeats/');
   setHeuristic(HEURISTICS.SIZE_AND_1D_COMPACTNESS(0));
-  OPTIONS.minPatternLength = 7;
+  OPTIONS.minPatternLength = 7;*/
+  
+  setFeaturesAndQuantizerFuncs([FEATURES.BARS, FEATURES.JOHAN_CHORDS],
+    [QF.ORDER(), QF.IDENTITY()]);//QF.SORTED_SUMMARIZE(4)]);
+  setCacheDir(GD_RESULTS+'goodlovin/johanbars/');//'./results/gd/goodlovin/johanbeats/');
+  setHeuristic(HEURISTICS.SIZE_AND_1D_COMPACTNESS(0));
+  OPTIONS.minPatternLength = 3;
   OPTIONS.optimizationMethods = [OPTIMIZATION.PARTITION];
   
-  await analyzeGd(["good lovin'"], Object.assign({}, OPTIONS), 700);
+  const startTime = Date.now()
+  await analyzeGd(["good lovin'"], Object.assign({}, OPTIONS), 1000);
+  console.log("DURATION", (Date.now()-startTime)/1000, "secs")
 }
 
 //NEXT: chroma3bars and chroma4bars with new heuristics!!!!
@@ -208,15 +216,16 @@ interface GdVersion {
 }
 
 async function analyzeGd(songnames: string[], options: StructureOptions, maxLength?: number) {
-  const occurrences = await mapSeries(songnames, n => {
+  const occurrences = await mapSeries(songnames, async n => {
     const vs = getGdVersions(n);
-    return mapSeries(vs, (v,i) => {
+    const occs = await mapSeries(vs, (v,i) => {
       updateStatus('  working on ' + n + ' - ' + (i+1) + '/' + vs.length);
       return induceStructure(v, options, maxLength);
     });
+    return occs.filter(r => r); //filter out empty results for ignored versions
   });
   console.log();
-  occurrences.filter(r => r).map(comparePatterns);
+  occurrences.map(createPatternGraph);
 }
 
 function getGdVersions(songname: string) {

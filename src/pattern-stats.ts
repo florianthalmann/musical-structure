@@ -1,8 +1,33 @@
 import * as _ from 'lodash';
-import { indexOfMax } from 'arrayutils';
+import { node, edge, graph, transitiveReduction } from './graph-theory';
 
 type Pattern = number[][];
 type Occurrences = Pattern[];
+
+export function createPatternGraph(occsByVersion: Occurrences[][]) {
+  occsByVersion = occsByVersion//.slice(0, 10)
+  console.log('versions:', occsByVersion.length);
+  const norms = occsByVersion.map(ps => ps.map(p => toNormalForm(p)));
+  console.log('patterns:', _.flatten(norms).length);
+  const counts = _.countBy(_.flatten(norms).map(n => JSON.stringify(n)));
+  const ids = _.keys(counts);
+  console.log('distinct:', ids.length);
+  const points = _.zipObject(ids, ids.map(s => stringToPoints(s)));
+  const nodes = ids.map(p => node(p));
+  const edges = [];
+  console.log('adding edges...')
+  nodes.forEach(n => nodes.forEach(m =>
+    realSubset(points[n.id], points[m.id]) ? edges.push(edge(n, m)) : null
+  ));
+  let result = graph(nodes, edges);
+  console.log('edges:', result.edges.length);
+  result = transitiveReduction(result);
+  console.log('reduced:', result.edges.length);
+}
+
+function stringToPoints(s: string): string[] {
+  return (<number[][]>JSON.parse(s)).map(p => JSON.stringify(p));
+}
 
 export function comparePatterns(occsByVersion: Occurrences[][]) {
   const norms = occsByVersion.map(ps => ps.map(p => toNormalForm(p)));
@@ -49,6 +74,10 @@ function countSuperPatterns(patterns: Pattern[]): number[] {
 
 function subset(s1: string[], s2: string[]) {
   return s1.every(s => s2.indexOf(s) >= 0);
+}
+
+function realSubset(s1: string[], s2: string[]) {
+  return s1.length < s2.length && subset(s1, s2);
 }
 
 function toNormalForm(pattern: number[][][]) {
