@@ -21,22 +21,29 @@ export function edge(source: Node, target: Node, id?: string): Edge {
 
 export class DirectedGraph {
   
-  constructor(public nodes: Node[], public edges: Edge[]) {}
+  private sourceToEdges = new Map<Node, Edge[]>();
+  
+  constructor(public nodes: Node[], public edges: Edge[]) {
+    nodes.forEach(n => this.sourceToEdges.set(n, []));
+    edges.forEach(e => this.sourceToEdges.get(e.source).push(e));
+  }
   
   clone(): DirectedGraph {
     return new DirectedGraph(_.clone(this.nodes), _.clone(this.edges));
   }
   
-  getEdges(source?: Node, target?: Node): Edge[] {
-    let result = this.edges;
-    if (source) result = result.filter(e => e.source === source);
+  private findEdges(source: Node, target?: Node): Edge[] {
+    let result = source ? this.sourceToEdges.get(source) : this.edges;
     if (target) result = result.filter(e => e.target === target);
     return result;
   }
   
   removeEdges(source: Node, target: Node) {
-    this.getEdges(source, target).forEach(e =>
-      this.edges.splice(this.edges.indexOf(e), 1));
+    this.findEdges(source, target).forEach(e => {
+      const s2e = this.sourceToEdges.get(source);
+      s2e.splice(s2e.indexOf(e), 1);
+      this.edges.splice(this.edges.indexOf(e), 1);
+    });
   }
   
   transitiveReduction(): DirectedGraph {
@@ -48,7 +55,7 @@ export class DirectedGraph {
   }
   
   private getDirectSuccessors(node: Node): Node[] {
-    return this.getEdges(node).map(e => e.target);
+    return this.findEdges(node).map(e => e.target);
   }
   
   private getSuccessors(node: Node): Node[] {
