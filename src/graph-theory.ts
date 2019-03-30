@@ -21,11 +21,10 @@ export function edge(source: Node, target: Node, id?: string): Edge {
 
 export class DirectedGraph {
   
-  private sourceToEdges = new Map<Node, Edge[]>();
+  private edges = new Map<Node, Map<Node, Edge[]>>();
   
-  constructor(nodes: Node[], edges: Edge[]) {
-    nodes.forEach(n => this.sourceToEdges.set(n, []));
-    edges.forEach(e => this.sourceToEdges.get(e.source).push(e));
+  constructor(private nodes: Node[], edges: Edge[]) {
+    edges.forEach(this.addEdge.bind(this));
   }
   
   clone(): DirectedGraph {
@@ -33,23 +32,37 @@ export class DirectedGraph {
   }
   
   getNodes(): Node[] {
-    return [...this.sourceToEdges.keys()];
+    return this.nodes;
   }
   
   getEdges(): Edge[] {
-    return _.flatten([...this.sourceToEdges.values()]);
+    return _.flatten(
+      ([...this.edges.values()]).map(t => _.flatten([...t.values()])));
+  }
+  
+  private addEdge(edge: Edge) {
+    if (!this.edges.has(edge.source)) {
+      this.edges.set(edge.source, new Map<Node, Edge[]>());
+    }
+    const targets = this.edges.get(edge.source);
+    if (!targets.has(edge.target)) {
+      targets.set(edge.target, []);
+    }
+    targets.get(edge.target).push(edge);
   }
   
   private findEdges(source: Node, target?: Node): Edge[] {
-    let result = this.sourceToEdges.get(source);
-    if (target) result = result.filter(e => e.target === target);
-    return result;
+    const edges = this.edges.get(source);
+    if (edges) {
+      return target ? edges.get(target) : _.flatten([...edges.values()]);
+    }
+    return [];
   }
   
   removeEdges(source: Node, target: Node) {
     this.findEdges(source, target).forEach(e => {
-      const s2e = this.sourceToEdges.get(source);
-      s2e.splice(s2e.indexOf(e), 1);
+      const edges = this.edges.get(source).get(target);
+      edges.splice(edges.indexOf(e), 1);
     });
   }
   
