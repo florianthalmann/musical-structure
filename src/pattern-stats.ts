@@ -20,10 +20,10 @@ export function createPatternGraph(occsByVersion: Occurrences[][]) {
     realSubset(points[n.id], points[m.id]) ? edges.push(edge(n, m)) : null
   ));
   let result = new DirectedGraph(nodes, edges);
-  console.log('edges:', result.edges.length);
+  console.log('edges:', result.getEdges().length);
   const startTime = Date.now()
   result = result.transitiveReduction();
-  console.log('reduced:', result.edges.length);
+  console.log('reduced:', result.getEdges().length);
   console.log('duration:', (Date.now()-startTime)/1000, 'secs')
 }
 
