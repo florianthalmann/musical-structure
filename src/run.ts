@@ -76,13 +76,13 @@ gdJob();
 async function gdJob() {
   /*setFeaturesAndQuantizerFuncs([FEATURES.BEATS, FEATURES.JOHAN_CHORDS],
     [QF.ORDER(), QF.IDENTITY()]);//QF.SORTED_SUMMARIZE(4)]);
-  setCacheDir(GD_RESULTS+'goodlovin/johanbeats/');//'./results/gd/goodlovin/johanbeats/');
+  setCacheDir(GD_RESULTS+'goodlovin/johanbeats/');
   setHeuristic(HEURISTICS.SIZE_AND_1D_COMPACTNESS(0));
   OPTIONS.minPatternLength = 7;*/
   
   setFeaturesAndQuantizerFuncs([FEATURES.BARS, FEATURES.JOHAN_CHORDS],
     [QF.ORDER(), QF.IDENTITY()]);//QF.SORTED_SUMMARIZE(4)]);
-  setCacheDir(GD_RESULTS+'goodlovin/johanbars/');//'./results/gd/goodlovin/johanbeats/');
+  setCacheDir(GD_RESULTS+'goodlovin/johanbars/');
   setHeuristic(HEURISTICS.SIZE_AND_1D_COMPACTNESS(0));
   OPTIONS.minPatternLength = 3;
   OPTIONS.optimizationMethods = [OPTIMIZATION.PARTITION];

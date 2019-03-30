@@ -10,11 +10,6 @@ interface Edge {
   id?: string
 }
 
-interface Graph {
-  nodes: Node[],
-  edges: Edge[]
-}
-
 export function node(id?: string): Node {
   return id ? {id: id} : {};
 }
@@ -24,27 +19,36 @@ export function edge(source: Node, target: Node, id?: string): Edge {
   return id ? Object.assign(edge, {id: id}): edge;
 }
 
-export function graph(nodes: Node[], edges: Edge[]): Graph {
-  return {nodes: nodes, edges: edges};
-}
-
-export function transitiveReduction(input: Graph): Graph {
-  const nodes = _.clone(input.nodes);
-  const edges = _.clone(input.edges);
-  nodes.forEach(x => nodes.forEach(y => nodes.forEach(z =>
-    removeTransitive(x, y, z, edges))));
-  return graph(nodes, edges);
-}
-
-function removeTransitive(x: Node, y: Node, z: Node, edges: Edge[]) {
-  if (getEdge(x, y, edges) && getEdge(y, z, edges)) {
-    const xz = getEdge(x, z, edges);
-    if (xz) {
-      edges.splice(edges.indexOf(xz), 1);
-    }
+export class DirectedGraph {
+  
+  constructor(public nodes: Node[], public edges: Edge[]) {}
+  
+  getEdges(source?: Node, target?: Node): Edge[] {
+    let result = this.edges;
+    if (source) result = result.filter(e => e.source === source);
+    if (target) result = result.filter(e => e.target === target);
+    return result;
   }
+  
+  transitiveReduction(): DirectedGraph {
+    const edges = _.clone(this.edges);
+    this.nodes.forEach(n => this.getDirectSuccessors(n).forEach(m =>
+      this.getSuccessors(m).forEach(s => {
+        const e = this.getEdges(n, s)[0];
+        if (e && edges.indexOf(e) >= 0) edges.splice(edges.indexOf(e), 1);
+      })
+    ));
+    return new DirectedGraph(_.clone(this.nodes), edges);
+  }
+  
+  private getDirectSuccessors(node: Node): Node[] {
+    return this.getEdges(node).map(e => e.target);
+  }
+  
+  private getSuccessors(node: Node): Node[] {
+    const direct = this.getDirectSuccessors(node);
+    return direct.concat(_.flatMap(direct, this.getSuccessors.bind(this)));
+  }
+  
 }
 
-function getEdge(source: Node, target: Node, edges: Edge[]): Edge {
-  return edges.filter(e => e.source === source).filter(e => e.target === target)[0];
-}

@@ -1,11 +1,11 @@
 import * as _ from 'lodash';
-import { node, edge, graph, transitiveReduction } from './graph-theory';
+import { node, edge, DirectedGraph } from './graph-theory';
 
 type Pattern = number[][];
 type Occurrences = Pattern[];
 
 export function createPatternGraph(occsByVersion: Occurrences[][]) {
-  occsByVersion = occsByVersion//.slice(0, 10)
+  //occsByVersion = occsByVersion.slice(0, 10)
   console.log('versions:', occsByVersion.length);
   const norms = occsByVersion.map(ps => ps.map(p => toNormalForm(p)));
   console.log('patterns:', _.flatten(norms).length);
@@ -19,9 +19,9 @@ export function createPatternGraph(occsByVersion: Occurrences[][]) {
   nodes.forEach(n => nodes.forEach(m =>
     realSubset(points[n.id], points[m.id]) ? edges.push(edge(n, m)) : null
   ));
-  let result = graph(nodes, edges);
+  let result = new DirectedGraph(nodes, edges);
   console.log('edges:', result.edges.length);
-  result = transitiveReduction(result);
+  result = result.transitiveReduction();
   console.log('reduced:', result.edges.length);
 }
 
