@@ -23,6 +23,10 @@ export class DirectedGraph {
   
   constructor(public nodes: Node[], public edges: Edge[]) {}
   
+  clone(): DirectedGraph {
+    return new DirectedGraph(_.clone(this.nodes), _.clone(this.edges));
+  }
+  
   getEdges(source?: Node, target?: Node): Edge[] {
     let result = this.edges;
     if (source) result = result.filter(e => e.source === source);
@@ -30,15 +34,17 @@ export class DirectedGraph {
     return result;
   }
   
+  removeEdges(source: Node, target: Node) {
+    this.getEdges(source, target).forEach(e =>
+      this.edges.splice(this.edges.indexOf(e), 1));
+  }
+  
   transitiveReduction(): DirectedGraph {
-    const edges = _.clone(this.edges);
-    this.nodes.forEach(n => this.getDirectSuccessors(n).forEach(m =>
-      this.getSuccessors(m).forEach(s => {
-        const e = this.getEdges(n, s)[0];
-        if (e && edges.indexOf(e) >= 0) edges.splice(edges.indexOf(e), 1);
-      })
+    const reduced = this.clone();
+    reduced.nodes.forEach(n => reduced.getDirectSuccessors(n).forEach(m =>
+      reduced.getSuccessors(m).forEach(s => reduced.removeEdges(n, s))
     ));
-    return new DirectedGraph(_.clone(this.nodes), edges);
+    return reduced;
   }
   
   private getDirectSuccessors(node: Node): Node[] {

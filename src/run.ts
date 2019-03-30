@@ -87,9 +87,9 @@ async function gdJob() {
   OPTIONS.minPatternLength = 3;
   OPTIONS.optimizationMethods = [OPTIMIZATION.PARTITION];
   
-  const startTime = Date.now()
+  
   await analyzeGd(["good lovin'"], Object.assign({}, OPTIONS), 1000);
-  console.log("DURATION", (Date.now()-startTime)/1000, "secs")
+  
 }
 
 //NEXT: chroma3bars and chroma4bars with new heuristics!!!!

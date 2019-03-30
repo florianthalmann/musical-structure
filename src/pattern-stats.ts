@@ -5,7 +5,7 @@ type Pattern = number[][];
 type Occurrences = Pattern[];
 
 export function createPatternGraph(occsByVersion: Occurrences[][]) {
-  //occsByVersion = occsByVersion.slice(0, 10)
+  //occsByVersion = occsByVersion.slice(0, 120)
   console.log('versions:', occsByVersion.length);
   const norms = occsByVersion.map(ps => ps.map(p => toNormalForm(p)));
   console.log('patterns:', _.flatten(norms).length);
@@ -21,8 +21,10 @@ export function createPatternGraph(occsByVersion: Occurrences[][]) {
   ));
   let result = new DirectedGraph(nodes, edges);
   console.log('edges:', result.edges.length);
+  const startTime = Date.now()
   result = result.transitiveReduction();
   console.log('reduced:', result.edges.length);
+  console.log('duration:', (Date.now()-startTime)/1000, 'secs')
 }
 
 function stringToPoints(s: string): string[] {
