@@ -10,7 +10,7 @@ import { FeatureExtractor, FEATURES, FeatureConfig } from './feature-extractor';
 import { generatePoints, getVampValues } from './feature-parser';
 import { Annotation, getAnnotations } from './salami-parser';
 import { NodeFetcher, printDymoStructure, mapSeries, printPatterns, printPatternSegments, audioPathToDirName, cartesianProduct } from './util';
-import { comparePatterns, createPatternGraph, mapToTimegrid, normalize } from './pattern-stats';
+import { savePatternGraph, analyzePatternGraph, mapToTimegrid, normalize } from './pattern-stats';
 import { evaluate } from './eval';
 import { cleanCaches } from './file-manager';
 
@@ -88,8 +88,8 @@ async function gdJob() {
   OPTIONS.optimizationMethods = [OPTIMIZATION.PARTITION];
   
   
-  await analyzeGd(["good lovin'"], Object.assign({}, OPTIONS), 1000);
-  
+  //await saveGdPatternGraph(["good lovin'"], Object.assign({}, OPTIONS), 1000);
+  analyzePatternGraph("good lovin'.json");
 }
 
 //NEXT: chroma3bars and chroma4bars with new heuristics!!!!
@@ -215,17 +215,16 @@ interface GdVersion {
   track: string
 }
 
-async function analyzeGd(songnames: string[], options: StructureOptions, maxLength?: number) {
-  const occurrences = await mapSeries(songnames, async n => {
+async function saveGdPatternGraph(songnames: string[], options: StructureOptions, maxLength?: number) {
+  await mapSeries(songnames, async n => {
     const vs = getGdVersions(n);
     const occs = await mapSeries(vs, (v,i) => {
       updateStatus('  working on ' + n + ' - ' + (i+1) + '/' + vs.length);
       return induceStructure(v, options, maxLength);
     });
-    return occs.filter(r => r); //filter out empty results for ignored versions
+    console.log();
+    savePatternGraph(n+'.json', occs.filter(r => r)); //filter out empty results for ignored versions
   });
-  console.log();
-  occurrences.map(createPatternGraph);
 }
 
 function getGdVersions(songname: string) {

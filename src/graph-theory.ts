@@ -1,17 +1,14 @@
+import * as fs from 'fs';
 import * as _ from 'lodash';
 
-interface Node {
+export interface Node {
   id?: string
 }
 
-interface Edge {
+export interface Edge {
   source: Node,
   target: Node,
   id?: string
-}
-
-export function node(id?: string): Node {
-  return id ? {id: id} : {};
 }
 
 export function edge(source: Node, target: Node, id?: string): Edge {
@@ -23,7 +20,7 @@ export class DirectedGraph {
   
   private edges = new Map<Node, Map<Node, Edge[]>>();
   
-  constructor(private nodes: Node[], edges: Edge[]) {
+  constructor(private nodes: Node[] = [], edges: Edge[] = []) {
     edges.forEach(this.addEdge.bind(this));
   }
   
@@ -82,6 +79,15 @@ export class DirectedGraph {
     const direct = this.getDirectSuccessors(node);
     return direct.concat(_.flatMap(direct, this.getSuccessors.bind(this)));
   }
-  
+
 }
 
+export function saveGraph(path: string, graph: DirectedGraph) {
+  fs.writeFileSync(path,
+    JSON.stringify({nodes: graph.getNodes(), edges: graph.getEdges()}))
+}
+
+export function loadGraph(path: string): DirectedGraph {
+  const json = JSON.parse(fs.readFileSync(path, 'utf8'));
+  return new DirectedGraph(json.nodes, json.edges);
+}
