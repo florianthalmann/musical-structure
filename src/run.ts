@@ -74,22 +74,27 @@ gdJob();
 //cleanCaches('/Volumes/FastSSD/salami/chroma4beats', 'cosiatec');
 
 async function gdJob() {
-  /*setFeaturesAndQuantizerFuncs([FEATURES.BEATS, FEATURES.JOHAN_CHORDS],
+  setFeaturesAndQuantizerFuncs([FEATURES.BEATS, FEATURES.JOHAN_CHORDS],
     [QF.ORDER(), QF.IDENTITY()]);//QF.SORTED_SUMMARIZE(4)]);
   setCacheDir(GD_RESULTS+'goodlovin/johanbeats/');
   setHeuristic(HEURISTICS.SIZE_AND_1D_COMPACTNESS(0));
-  OPTIONS.minPatternLength = 7;*/
+  OPTIONS.minPatternLength = 3;
+  OPTIONS.optimizationMethods = [OPTIMIZATION.PARTITION];
+  OPTIONS.numPatterns = 100;
   
-  setFeaturesAndQuantizerFuncs([FEATURES.BARS, FEATURES.JOHAN_CHORDS],
+  /*setFeaturesAndQuantizerFuncs([FEATURES.BARS, FEATURES.JOHAN_CHORDS],
     [QF.ORDER(), QF.IDENTITY()]);//QF.SORTED_SUMMARIZE(4)]);
   setCacheDir(GD_RESULTS+'goodlovin/johanbars/');
   setHeuristic(HEURISTICS.SIZE_AND_1D_COMPACTNESS(0));
   OPTIONS.minPatternLength = 3;
-  OPTIONS.optimizationMethods = [OPTIMIZATION.PARTITION];
+  OPTIONS.optimizationMethods = [OPTIMIZATION.PARTITION];*/
   
   
-  //await saveGdPatternGraph(["good lovin'"], Object.assign({}, OPTIONS), 1000);
+  //await saveGdPatternGraph(["good lovin'"], Object.assign({}, OPTIONS), 800);
+  
   analyzePatternGraph("good lovin'.json");
+  
+  //analyzePatternGraph("results/gd/goodlovin-johanbars.json");
 }
 
 //NEXT: chroma3bars and chroma4bars with new heuristics!!!!
@@ -222,7 +227,6 @@ async function saveGdPatternGraph(songnames: string[], options: StructureOptions
       updateStatus('  working on ' + n + ' - ' + (i+1) + '/' + vs.length);
       return induceStructure(v, options, maxLength);
     });
-    console.log();
     savePatternGraph(n+'.json', occs.filter(r => r)); //filter out empty results for ignored versions
   });
 }

@@ -18,10 +18,13 @@ export function edge(source: Node, target: Node, id?: string): Edge {
 
 export class DirectedGraph {
   
+  private nodes = new Map<string, Node>();
   private edges = new Map<Node, Map<Node, Edge[]>>();
+  private inverseEdges = new Map<Node, Map<Node, Edge[]>>();
   
-  constructor(private nodes: Node[] = [], edges: Edge[] = []) {
-    edges.forEach(this.addEdge.bind(this));
+  constructor(nodes: Node[] = [], edges: Edge[] = []) {
+    nodes.forEach(n => this.nodes.set(n.id, n));
+    edges.forEach(e => this.addEdge(e));
   }
   
   clone(): DirectedGraph {
@@ -29,38 +32,12 @@ export class DirectedGraph {
   }
   
   getNodes(): Node[] {
-    return this.nodes;
+    return [...this.nodes.values()];
   }
   
   getEdges(): Edge[] {
     return _.flatten(
       ([...this.edges.values()]).map(t => _.flatten([...t.values()])));
-  }
-  
-  private addEdge(edge: Edge) {
-    if (!this.edges.has(edge.source)) {
-      this.edges.set(edge.source, new Map<Node, Edge[]>());
-    }
-    const targets = this.edges.get(edge.source);
-    if (!targets.has(edge.target)) {
-      targets.set(edge.target, []);
-    }
-    targets.get(edge.target).push(edge);
-  }
-  
-  private findEdges(source: Node, target?: Node): Edge[] {
-    const edges = this.edges.get(source);
-    if (edges) {
-      return target ? edges.get(target) : _.flatten([...edges.values()]);
-    }
-    return [];
-  }
-  
-  removeEdges(source: Node, target: Node) {
-    this.findEdges(source, target).forEach(e => {
-      const edges = this.edges.get(source).get(target);
-      edges.splice(edges.indexOf(e), 1);
-    });
   }
   
   transitiveReduction(): DirectedGraph {
@@ -71,13 +48,70 @@ export class DirectedGraph {
     return reduced;
   }
   
-  private getDirectSuccessors(node: Node): Node[] {
+  getAdjacent(node: Node): Node[] {
+    return this.getDirectSuccessors(node)
+      .concat(this.getDirectPredecessors(node));
+  }
+  
+  getDirectSuccessors(node: Node): Node[] {
     return this.findEdges(node).map(e => e.target);
   }
   
-  private getSuccessors(node: Node): Node[] {
+  getSuccessors(node: Node): Node[] {
     const direct = this.getDirectSuccessors(node);
-    return direct.concat(_.flatMap(direct, this.getSuccessors.bind(this)));
+    const indirect = _.flatMap(direct, n => this.getSuccessors(n));
+    return _.concat(direct, indirect);
+  }
+  
+  getDirectPredecessors(node: Node): Node[] {
+    return this.findEdges(null, node).map(e => e.source);
+  }
+  
+  getPredecessors(node: Node): Node[] {
+    const direct = this.getDirectPredecessors(node);
+    return direct.concat(_.flatMap(direct, n => this.getPredecessors(n)));
+  }
+  
+  private addEdge(e: Edge) {
+    e = edge(this.nodes.get(e.source.id), this.nodes.get(e.target.id))
+    this.pushToDoubleMap(this.edges, e.source, e.target, e);
+    this.pushToDoubleMap(this.inverseEdges, e.target, e.source, e);
+  }
+  
+  private findEdges(source?: Node, target?: Node): Edge[] {
+    if (source) {
+      const edges = this.edges.get(source);
+      if (edges) {
+        return target ? edges.get(target) : _.flatten([...edges.values()]);
+      }
+    } else if (target) {
+      const inverses = this.inverseEdges.get(target);
+      if (inverses) {
+        return _.flatten([...inverses.values()]);
+      }
+    }
+    return [];
+  }
+  
+  private removeEdges(source: Node, target: Node) {
+    this.findEdges(source, target).forEach(e => {
+      const edges = this.edges.get(source).get(target);
+      edges.splice(edges.indexOf(e), 1);
+      const inverses = this.inverseEdges.get(target).get(source);
+      inverses.splice(inverses.indexOf(e), 1);
+    });
+  }
+  
+  private pushToDoubleMap<T,U>(map: Map<T,Map<T,U[]>>, key1: T, key2: T, value: U) {
+    const map2 = this.getOrInit(map, key1, () => new Map<T, U[]>());
+    this.getOrInit(map2, key2, () => ([])).push(value);
+  }
+  
+  private getOrInit<T,U>(map: Map<T,U>, key: T, init: () => U) {
+    if (!map.has(key)) {
+      map.set(key, init());
+    }
+    return map.get(key);
   }
 
 }

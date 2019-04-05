@@ -1,5 +1,6 @@
 import * as _ from 'lodash';
 import { edge, DirectedGraph, Node, saveGraph, loadGraph } from './graph-theory';
+import { compareArrays } from 'arrayutils';
 
 type Pattern = number[][];
 type Occurrences = Pattern[];
@@ -15,29 +16,43 @@ export function analyzePatternGraph(path: string) {
   console.log('edges:', graph.getEdges().length);
   nodes.sort((a,b) => b.count-a.count);
   console.log('most common:', nodes.slice(0,5));
+  const adjacents = <PatternNode[][]>nodes.map(n => graph.getAdjacent(n));
+  let counts = adjacents.map(as => _.sum(as.map(n => n.count)));
+  counts = _.zipWith(nodes, counts, (n,c) => n.count + c);
+  const nc = _.zip(nodes, counts);
+  nc.sort((a,b) => b[1]-a[1]);
+  console.log('most adjacent:', nc.slice(0,5));
 }
 
 export function savePatternGraph(path: string, occsByVersion: Occurrences[][]) {
-  //occsByVersion = occsByVersion.slice(0, 120)
   console.log('versions:', occsByVersion.length);
-  const norms = occsByVersion.map(ps => ps.map(p => toNormalForm(p)));
+  const norms = occsByVersion.map(v => v.map(p => toNormalForm(p)));
+  
+  //console.log(JSON.stringify(_.zip(occsByVersion[0], norms[0])))
+  
+  //just in case... remove later
+  const cc = norms.map(n => _.countBy(n.map(n => JSON.stringify(n))));
+  cc.forEach((c,i) => //console.log(_.values(c).filter(c => c > 1)))
+    _.forEach(c, (v,k) => v > 1 ? console.log(i, v, k) : null));
+  
   console.log('patterns:', _.flatten(norms).length);
   const counts: {} = _.countBy(_.flatten(norms).map(n => JSON.stringify(n)));
   const ids = _.keys(counts);
   console.log('distinct:', ids.length);
-  const points = _.zipObject(ids, ids.map(s => new Set<string>(stringToPoints(s))));
+  const points = _.zipObject(ids, ids.map(s => stringToPoints(s)));
   const nodes: PatternNode[] = ids.map(p => ({id: p, count: counts[p]}));
   const edges = [];
   console.log('adding edges...')
+  const startTime = Date.now()
   nodes.forEach(n => nodes.forEach(m =>
-    realSubset(points[n.id], points[m.id]) ? edges.push(edge(n, m)) : null
+    realSubset2(points[n.id], points[m.id]) ? edges.push(edge(n, m)) : null
   ));
+  console.log('duration:', (Date.now()-startTime)/1000, 'secs');
   let result = new DirectedGraph(nodes, edges);
   console.log('edges:', result.getEdges().length);
-  const startTime = Date.now()
   result = result.transitiveReduction();
   console.log('reduced:', result.getEdges().length);
-  console.log('duration:', (Date.now()-startTime)/1000, 'secs');
+  //console.log('duration:', (Date.now()-startTime)/1000, 'secs');
   saveGraph(path, result);
 }
 
@@ -73,9 +88,17 @@ function realSubset<T>(s1: Set<T>, s2: Set<T>) {
   return s1.size < s2.size && subset(s1, s2);
 }
 
+function subset2<T>(s1: string[], s2: string[]) {
+  return s1.every(s => s2.indexOf(s) >= 0);
+}
+
+function realSubset2<T>(s1: string[], s2: string[]) {
+  return s1.length < s2.length && subset2(s1, s2);
+}
+
 function toNormalForm(pattern: number[][][]) {
-  const normalForm = pattern[0];
-  normalForm.sort((a,b)=>a[0]-b[0]);
+  const normalForm = _.cloneDeep(pattern[0]);
+  normalForm.sort(compareArrays);
   const offset = normalForm[0][0];
   normalForm.forEach(p => p[0] -= offset);
   return normalForm;
