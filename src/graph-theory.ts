@@ -1,5 +1,8 @@
 import * as fs from 'fs';
 import * as _ from 'lodash';
+import * as svg2png from 'svg2png';
+import * as D3Node from 'd3-node';
+const d3n = new D3Node;
 
 export interface Node {
   id?: string
@@ -51,6 +54,22 @@ export class DirectedGraph {
   getAdjacent(node: Node): Node[] {
     return this.getDirectSuccessors(node)
       .concat(this.getDirectPredecessors(node));
+  }
+  
+  getNeighbors(node: Node, degreesRemoved = 1): Node[] {
+    let neighbors = this.getDirectNeighbors(node);
+    while (degreesRemoved > 1) {
+      neighbors = _.uniq(_.flatten(neighbors.map(n => this.getDirectNeighbors(n))));
+      degreesRemoved--;
+    }
+    return neighbors;
+  }
+  
+  private getDirectNeighbors(node: Node): Node[] {
+    return _.uniq(_.flatten(_.concat(
+      this.getDirectSuccessors(node).map(n => this.getDirectPredecessors(n)),
+      this.getDirectPredecessors(node).map(n => this.getDirectSuccessors(n)),
+    )));
   }
   
   getDirectSuccessors(node: Node): Node[] {

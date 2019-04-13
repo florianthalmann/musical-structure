@@ -10,7 +10,7 @@ import { FeatureExtractor, FEATURES, FeatureConfig } from './feature-extractor';
 import { generatePoints, getVampValues } from './feature-parser';
 import { Annotation, getAnnotations } from './salami-parser';
 import { NodeFetcher, printDymoStructure, mapSeries, printPatterns, printPatternSegments, audioPathToDirName, cartesianProduct } from './util';
-import { savePatternGraph, analyzePatternGraph, mapToTimegrid, normalize } from './pattern-stats';
+import { savePatternGraph, savePatternVectorGraph, analyzePatternGraph, mapToTimegrid, normalize } from './pattern-stats';
 import { evaluate } from './eval';
 import { cleanCaches } from './file-manager';
 
@@ -74,27 +74,28 @@ gdJob();
 //cleanCaches('/Volumes/FastSSD/salami/chroma4beats', 'cosiatec');
 
 async function gdJob() {
-  setFeaturesAndQuantizerFuncs([FEATURES.BEATS, FEATURES.JOHAN_CHORDS],
+  /*setFeaturesAndQuantizerFuncs([FEATURES.BEATS, FEATURES.JOHAN_CHORDS],
     [QF.ORDER(), QF.IDENTITY()]);//QF.SORTED_SUMMARIZE(4)]);
   setCacheDir(GD_RESULTS+'goodlovin/johanbeats/');
   setHeuristic(HEURISTICS.SIZE_AND_1D_COMPACTNESS(0));
   OPTIONS.minPatternLength = 3;
   OPTIONS.optimizationMethods = [OPTIMIZATION.PARTITION];
-  OPTIONS.numPatterns = 100;
+  OPTIONS.numPatterns = 100;*/
   
-  /*setFeaturesAndQuantizerFuncs([FEATURES.BARS, FEATURES.JOHAN_CHORDS],
-    [QF.ORDER(), QF.IDENTITY()]);//QF.SORTED_SUMMARIZE(4)]);
+  setFeaturesAndQuantizerFuncs([FEATURES.BARS, FEATURES.JOHAN_CHORDS],
+    [QF.ORDER(), QF.IDENTITY()]);
   setCacheDir(GD_RESULTS+'goodlovin/johanbars/');
   setHeuristic(HEURISTICS.SIZE_AND_1D_COMPACTNESS(0));
   OPTIONS.minPatternLength = 3;
-  OPTIONS.optimizationMethods = [OPTIMIZATION.PARTITION];*/
+  OPTIONS.optimizationMethods = [OPTIMIZATION.PARTITION];
+  OPTIONS.numPatterns = 100;
   
   
-  //await saveGdPatternGraph(["good lovin'"], Object.assign({}, OPTIONS), 800);
+  await saveGdPatternGraphs(["good lovin'"], Object.assign({}, OPTIONS))//, 800);
   
-  analyzePatternGraph("good lovin'.json");
+  //analyzePatternGraph("good lovin'-vecs.json");
   
-  //analyzePatternGraph("results/gd/goodlovin-johanbars.json");
+  //analyzePatternGraph("results/gd/goodlovin-chroma4bars-vecs.json");
 }
 
 //NEXT: chroma3bars and chroma4bars with new heuristics!!!!
@@ -220,14 +221,16 @@ interface GdVersion {
   track: string
 }
 
-async function saveGdPatternGraph(songnames: string[], options: StructureOptions, maxLength?: number) {
+async function saveGdPatternGraphs(songnames: string[], options: StructureOptions, maxLength?: number) {
   await mapSeries(songnames, async n => {
     const vs = getGdVersions(n);
-    const occs = await mapSeries(vs, (v,i) => {
+    let results = await mapSeries(vs.slice(0,10), (v,i) => {
       updateStatus('  working on ' + n + ' - ' + (i+1) + '/' + vs.length);
       return induceStructure(v, options, maxLength);
     });
-    savePatternGraph(n+'.json', occs.filter(r => r)); //filter out empty results for ignored versions
+    results = results.filter(r => r); //filter out empty results for ignored versions
+    savePatternGraph(n+'.json', results.map(r => r.patterns.map(p => p.occurrences)));
+    savePatternVectorGraph(n+'-vecs.json', results);
   });
 }
 
@@ -252,12 +255,12 @@ function getGdSongMap() {
   })
 }*/
 
-async function induceStructure(audioFile: string, options: StructureOptions, maxLength?: number): Promise<number[][][][]> {
+async function induceStructure(audioFile: string, options: StructureOptions, maxLength?: number) {
   if (fs.existsSync(audioFile)) {
     const points = getPoints(await extractFeatures(audioFile));
     if (!maxLength || points.length < maxLength) {
       return getInducerWithCaching(audioFile, points, options)
-        .getCosiatecOccurrences();
+        .getCosiatec();
     }
   } else {
     console.log("\nNOT FOUND:", audioFile, "\n");
