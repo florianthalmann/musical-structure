@@ -1,8 +1,5 @@
 import * as fs from 'fs';
 import * as _ from 'lodash';
-import * as svg2png from 'svg2png';
-import * as D3Node from 'd3-node';
-const d3n = new D3Node;
 
 export interface Node {
   id?: string
@@ -49,6 +46,11 @@ export class DirectedGraph {
       reduced.getSuccessors(m).forEach(s => reduced.removeEdges(n, s))
     ));
     return reduced;
+  }
+  
+  pruneIsolatedNodes(): DirectedGraph {
+    const nodes = _.uniq(_.flatten(this.getEdges().map(e => [e.source, e.target])));
+    return new DirectedGraph(nodes, this.getEdges());
   }
   
   getAdjacent(node: Node): Node[] {

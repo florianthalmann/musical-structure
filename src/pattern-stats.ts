@@ -3,9 +3,6 @@ import { OpsiatecResult } from 'siafun';
 import { compareArrays } from 'arrayutils';
 import { edge, DirectedGraph, Node, saveGraph, loadGraph } from './graph-theory';
 
-type Pattern = number[][];
-type Occurrences = Pattern[];
-
 interface PatternNode extends Node {
   size: number,
   count: number
@@ -26,7 +23,7 @@ export function analyzePatternGraph(path: string) {
   nc.sort((a,b) => b[1]-a[1]);
   console.log('most adjacent:', nc.slice(0,5));
   
-  const neighbors = <PatternNode[][]>nodes.map(n => graph.getNeighbors(n));
+  /*const neighbors = <PatternNode[][]>nodes.map(n => graph.getNeighbors(n));
   counts = neighbors.map(as => _.sum(as.map(n => n.count)));
   counts = _.zipWith(nodes, counts, (n,c) => (n.count + c)/n.size);
   nc = _.zip(nodes, counts);
@@ -39,30 +36,45 @@ export function analyzePatternGraph(path: string) {
   counts = _.zipWith(nodes, counts, (n,c) => n.count + c);
   nc = _.zip(nodes, counts);
   nc.sort((a,b) => b[1]-a[1]);
-  console.log('most recursive neighbors:', nc.slice(0,5));
+  console.log('most recursive neighbors:', nc.slice(0,5));*/
+}
+
+export function saveSubsetPatternGraph(path: string,
+    resultsByVersion: OpsiatecResult[], includeVecs: boolean) {
+  let graph = createPatternGraph(resultsByVersion, includeVecs,
+    (p1, p2) => realSubset2(p1, p2));
+  graph = graph.transitiveReduction();
+  console.log('reduced:', graph.getEdges().length);
+  saveGraph(path, graph);
+}
+
+export function saveSimilarityPatternGraph(path: string,
+    resultsByVersion: OpsiatecResult[], includeVecs: boolean) {
+  let graph = createPatternGraph(resultsByVersion, includeVecs,
+    (p1, p2) => realSimilar(p1, p2, 0.7));
+  graph = graph.pruneIsolatedNodes();
+  console.log('pruned:', graph.getNodes().length);
+  saveGraph(path, graph);
+}
+
+function createPatternGraph(resultsByVersion: OpsiatecResult[],
+    includeVecs: boolean, edgeFunc: (p1: string[], p2: string[]) => boolean) {
   
-}
-
-export function savePatternVectorGraph(path: string, resultsByVersion: OpsiatecResult[]) {
   console.log('versions:', resultsByVersion.length);
-  const norms = resultsByVersion.map(v =>
-    _.flatten(v.patterns.map(p => toVectorNormalForms(p.points, p.vectors))));
-  createAndSaveGraph(path, _.flatten(norms));
-}
-
-export function savePatternGraph(path: string, occsByVersion: Occurrences[][]) {
-  console.log('versions:', occsByVersion.length);
-  const norms = occsByVersion.map(v => v.map(p => toNormalForm(p[0])));
+  const norms = includeVecs ? resultsByVersion.map(v =>
+    _.flatten(v.patterns.map(p => toVectorNormalForms(p.points, p.vectors))))
+    : resultsByVersion.map(v => v.patterns.map(p => toNormalForm(p.occurrences[0])));
   
   //just in case... remove later
   const cc = norms.map(n => _.countBy(n.map(n => JSON.stringify(n))));
   cc.forEach((c,i) => //console.log(_.values(c).filter(c => c > 1)))
     _.forEach(c, (v,k) => v > 1 ? console.log(i, v, k) : null));
   
-  createAndSaveGraph(path, _.flatten(norms));
+  return createGraph(_.flatten(norms), edgeFunc);
 }
 
-function createAndSaveGraph<T>(path: string, nodeContent: T[]) {
+function createGraph<T>(nodeContent: T[],
+    edgeFunc: (p1: string[], p2: string[]) => boolean) {
   console.log('nodes:', nodeContent.length);
   const counts: {} = _.countBy(nodeContent.map(n => JSON.stringify(n)));
   const ids = _.keys(counts);
@@ -74,15 +86,11 @@ function createAndSaveGraph<T>(path: string, nodeContent: T[]) {
   console.log('adding edges...')
   const startTime = Date.now()
   nodes.forEach(n => nodes.forEach(m =>
-    realSubset2(points[n.id], points[m.id]) ? edges.push(edge(n, m)) : null
-  ));
+    edgeFunc(points[n.id], points[m.id]) ? edges.push(edge(n, m)) : null));
   console.log('duration:', (Date.now()-startTime)/1000, 'secs');
   let result = new DirectedGraph(nodes, edges);
   console.log('edges:', result.getEdges().length);
-  //result = result.transitiveReduction();
-  console.log('reduced:', result.getEdges().length);
-  //console.log('duration:', (Date.now()-startTime)/1000, 'secs');
-  saveGraph(path, result);
+  return result;
 }
 
 function stringToPoints(s: string): string[] {
@@ -103,6 +111,18 @@ function subset2<T>(s1: string[], s2: string[]) {
 
 function realSubset2<T>(s1: string[], s2: string[]) {
   return s1.length < s2.length && subset2(s1, s2);
+}
+
+function intersection(s1: string[], s2: string[]): string[] {
+  return s1.filter(s => s2.indexOf(s) >= 0);
+}
+
+function similar(s1: string[], s2: string[], ratio: number): boolean {
+  return 2*intersection(s1, s2).length / (s1.length+s2.length) > ratio;
+}
+
+function realSimilar(s1: string[], s2: string[], ratio: number) {
+  return s1 !== s2 && similar(s1, s2, ratio);
 }
 
 function toNormalForm(points: number[][]): number[][] {

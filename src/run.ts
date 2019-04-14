@@ -10,7 +10,7 @@ import { FeatureExtractor, FEATURES, FeatureConfig } from './feature-extractor';
 import { generatePoints, getVampValues } from './feature-parser';
 import { Annotation, getAnnotations } from './salami-parser';
 import { NodeFetcher, printDymoStructure, mapSeries, printPatterns, printPatternSegments, audioPathToDirName, cartesianProduct } from './util';
-import { savePatternGraph, savePatternVectorGraph, analyzePatternGraph, mapToTimegrid, normalize } from './pattern-stats';
+import { saveSimilarityPatternGraph, analyzePatternGraph, mapToTimegrid, normalize } from './pattern-stats';
 import { evaluate } from './eval';
 import { cleanCaches } from './file-manager';
 
@@ -88,12 +88,12 @@ async function gdJob() {
   setHeuristic(HEURISTICS.SIZE_AND_1D_COMPACTNESS(0));
   OPTIONS.minPatternLength = 3;
   OPTIONS.optimizationMethods = [OPTIMIZATION.PARTITION];
-  OPTIONS.numPatterns = 100;
+  //OPTIONS.numPatterns = 100;
   
   
-  await saveGdPatternGraphs(["good lovin'"], Object.assign({}, OPTIONS))//, 800);
+  await saveGdPatternGraphs(["good lovin'"], Object.assign({}, OPTIONS), 30)//, 800);
   
-  //analyzePatternGraph("good lovin'-vecs.json");
+  analyzePatternGraph("good lovin'.json");
   
   //analyzePatternGraph("results/gd/goodlovin-chroma4bars-vecs.json");
 }
@@ -221,16 +221,18 @@ interface GdVersion {
   track: string
 }
 
-async function saveGdPatternGraphs(songnames: string[], options: StructureOptions, maxLength?: number) {
+async function saveGdPatternGraphs(songnames: string[], options: StructureOptions,
+    versionCount?: number, maxLength?: number) {
   await mapSeries(songnames, async n => {
-    const vs = getGdVersions(n);
-    let results = await mapSeries(vs.slice(0,10), (v,i) => {
+    let vs = getGdVersions(n);
+    vs = versionCount ? vs.slice(0, versionCount) : vs;
+    let results = await mapSeries(vs, (v,i) => {
       updateStatus('  working on ' + n + ' - ' + (i+1) + '/' + vs.length);
       return induceStructure(v, options, maxLength);
     });
     results = results.filter(r => r); //filter out empty results for ignored versions
-    savePatternGraph(n+'.json', results.map(r => r.patterns.map(p => p.occurrences)));
-    savePatternVectorGraph(n+'-vecs.json', results);
+    saveSimilarityPatternGraph(n+'.json', results, false);
+    saveSimilarityPatternGraph(n+'-vecs.json', results, true);
   });
 }
 
