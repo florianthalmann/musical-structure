@@ -3,9 +3,15 @@ import { OpsiatecResult } from 'siafun';
 import { compareArrays } from 'arrayutils';
 import { edge, DirectedGraph, Node, saveGraph, loadGraph } from './graph-theory';
 
+interface ProtoNode {
+  protoId: any
+}
+
 interface PatternNode extends Node {
+  points: string[],
   size: number,
-  count: number
+  count: number,
+  versions: number[]
 }
 
 export function analyzePatternGraph(path: string) {
@@ -42,7 +48,7 @@ export function analyzePatternGraph(path: string) {
 export function saveSubsetPatternGraph(path: string,
     resultsByVersion: OpsiatecResult[], includeVecs: boolean) {
   let graph = createPatternGraph(resultsByVersion, includeVecs,
-    (p1, p2) => realSubset2(p1, p2));
+    (p1, p2) => realSubset2(p1.points, p2.points));
   graph = graph.transitiveReduction();
   console.log('reduced:', graph.getEdges().length);
   saveGraph(path, graph);
@@ -51,46 +57,61 @@ export function saveSubsetPatternGraph(path: string,
 export function saveSimilarityPatternGraph(path: string,
     resultsByVersion: OpsiatecResult[], includeVecs: boolean) {
   let graph = createPatternGraph(resultsByVersion, includeVecs,
-    (p1, p2) => realSimilar(p1, p2, 0.7));
+    (p1, p2) => distinct(p1.versions, p2.versions)
+      && realSimilar(p1.points, p2.points, 0.9));
   graph = graph.pruneIsolatedNodes();
   console.log('pruned:', graph.getNodes().length);
   saveGraph(path, graph);
 }
 
 function createPatternGraph(resultsByVersion: OpsiatecResult[],
-    includeVecs: boolean, edgeFunc: (p1: string[], p2: string[]) => boolean) {
+    includeVecs: boolean, edgeFunc: (p1: PatternNode, p2: PatternNode) => boolean) {
   
   console.log('versions:', resultsByVersion.length);
-  const norms = includeVecs ? resultsByVersion.map(v =>
+  const normsByVersion = includeVecs ? resultsByVersion.map(v =>
     _.flatten(v.patterns.map(p => toVectorNormalForms(p.points, p.vectors))))
     : resultsByVersion.map(v => v.patterns.map(p => toNormalForm(p.occurrences[0])));
   
   //just in case... remove later
-  const cc = norms.map(n => _.countBy(n.map(n => JSON.stringify(n))));
+  const cc = normsByVersion.map(n => _.countBy(n.map(n => JSON.stringify(n))));
   cc.forEach((c,i) => //console.log(_.values(c).filter(c => c > 1)))
     _.forEach(c, (v,k) => v > 1 ? console.log(i, v, k) : null));
   
-  return createGraph(_.flatten(norms), edgeFunc);
+  return createGraph(_.flatten(normsByVersion.map(ns =>
+    ns.map((n,i) => ({protoId: n, versions: i})))), edgeFunc);
 }
 
-function createGraph<T>(nodeContent: T[],
-    edgeFunc: (p1: string[], p2: string[]) => boolean) {
-  console.log('nodes:', nodeContent.length);
-  const counts: {} = _.countBy(nodeContent.map(n => JSON.stringify(n)));
-  const ids = _.keys(counts);
-  const sizes = _.zipObject(ids, ids.map(i => JSON.parse(i).length));
+function createGraph(protoNodes: ProtoNode[],
+    edgeFunc: (p1: PatternNode, p2: PatternNode) => boolean) {
+  console.log('nodes:', protoNodes.length);
+  const grouped = _.groupBy(protoNodes, n => JSON.stringify(n.protoId));
+  const ids = _.keys(grouped);
   console.log('distinct:', ids.length);
   const points = _.zipObject(ids, ids.map(s => stringToPoints(s)));
-  const nodes: PatternNode[] = ids.map(p => ({id: p, count: counts[p], size: sizes[p]}));
+  const sizes = _.zipObject(ids, ids.map(i => JSON.parse(i).length));
+  const combined = _.mapValues(grouped, g => combineProtoNodes(g));
+  const nodes: PatternNode[] = ids.map(i => <PatternNode>
+    Object.assign({
+      id: i,
+      points: points[i],
+      count: grouped[i].length,
+      size: sizes[i]
+    }, combined[i]));
+  
   const edges = [];
   console.log('adding edges...')
-  const startTime = Date.now()
+  const startTime = Date.now();
   nodes.forEach(n => nodes.forEach(m =>
-    edgeFunc(points[n.id], points[m.id]) ? edges.push(edge(n, m)) : null));
+    edgeFunc(n, m) ? edges.push(edge(n, m)) : null));
   console.log('duration:', (Date.now()-startTime)/1000, 'secs');
   let result = new DirectedGraph(nodes, edges);
   console.log('edges:', result.getEdges().length);
   return result;
+}
+
+function combineProtoNodes(objects: ProtoNode[]): {} {
+  const keys = _.keys(objects[0]).filter(k => k !== "protoId");
+  return _.mapValues(_.pick(objects[0], keys), (v,k) => _.map(objects, k));
 }
 
 function stringToPoints(s: string): string[] {
@@ -105,24 +126,24 @@ function realSubset<T>(s1: Set<T>, s2: Set<T>) {
   return s1.size < s2.size && subset(s1, s2);
 }
 
-function subset2<T>(s1: string[], s2: string[]) {
+function subset2<T>(s1: T[], s2: T[]) {
   return s1.every(s => s2.indexOf(s) >= 0);
 }
 
-function realSubset2<T>(s1: string[], s2: string[]) {
+function realSubset2<T>(s1: T[], s2: T[]) {
   return s1.length < s2.length && subset2(s1, s2);
 }
 
-function intersection(s1: string[], s2: string[]): string[] {
-  return s1.filter(s => s2.indexOf(s) >= 0);
+function similar<T>(s1: T[], s2: T[], ratio: number): boolean {
+  return 2 * _.intersection(s1, s2).length / (s1.length+s2.length) > ratio;
 }
 
-function similar(s1: string[], s2: string[], ratio: number): boolean {
-  return 2*intersection(s1, s2).length / (s1.length+s2.length) > ratio;
-}
-
-function realSimilar(s1: string[], s2: string[], ratio: number) {
+function realSimilar<T>(s1: T[], s2: T[], ratio: number) {
   return s1 !== s2 && similar(s1, s2, ratio);
+}
+
+function distinct<T>(s1: T[], s2: T[]) {
+  return _.intersection(s1, s2).length < _.union(s1, s2).length;
 }
 
 function toNormalForm(points: number[][]): number[][] {

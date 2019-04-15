@@ -91,7 +91,7 @@ async function gdJob() {
   //OPTIONS.numPatterns = 100;
   
   
-  await saveGdPatternGraphs(["good lovin'"], Object.assign({}, OPTIONS), 30)//, 800);
+  await saveGdPatternGraphs(["good lovin'"], Object.assign({}, OPTIONS), 100)//, 800);
   
   analyzePatternGraph("good lovin'.json");
   
@@ -232,7 +232,7 @@ async function saveGdPatternGraphs(songnames: string[], options: StructureOption
     });
     results = results.filter(r => r); //filter out empty results for ignored versions
     saveSimilarityPatternGraph(n+'.json', results, false);
-    saveSimilarityPatternGraph(n+'-vecs.json', results, true);
+    //saveSimilarityPatternGraph(n+'-vecs.json', results, true);
   });
 }
 
