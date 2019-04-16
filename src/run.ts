@@ -10,7 +10,7 @@ import { FeatureExtractor, FEATURES, FeatureConfig } from './feature-extractor';
 import { generatePoints, getVampValues } from './feature-parser';
 import { Annotation, getAnnotations } from './salami-parser';
 import { NodeFetcher, printDymoStructure, mapSeries, printPatterns, printPatternSegments, audioPathToDirName, cartesianProduct } from './util';
-import { saveSimilarityPatternGraph, analyzePatternGraph, mapToTimegrid, normalize } from './pattern-stats';
+import { createSimilarityPatternGraph, createSimilaritySegmentGraph, analyzePatternGraph, mapToTimegrid, normalize } from './pattern-stats';
 import { evaluate } from './eval';
 import { cleanCaches } from './file-manager';
 
@@ -91,9 +91,9 @@ async function gdJob() {
   //OPTIONS.numPatterns = 100;
   
   
-  await saveGdPatternGraphs(["good lovin'"], Object.assign({}, OPTIONS), 100)//, 800);
+  await saveGdPatternGraphs(["good lovin'"], Object.assign({}, OPTIONS), 10)//, 800);
   
-  analyzePatternGraph("good lovin'.json");
+  analyzePatternGraph("good lovin'-segs.json");
   
   //analyzePatternGraph("results/gd/goodlovin-chroma4bars-vecs.json");
 }
@@ -231,8 +231,9 @@ async function saveGdPatternGraphs(songnames: string[], options: StructureOption
       return induceStructure(v, options, maxLength);
     });
     results = results.filter(r => r); //filter out empty results for ignored versions
-    saveSimilarityPatternGraph(n+'.json', results, false);
-    //saveSimilarityPatternGraph(n+'-vecs.json', results, true);
+    createSimilaritySegmentGraph(n+'-segs.json', results);
+    //createSimilarityPatternGraph(results, false, n+'.json');
+    //createSimilarityPatternGraph(results, true, n+'-vecs.json');
   });
 }
 

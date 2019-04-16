@@ -14,6 +14,11 @@ interface PatternNode extends Node {
   versions: number[]
 }
 
+interface SegmentNode extends Node {
+  point: number[],
+  version: number
+}
+
 export function analyzePatternGraph(path: string) {
   const graph = loadGraph(path);
   const nodes = <PatternNode[]>graph.getNodes();
@@ -45,23 +50,73 @@ export function analyzePatternGraph(path: string) {
   console.log('most recursive neighbors:', nc.slice(0,5));*/
 }
 
-export function saveSubsetPatternGraph(path: string,
-    resultsByVersion: OpsiatecResult[], includeVecs: boolean) {
+export function createSimilaritySegmentGraph(path: string,
+    resultsByVersion: OpsiatecResult[]) {
+  //first strings of segments with seq edge type
+  //then connections based on pattern graph
+  const patternGraph = createSimilarityPatternGraph(resultsByVersion, false);
+  const normsByVersion = resultsByVersion.map(v =>
+    _.zipObject(v.patterns.map(p => JSON.stringify(toNormalForm(p.points))), v.patterns));
+  
+  //TODO THESE WILL BE GROUPS OF SIMILARS SOON!!!!!! so simulate now...
+  const bestPatterns = <PatternNode[]>patternGraph.getNodes();
+  bestPatterns.sort((a,b) => b.count-a.count);
+  
+  
+  const nodes: SegmentNode[][] =
+    resultsByVersion.map((v,i) =>
+      v.points.map(p => ({id: i+", "+p, point: p, version: i})));
+  const nodesByVersionByPoint = nodes.map(v =>
+    _.zipObject(v.map(n => JSON.stringify(n.point)), v));
+  
+  const edges = [];
+  
+  bestPatterns.slice(0,1).forEach(pn => {
+    //TODO HERE MAKE UNION OF PATTERNS SOON
+    
+    const pointGroups = pn.points.map(p => _.flatten(pn.versions.map(v => {
+      const pattern = normsByVersion[v][pn.id];
+      //get pos of norm point in pattern
+      const pi = toNormalForm(pattern.points).map(p => JSON.stringify(p)).indexOf(p);
+      //get points at pos in all occurrences
+      const ps = pattern.occurrences.map(o => o[pi]);
+      //get points from nodesByVersionByPoint
+      return ps.map(p => nodesByVersionByPoint[v][JSON.stringify(p)]);
+    })));
+    
+    //now connect all groups of associated points
+    pointGroups.forEach(pg => pg.forEach(p => pg.forEach(q =>
+      p !== q ? edges.push(edge(p, q)) : null
+    )));
+  });
+  
+  let graph = new DirectedGraph(_.flatten(nodes), edges);
+  
+  //TODO REMOVE AT SOME POINT
+  graph = graph.pruneIsolatedNodes();
+  
+  saveGraph(path, graph);
+}
+
+export function createSubsetPatternGraph(resultsByVersion: OpsiatecResult[],
+    includeVecs: boolean, path?: string) {
   let graph = createPatternGraph(resultsByVersion, includeVecs,
     (p1, p2) => realSubset2(p1.points, p2.points));
   graph = graph.transitiveReduction();
   console.log('reduced:', graph.getEdges().length);
-  saveGraph(path, graph);
+  if (path) saveGraph(path, graph);
+  return graph;
 }
 
-export function saveSimilarityPatternGraph(path: string,
-    resultsByVersion: OpsiatecResult[], includeVecs: boolean) {
+export function createSimilarityPatternGraph(resultsByVersion: OpsiatecResult[],
+    includeVecs: boolean, path?: string) {
   let graph = createPatternGraph(resultsByVersion, includeVecs,
     (p1, p2) => distinct(p1.versions, p2.versions)
       && realSimilar(p1.points, p2.points, 0.9));
   graph = graph.pruneIsolatedNodes();
   console.log('pruned:', graph.getNodes().length);
-  saveGraph(path, graph);
+  if (path) saveGraph(path, graph);
+  return graph;
 }
 
 function createPatternGraph(resultsByVersion: OpsiatecResult[],
@@ -70,15 +125,16 @@ function createPatternGraph(resultsByVersion: OpsiatecResult[],
   console.log('versions:', resultsByVersion.length);
   const normsByVersion = includeVecs ? resultsByVersion.map(v =>
     _.flatten(v.patterns.map(p => toVectorNormalForms(p.points, p.vectors))))
-    : resultsByVersion.map(v => v.patterns.map(p => toNormalForm(p.occurrences[0])));
+    : resultsByVersion.map(v => v.patterns.map(p => toNormalForm(p.points)));
   
   //just in case... remove later
   const cc = normsByVersion.map(n => _.countBy(n.map(n => JSON.stringify(n))));
   cc.forEach((c,i) => //console.log(_.values(c).filter(c => c > 1)))
     _.forEach(c, (v,k) => v > 1 ? console.log(i, v, k) : null));
   
-  return createGraph(_.flatten(normsByVersion.map(ns =>
-    ns.map((n,i) => ({protoId: n, versions: i})))), edgeFunc);
+  return createGraph(_.flatten(normsByVersion.map((v,i) => 
+    v.map(n => ({protoId: n, versions: i}))
+  )), edgeFunc);
 }
 
 function createGraph(protoNodes: ProtoNode[],
