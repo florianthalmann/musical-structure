@@ -93,8 +93,9 @@ export class DirectedGraph {
     return direct.concat(_.flatMap(direct, n => this.getPredecessors(n)));
   }
   
-  private addEdge(e: Edge) {
-    e = edge(this.nodes.get(e.source.id), this.nodes.get(e.target.id))
+  addEdge(e: Edge) {
+    e.source = this.nodes.get(e.source.id);
+    e.target = this.nodes.get(e.target.id);
     this.pushToDoubleMap(this.edges, e.source, e.target, e);
     this.pushToDoubleMap(this.inverseEdges, e.target, e.source, e);
   }

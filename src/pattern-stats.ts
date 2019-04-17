@@ -71,7 +71,9 @@ export function createSimilaritySegmentGraph(path: string,
   
   const edges = [];
   
-  bestPatterns.slice(0,1).forEach(pn => {
+  console.log(bestPatterns.length)
+  
+  bestPatterns.slice(0,9).forEach(pn => {
     //TODO HERE MAKE UNION OF PATTERNS SOON
     
     const pointGroups = pn.points.map(p => _.flatten(pn.versions.map(v => {
@@ -92,8 +94,23 @@ export function createSimilaritySegmentGraph(path: string,
   
   let graph = new DirectedGraph(_.flatten(nodes), edges);
   
-  //TODO REMOVE AT SOME POINT
+  //TODO REMOVE AT SOME POINT?
   graph = graph.pruneIsolatedNodes();
+  
+  const remainingNodes = graph.getNodes();
+  const remainingNodesMaps = nodesByVersionByPoint.map(v =>
+    _.pickBy(v, n => remainingNodes.indexOf(n) >= 0));
+  
+  //TODO NOW ADD REMAINING SUCCESSIVE NODE CONNECTIONS....
+  resultsByVersion.forEach((v,vi) => v.points.forEach((p,pi) => {
+    if (pi > 0) {
+      const previous = remainingNodesMaps[vi][JSON.stringify(v.points[pi-1])];
+      const current = remainingNodesMaps[vi][JSON.stringify(p)];
+      const newEdge = edge(previous, current);
+      newEdge["linear"] = true;
+      if (previous && current) graph.addEdge(newEdge);
+    }
+  }));
   
   saveGraph(path, graph);
 }

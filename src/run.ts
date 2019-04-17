@@ -91,7 +91,7 @@ async function gdJob() {
   //OPTIONS.numPatterns = 100;
   
   
-  await saveGdPatternGraphs(["good lovin'"], Object.assign({}, OPTIONS), 10)//, 800);
+  await saveGdPatternGraphs(["good lovin'"], Object.assign({}, OPTIONS), 20)//, 800);
   
   analyzePatternGraph("good lovin'-segs.json");
   
