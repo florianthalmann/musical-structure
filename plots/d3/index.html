@@ -19,20 +19,25 @@
 	.text("");
     
     var simulation = d3.forceSimulation()
-      .force("link", d3.forceLink().id(d => d.id).strength(0.3).distance(30))
-      .force("charge", d3.forceManyBody().strength(-3).distanceMax(1000))//.theta(1))
+      .force("link", d3.forceLink().id(d => d.id))//.strength(0.3).distance(30))
+      .force("charge", d3.forceManyBody())//.strength(-3).distanceMax(1000))//.theta(1))
       .force("center", d3.forceCenter(width / 2, height / 2));
+      /*.force("link", d3.forceLink().id(d => d.id).strength(0.3).distance(30))
+      .force("charge", d3.forceManyBody().strength(-3).distanceMax(1000))//.theta(1))
+      .force("center", d3.forceCenter(width / 2, height / 2));*/
     
-    let graph = await d3.json("good lovin'-d9b.json");
+    let graph = await d3.json("good lovin'-segs.json");
     graph = {nodes: graph.nodes,
-      links: graph.edges.map(e => ({source: e.source.id, target: e.target.id}))}
+      links: graph.edges.map(e =>
+        {e.source = e.source.id; e.target = e.target.id; return e;})
+      }
     
       var link = svg.append("g")
         .attr("class", "links")
       .selectAll("line")
       .data(graph.links)
       .enter().append("line")
-        .attr("stroke", "lightgrey")
+        .attr("stroke", e => e.linear == true ? "black" : "lightgrey")
         .attr("stroke-width", 1);
 
     var node = svg.append("g")
@@ -41,9 +46,9 @@
       .data(graph.nodes)
       .enter().append("circle")
         .attr("r", 3)
-        .on("mouseover", n => {tooltip.style("visibility", "visible"); tooltip.text(n.id + "\n" + JSON.stringify(n.versions))})
-  	.on("mousemove", () => tooltip.style("top", (event.pageY-10)+"px").style("left",(event.pageX+10)+"px"))
-  	.on("mouseout", () => tooltip.style("visibility", "hidden"));
+        .on("mouseover", n => {tooltip.style("visibility", "visible"); tooltip.text(n.id)})
+        .on("mousemove", () => tooltip.style("top", (event.pageY-10)+"px").style("left",(event.pageX+10)+"px"))
+        .on("mouseout", () => tooltip.style("visibility", "hidden"));
     
     
     simulation
