@@ -11,7 +11,7 @@ export interface Edge {
   id?: string
 }
 
-export function edge(source: Node, target: Node, id?: string): Edge {
+function edge(source: Node, target: Node, id?: string): Edge {
   const edge = {source: source, target: target};
   return id ? Object.assign(edge, {id: id}): edge;
 }
@@ -24,7 +24,7 @@ export class DirectedGraph {
   
   constructor(nodes: Node[] = [], edges: Edge[] = []) {
     nodes.forEach(n => this.nodes.set(n.id, n));
-    edges.forEach(e => this.addEdge(e));
+    edges.forEach(e => this.addLoadedEdge(e));
   }
   
   clone(): DirectedGraph {
@@ -51,6 +51,32 @@ export class DirectedGraph {
   pruneIsolatedNodes(): DirectedGraph {
     const nodes = _.uniq(_.flatten(this.getEdges().map(e => [e.source, e.target])));
     return new DirectedGraph(nodes, this.getEdges());
+  }
+  
+  getMaximalCliques(): Node[][] {
+    return this.bronKerbosch([], this.getNodes(), []);
+  }
+  
+  private bronKerbosch(R: Node[], P: Node[], X: Node[]): Node[][] {
+    if (P.length == 0 && X.length == 0) {
+      return [R];
+    }
+    let result = []
+    P.forEach(n => {
+      result = _.concat(result, this.bronKerbosch(_.concat(R, n), _.intersection(P, this.getAdjacent(n)), _.intersection(X, this.getAdjacent(n))));
+      P = _.difference(P, [n]);
+      X = _.concat(X, n);
+    });
+    return result;
+  }
+  
+  contract(nodes: Node[]) {
+    //nodes[0].id = nodes.map(n => n.id).join('U');
+    //console.log(nodes[0])
+    _.flatten(nodes.slice(1).map(n => this.findEdges(n))).map(e =>
+      this.findEdges(nodes[0], e.target).length == 0 ?
+        this.addEdge(nodes[0], e.target) : null);
+    nodes.slice(1).forEach(n => this.removeNode(n));
   }
   
   getAdjacent(node: Node): Node[] {
@@ -93,18 +119,33 @@ export class DirectedGraph {
     return direct.concat(_.flatMap(direct, n => this.getPredecessors(n)));
   }
   
-  addEdge(e: Edge) {
-    e.source = this.nodes.get(e.source.id);
-    e.target = this.nodes.get(e.target.id);
+  addEdge(source: Node, target: Node): Edge {
+    if (this.nodes.has(source.id) && this.nodes.has(target.id)) {
+      return this.pushEdge(edge(source, target));
+    }
+  }
+  
+  private addLoadedEdge(edge: Edge) {
+    edge.source = this.nodes.get(edge.source.id);
+    edge.target = this.nodes.get(edge.target.id);
+    this.pushEdge(edge);
+  }
+  
+  private pushEdge(e: Edge): Edge {
     this.pushToDoubleMap(this.edges, e.source, e.target, e);
     this.pushToDoubleMap(this.inverseEdges, e.target, e.source, e);
+    return e;
   }
   
   private findEdges(source?: Node, target?: Node): Edge[] {
     if (source) {
       const edges = this.edges.get(source);
       if (edges) {
-        return target ? edges.get(target) : _.flatten([...edges.values()]);
+        if (target) {
+           if (edges.has(target)) return edges.get(target);
+        } else {
+          return _.flatten([...edges.values()]);
+        }
       }
     } else if (target) {
       const inverses = this.inverseEdges.get(target);
@@ -122,6 +163,14 @@ export class DirectedGraph {
       const inverses = this.inverseEdges.get(target).get(source);
       inverses.splice(inverses.indexOf(e), 1);
     });
+  }
+  
+  private removeNode(node: Node) {
+    this.nodes.delete(node.id);
+    this.edges.delete(node);
+    this.edges.forEach(e => e.delete(node));
+    this.inverseEdges.delete(node);
+    this.inverseEdges.forEach(e => e.delete(node));
   }
   
   private pushToDoubleMap<T,U>(map: Map<T,Map<T,U[]>>, key1: T, key2: T, value: U) {
