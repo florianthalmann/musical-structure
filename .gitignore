@@ -10,6 +10,7 @@ results
 plots/.ipynb_checkpoints
 plots/*.html
 plots/graph_visuals.py
+plots/d3/new
 
 *.ipynb
 
