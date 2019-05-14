@@ -20,7 +20,7 @@ async function draw() {
   
   const simulation = d3.forceSimulation()
     .force("link", d3.forceLink().id(d => d.id))//.strength(0.3).distance(30))
-    .force("charge", d3.forceManyBody().distanceMax(50))//.strength(-3).distanceMax(1000))//.theta(1))
+    .force("charge", d3.forceManyBody().strength(-3))//.distanceMax(50))//.strength(-3).distanceMax(1000))//.theta(1))
     .force("center", d3.forceCenter(width / 2, height / 2));
     /*.force("link", d3.forceLink().id(d => d.id).strength(0.3).distance(30))
     .force("charge", d3.forceManyBody().strength(-3).distanceMax(1000))//.theta(1))

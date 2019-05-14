@@ -1,7 +1,7 @@
 import * as _ from 'lodash';
 import { OpsiatecResult } from 'siafun';
 import { compareArrays } from 'arrayutils';
-import { edge, DirectedGraph, Node, saveGraph, loadGraph } from './graph-theory';
+import { DirectedGraph, Node, saveGraph, loadGraph } from './graph-theory';
 
 interface ProtoNode {
   protoId: any
@@ -69,11 +69,21 @@ export function createSimilaritySegmentGraph(path: string,
   const nodesByVersionByPoint = nodes.map(v =>
     _.zipObject(v.map(n => JSON.stringify(n.point)), v));
   
-  const edges = [];
+  let graph = new DirectedGraph(_.flatten(nodes), []);
+  
+  //TODO NOW ADD REMAINING SUCCESSIVE NODE CONNECTIONS....
+  resultsByVersion.forEach((v,vi) => v.points.forEach((p,pi) => {
+    if (pi > 0) {
+      const previous = nodesByVersionByPoint[vi][JSON.stringify(v.points[pi-1])];
+      const current = nodesByVersionByPoint[vi][JSON.stringify(p)];
+      if (previous && current)
+        graph.addEdge(previous, current)["linear"] = true;
+    }
+  }));
   
   console.log(bestPatterns.length)
   
-  bestPatterns.slice(0,9).forEach(pn => {
+  bestPatterns.forEach(pn => {
     //TODO HERE MAKE UNION OF PATTERNS SOON
     
     const pointGroups = pn.points.map(p => _.flatten(pn.versions.map(v => {
@@ -87,12 +97,12 @@ export function createSimilaritySegmentGraph(path: string,
     })));
     
     //now connect all groups of associated points
-    pointGroups.forEach(pg => pg.forEach(p => pg.forEach(q =>
-      p !== q ? edges.push(edge(p, q)) : null
-    )));
+    /*pointGroups.forEach(pg => pg.forEach(p => pg.forEach(q =>
+      p !== q ? graph.addEdge(p, q) : null
+    )));*/
+    
+    pointGroups.forEach(pg => graph.contract(pg));
   });
-  
-  let graph = new DirectedGraph(_.flatten(nodes), edges);
   
   //TODO REMOVE AT SOME POINT?
   graph = graph.pruneIsolatedNodes();
@@ -101,16 +111,19 @@ export function createSimilaritySegmentGraph(path: string,
   const remainingNodesMaps = nodesByVersionByPoint.map(v =>
     _.pickBy(v, n => remainingNodes.indexOf(n) >= 0));
   
-  //TODO NOW ADD REMAINING SUCCESSIVE NODE CONNECTIONS....
+  /*//TODO NOW ADD REMAINING SUCCESSIVE NODE CONNECTIONS....
   resultsByVersion.forEach((v,vi) => v.points.forEach((p,pi) => {
     if (pi > 0) {
       const previous = remainingNodesMaps[vi][JSON.stringify(v.points[pi-1])];
       const current = remainingNodesMaps[vi][JSON.stringify(p)];
-      const newEdge = edge(previous, current);
-      newEdge["linear"] = true;
-      if (previous && current) graph.addEdge(newEdge);
+      if (previous && current)
+        graph.addEdge(previous, current)["linear"] = true;
     }
-  }));
+  }));*/
+  
+  /*const cliques = _.groupBy(graph.getMaximalCliques(), c => c.length);
+  const sizes = _.reverse(_.sortBy(_.keys(cliques), c => parseInt(c)));
+  sizes.slice(0,1).forEach(s => cliques[s].forEach(c => graph.contract(c)));*/
   
   saveGraph(path, graph);
 }
@@ -129,7 +142,8 @@ export function createSimilarityPatternGraph(resultsByVersion: OpsiatecResult[],
     includeVecs: boolean, path?: string) {
   let graph = createPatternGraph(resultsByVersion, includeVecs,
     (p1, p2) => distinct(p1.versions, p2.versions)
-      && realSimilar(p1.points, p2.points, 0.9));
+      && realSimilar(p1.points, p2.points, 0.8));
+      //&& realSameButN(p1.points, p2.points, 1));
   graph = graph.pruneIsolatedNodes();
   console.log('pruned:', graph.getNodes().length);
   if (path) saveGraph(path, graph);
@@ -171,15 +185,14 @@ function createGraph(protoNodes: ProtoNode[],
       size: sizes[i]
     }, combined[i]));
   
-  const edges = [];
+  const graph = new DirectedGraph(nodes, []);
   console.log('adding edges...')
   const startTime = Date.now();
   nodes.forEach(n => nodes.forEach(m =>
-    edgeFunc(n, m) ? edges.push(edge(n, m)) : null));
+    edgeFunc(n, m) ? graph.addEdge(n, m) : null));
   console.log('duration:', (Date.now()-startTime)/1000, 'secs');
-  let result = new DirectedGraph(nodes, edges);
-  console.log('edges:', result.getEdges().length);
-  return result;
+  console.log('edges:', graph.getEdges().length);
+  return graph;
 }
 
 function combineProtoNodes(objects: ProtoNode[]): {} {
@@ -208,11 +221,27 @@ function realSubset2<T>(s1: T[], s2: T[]) {
 }
 
 function similar<T>(s1: T[], s2: T[], ratio: number): boolean {
-  return 2 * _.intersection(s1, s2).length / (s1.length+s2.length) > ratio;
+  //first line optimizes by excluding impossible cases
+  return 2 * Math.min(s1.length, s2.length) / (s1.length+s2.length) >= ratio
+    && 2 * _.intersection(s1, s2).length / (s1.length+s2.length) >= ratio;
 }
 
 function realSimilar<T>(s1: T[], s2: T[], ratio: number) {
   return s1 !== s2 && similar(s1, s2, ratio);
+}
+
+function sameButN<T>(s1: T[], s2: T[], n: number) {
+  const l = _.intersection(s1, s2).length;
+  return l >= s1.length-n && l >= s2.length-n;
+}
+
+//same except n differring elements
+function realSameButN<T>(s1: T[], s2: T[], n: number) {
+  return s1 !== s2 && sameButN(s1, s2, n);
+}
+
+function realSimilarCardinality<T>(s1: T[], s2: T[], ratio: number) {
+  return s1.length == s2.length && realSimilar(s1, s2, ratio);
 }
 
 function distinct<T>(s1: T[], s2: T[]) {

@@ -86,14 +86,16 @@ async function gdJob() {
     [QF.ORDER(), QF.IDENTITY()]);
   setCacheDir(GD_RESULTS+'goodlovin/johanbars/');
   setHeuristic(HEURISTICS.SIZE_AND_1D_COMPACTNESS(0));
+  /*setCacheDir(GD_RESULTS+'goodlovin/johanbarscom/', GD_RESULTS+'goodlovin/johanbars/');
+  setHeuristic(HEURISTICS.COMPACTNESS);*/
   OPTIONS.minPatternLength = 3;
-  OPTIONS.optimizationMethods = [OPTIMIZATION.PARTITION];
+  OPTIONS.optimizationMethods = [OPTIMIZATION.DIVIDE];
   //OPTIONS.numPatterns = 100;
   
   
-  await saveGdPatternGraphs(["good lovin'"], Object.assign({}, OPTIONS), 20)//, 800);
+  await saveGdPatternGraphs(["good lovin'"], Object.assign({}, OPTIONS));//, 50)//, 800);
   
-  analyzePatternGraph("good lovin'-segs.json");
+  analyzePatternGraph("good lovin'.json");
   
   //analyzePatternGraph("results/gd/goodlovin-chroma4bars-vecs.json");
 }
@@ -231,8 +233,8 @@ async function saveGdPatternGraphs(songnames: string[], options: StructureOption
       return induceStructure(v, options, maxLength);
     });
     results = results.filter(r => r); //filter out empty results for ignored versions
-    createSimilaritySegmentGraph(n+'-segs.json', results);
-    //createSimilarityPatternGraph(results, false, n+'.json');
+    //createSimilaritySegmentGraph(n+'-segs.json', results);
+    createSimilarityPatternGraph(results, false, n+'.json');
     //createSimilarityPatternGraph(results, true, n+'-vecs.json');
   });
 }
