@@ -26,8 +26,8 @@ const SALAMI_ANNOTATIONS = SALAMI+'salami-data-public/annotations/';
 const SALAMI_RESULTS = './results/salami/'//'/Volumes/FastSSD/salami/';
 
 const GD = '/Volumes/gspeed1/thomasw/grateful_dead/lma_soundboards/sbd/';
-const GD_LOCAL = '/Users/flo/Projects/Code/FAST/musical-structure/data/goodlovin/';
-const GD_RESULTS = '/Volumes/FastSSD/gd/';
+const GD_LOCAL = GD//'/Users/flo/Projects/Code/FAST/musical-structure/data/goodlovin/';
+const GD_RESULTS ='results/gd/' //'/Volumes/FastSSD/gd/';
 
 const featureExtractor = new FeatureExtractor();
 
@@ -82,20 +82,21 @@ async function gdJob() {
   OPTIONS.optimizationMethods = [OPTIMIZATION.PARTITION];
   OPTIONS.numPatterns = 100;*/
   
-  setFeaturesAndQuantizerFuncs([FEATURES.BARS, FEATURES.JOHAN_CHORDS],
-    [QF.ORDER(), QF.IDENTITY()]);
-  setCacheDir(GD_RESULTS+'goodlovin/johanbars/');
+  setFeaturesAndQuantizerFuncs([FEATURES.BEATS, FEATURES.MFCC],
+    [QF.ORDER(), QF.SUMMARIZE(3)]);
+  setCacheDir(GD_RESULTS+'goodlovin/mfcc3beats/');
   setHeuristic(HEURISTICS.SIZE_AND_1D_COMPACTNESS(0));
   /*setCacheDir(GD_RESULTS+'goodlovin/johanbarscom/', GD_RESULTS+'goodlovin/johanbars/');
   setHeuristic(HEURISTICS.COMPACTNESS);*/
   OPTIONS.minPatternLength = 3;
-  OPTIONS.optimizationMethods = [OPTIMIZATION.DIVIDE];
+  OPTIONS.optimizationMethods = [OPTIMIZATION.PARTITION];
   //OPTIONS.numPatterns = 100;
   
+  const startTime = Date.now()
+  await saveGdPatternGraphs(["good lovin'"], Object.assign({}, OPTIONS), null, null, "mf3be");//, 50)//, 800);
+  console.log("DURATION", (Date.now()-startTime)/1000, "secs")
   
-  await saveGdPatternGraphs(["good lovin'"], Object.assign({}, OPTIONS));//, 50)//, 800);
-  
-  analyzePatternGraph("good lovin'.json");
+  //analyzePatternGraph("good lovin'.json");
   
   //analyzePatternGraph("results/gd/goodlovin-chroma4bars-vecs.json");
 }
@@ -224,7 +225,7 @@ interface GdVersion {
 }
 
 async function saveGdPatternGraphs(songnames: string[], options: StructureOptions,
-    versionCount?: number, maxLength?: number) {
+    versionCount?: number, maxLength?: number, filenameAddon = "") {
   await mapSeries(songnames, async n => {
     let vs = getGdVersions(n);
     vs = versionCount ? vs.slice(0, versionCount) : vs;
@@ -234,7 +235,7 @@ async function saveGdPatternGraphs(songnames: string[], options: StructureOption
     });
     results = results.filter(r => r); //filter out empty results for ignored versions
     //createSimilaritySegmentGraph(n+'-segs.json', results);
-    createSimilarityPatternGraph(results, false, n+'.json');
+    createSimilarityPatternGraph(results, false, n+filenameAddon+'.json');
     //createSimilarityPatternGraph(results, true, n+'-vecs.json');
   });
 }
