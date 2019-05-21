@@ -3,14 +3,14 @@ import * as _ from 'lodash';
 import * as readline from 'readline';
 import { DymoGenerator, DymoTemplates } from 'dymo-core';
 import { StructureInducer, QUANT_FUNCS as QF, ArrayMap, OPTIMIZATION, HEURISTICS,
-  StructureOptions, CosiatecHeuristic, getCosiatecOptionsString, getConnectednessRatings } from 'siafun';
+  StructureOptions, CosiatecHeuristic, getCosiatecOptionsString, getConnectednessRatings, Quantizer } from 'siafun';
 import { DymoStructureInducer } from './dymo-structure';
 import { getFeatureFiles } from './file-manager';
 import { FeatureExtractor, FEATURES, FeatureConfig } from './feature-extractor';
 import { generatePoints, getVampValues } from './feature-parser';
 import { Annotation, getAnnotations } from './salami-parser';
 import { NodeFetcher, printDymoStructure, mapSeries, printPatterns, printPatternSegments, audioPathToDirName, cartesianProduct } from './util';
-import { createSimilarityPatternGraph, createSimilaritySegmentGraph, analyzePatternGraph, mapToTimegrid, normalize } from './pattern-stats';
+import { createSimilarityPatternGraph, createHistogramGraph, analyzePatternGraph, mapToTimegrid, normalize } from './pattern-stats';
 import { evaluate } from './eval';
 import { cleanCaches } from './file-manager';
 
@@ -68,10 +68,39 @@ function setHeuristic(heuristic: CosiatecHeuristic) {
   getConnectednessRatings(JSON.parse(fs.readFileSync(
     SALAMI_SSD+'chroma3bars/lma-audio_955_mp3/cosiatec_2_0_3_true.json', 'utf8')))));*/
 
-gdJob();
+//gdJob();
 //dayJob();
 //nightJob();
 //cleanCaches('/Volumes/FastSSD/salami/chroma4beats', 'cosiatec');
+
+test();
+async function test() {
+  setFeaturesAndQuantizerFuncs([FEATURES.BARS, FEATURES.JOHAN_CHORDS], [QF.ORDER(), QF.IDENTITY()]);
+  //setFeaturesAndQuantizerFuncs([FEATURES.BARS, FEATURES.CHROMA], [QF.ORDER(), QF.SORTED_SUMMARIZE(3)]);
+  
+  const songs = ["good lovin'", "sugar magnolia"];
+  const hists = await Promise.all(songs.map(getGdHistograms));
+  
+  //console.log(proj.slice(0,3));
+  createHistogramGraph(hists, 'plots/d3/newest/hists.json');
+  
+  //analyzePatternGraph("plots/d3/beats/good lovin'mf4be.json");
+}
+
+async function getGdHistograms(songname: string): Promise<number[][][]> {
+  const hists = await mapSeries(getGdVersions(songname), getPointsHistogram);
+  const most = hists.map(h => _.reverse(_.sortBy(_.toPairs(h), 1)).slice(0,4));
+  const proj = most.map(h => h.map(b => <number[]>JSON.parse(b[0])));
+  proj.map(p => p.sort());
+  return proj;
+}
+
+async function getPointsHistogram(audioFile: string) {
+  let points = new Quantizer(OPTIONS.quantizerFunctions).getQuantizedPoints(
+    getPoints(await extractFeatures(audioFile)));
+  const grouped = _.groupBy(points, p => JSON.stringify(p.slice(1)));
+  return _.mapValues(grouped, v => v.length);
+}
 
 async function gdJob() {
   /*setFeaturesAndQuantizerFuncs([FEATURES.BEATS, FEATURES.JOHAN_CHORDS],

@@ -128,6 +128,13 @@ export function createSimilaritySegmentGraph(path: string,
   saveGraph(path, graph);
 }
 
+export function createHistogramGraph(histograms: number[][][][], path?: string) {
+  const nodes = _.flatten(histograms.map((hs,i) => hs.map(h => ({protoId: h, type:i}))));
+  const graph = createGraph(nodes,
+    (p1, p2) => realSimilar(p1.points, p2.points, 0.8));
+  if (path) saveGraph(path, graph);
+}
+
 export function createSubsetPatternGraph(resultsByVersion: OpsiatecResult[],
     includeVecs: boolean, path?: string) {
   let graph = createPatternGraph(resultsByVersion, includeVecs,
@@ -168,7 +175,7 @@ function createPatternGraph(resultsByVersion: OpsiatecResult[],
   )), edgeFunc);
 }
 
-function createGraph(protoNodes: ProtoNode[],
+export function createGraph(protoNodes: ProtoNode[],
     edgeFunc: (p1: PatternNode, p2: PatternNode) => boolean) {
   console.log('nodes:', protoNodes.length);
   const grouped = _.groupBy(protoNodes, n => JSON.stringify(n.protoId));
