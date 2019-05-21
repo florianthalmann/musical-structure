@@ -25,8 +25,7 @@ const SALAMI_AUDIO = SALAMI+'lma-audio/';
 const SALAMI_ANNOTATIONS = SALAMI+'salami-data-public/annotations/';
 const SALAMI_RESULTS = './results/salami/'//'/Volumes/FastSSD/salami/';
 
-const GD = '/Volumes/gspeed1/thomasw/grateful_dead/lma_soundboards/sbd/';
-const GD_LOCAL = GD//'/Users/flo/Projects/Code/FAST/musical-structure/data/goodlovin/';
+const GD_AUDIO = '/Volumes/gspeed1/thomasw/grateful_dead/lma_soundboards/sbd/' //'/Users/flo/Projects/Code/FAST/musical-structure/data/goodlovin/';
 const GD_RESULTS ='results/gd/' //'/Volumes/FastSSD/gd/';
 
 const featureExtractor = new FeatureExtractor();
@@ -270,7 +269,7 @@ async function saveGdPatternGraphs(songnames: string[], options: StructureOption
 }
 
 function getGdVersions(songname: string) {
-  return getGdSongMap().get(songname).map(s => GD_LOCAL+s.recording+'/'+s.track);
+  return getGdSongMap().get(songname).map(s => GD_AUDIO+s.recording+'/'+s.track);
 }
 
 var songMap: Map<string, GdVersion[]>;
