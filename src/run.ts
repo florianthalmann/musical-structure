@@ -87,7 +87,8 @@ async function test() {
 }
 
 async function getGdHistograms(songname: string): Promise<number[][][]> {
-  const hists = await mapSeries(getGdVersions(songname), getPointsHistogram);
+  const versions = getGdVersions(songname).filter(v => fs.existsSync(v));
+  const hists = await mapSeries(versions, getPointsHistogram);
   const most = hists.map(h => _.reverse(_.sortBy(_.toPairs(h), 1)).slice(0,4));
   const proj = most.map(h => h.map(b => <number[]>JSON.parse(b[0])));
   proj.map(p => p.sort());
