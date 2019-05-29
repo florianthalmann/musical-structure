@@ -72,27 +72,39 @@ function setHeuristic(heuristic: CosiatecHeuristic) {
 //nightJob();
 //cleanCaches('/Volumes/FastSSD/salami/chroma4beats', 'cosiatec');
 
-test();
-async function test() {
-  setFeaturesAndQuantizerFuncs([FEATURES.BARS, FEATURES.JOHAN_CHORDS], [QF.ORDER(), QF.IDENTITY()]);
-  //setFeaturesAndQuantizerFuncs([FEATURES.BARS, FEATURES.CHROMA], [QF.ORDER(), QF.SORTED_SUMMARIZE(3)]);
+saveHists();
+//histsToGraph();
+
+async function histsToGraph() {
+  let hists = JSON.parse(fs.readFileSync('hists3jo.json', 'utf8'));
   
-  const songs = ["good lovin'", "sugar magnolia"];
-  const hists = await Promise.all(songs.map(getGdHistograms));
+  hists = hists.map(h => simplifyHistograms(h, 4, false))
   
   //console.log(proj.slice(0,3));
-  createHistogramGraph(hists, 'plots/d3/newest/hists.json');
+  createHistogramGraph(hists, 'plots/d3/newest/hists3jo.json');
   
   //analyzePatternGraph("plots/d3/beats/good lovin'mf4be.json");
+}
+
+async function saveHists() {
+  setFeaturesAndQuantizerFuncs([FEATURES.BARS, FEATURES.JOHAN_CHORDS], [QF.ORDER(), QF.IDENTITY()]);
+  //setFeaturesAndQuantizerFuncs([FEATURES.BARS, FEATURES.CHROMA], [QF.ORDER(), QF.SORTED_SUMMARIZE(3)]);
+  const songs = ["good lovin'", "sugar magnolia", "me and my uncle"];
+  const hists = await Promise.all(songs.map(getGdHistograms));
+  fs.writeFileSync('hists3jo.json', JSON.stringify(hists));
+}
+
+function simplifyHistograms(hists: number[][][], maxBins = 4, sort = true): number[][][] {
+  const maxes = hists.map(h => h.slice(0, maxBins));
+  if (sort) maxes.map(p => p.sort());
+  return maxes;
 }
 
 async function getGdHistograms(songname: string): Promise<number[][][]> {
   const versions = getGdVersions(songname).filter(v => fs.existsSync(v));
   const hists = await mapSeries(versions, getPointsHistogram);
-  const most = hists.map(h => _.reverse(_.sortBy(_.toPairs(h), 1)).slice(0,4));
-  const proj = most.map(h => h.map(b => <number[]>JSON.parse(b[0])));
-  proj.map(p => p.sort());
-  return proj;
+  return hists.map(h => _.reverse(_.sortBy(_.toPairs(h), 1)))
+    .map(h => h.map(b => <number[]>JSON.parse(b[0])));
 }
 
 async function getPointsHistogram(audioFile: string) {
