@@ -99,12 +99,17 @@ function toPitchClass(pitch: string) {
 }
 
 export function getVampValues(filename: string, condition?: string): VampValue[] {
-  const json = JSON.parse(fixVampBuggyJson(fs.readFileSync(filename, 'utf8')));
-  let values = json['annotations'][0]['data'];
-  if (condition != null) {
-    values = values.filter(v => v.value === condition);
+  try {
+    const json = JSON.parse(fixVampBuggyJson(fs.readFileSync(filename, 'utf8')));
+    let values = json['annotations'][0]['data'];
+    if (condition != null) {
+      values = values.filter(v => v.value === condition);
+    }
+    return values;
+  } catch (e) {
+    console.log('error parsing features of '+filename+':', e);
+    return [];
   }
-  return values;
 }
 
 function getJohanChordValues(filename: string): JohanChord[] {
