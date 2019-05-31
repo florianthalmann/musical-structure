@@ -26,7 +26,7 @@ async function draw() {
     .force("charge", d3.forceManyBody().strength(-3).distanceMax(1000))//.theta(1))
     .force("center", d3.forceCenter(width / 2, height / 2));*/
   
-  const graph = await d3.json("newest/hists.json");
+  const graph = await d3.json("newest/hists3chS.json");
   graph.edges.forEach(e => { e.source = e.source.id; e.target = e.target.id });
   
   const link = svg.append("g")

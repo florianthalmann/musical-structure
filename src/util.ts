@@ -1,7 +1,13 @@
 import * as fs from 'fs';
 import { exec } from 'child_process';
+import * as readline from 'readline';
 import * as _ from 'lodash';
 import { Fetcher, SuperDymoStore, uris } from 'dymo-core';
+
+export function updateStatus(s: string) {
+  readline.cursorTo(process.stdout, 0);
+  process.stdout.write(s);
+}
 
 export function audioPathToDirName(audioPath: string) {
   return audioPathToUniqueName(audioPath);
@@ -27,7 +33,7 @@ export function execute(command: string, callback: Function) {
   });
 }
 
-export async function mapSeries<T,S>(array: T[], func: (arg: T, i: number) => Promise<S>): Promise<S[]> {
+export async function mapSeries<T,S>(array: T[], func: (arg: T, i?: number) => Promise<S>): Promise<S[]> {
   let result = [];
   for (let i = 0; i < array.length; i++) {
     result.push(await func(array[i], i));

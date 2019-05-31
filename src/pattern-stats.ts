@@ -131,7 +131,7 @@ export function createSimilaritySegmentGraph(path: string,
 export function createHistogramGraph(histograms: number[][][][], path?: string) {
   const nodes = _.flatten(histograms.map((hs,i) => hs.map(h => ({protoId: h, type:i}))));
   const graph = createGraph(nodes,
-    (p1, p2) => realSimilar(p1.points, p2.points, 0.7));
+    (p1, p2) => realSimilar(p1.points, p2.points, 0.6));
   graph.getNodes().forEach(n => n["type"] = _.mean(n["type"]));
   if (path) saveGraph(path, graph);
 }

@@ -1,4 +1,16 @@
-export var PORT = '4199';
+export const FEATURES_DIR = 'features/';
+export const RESULTS_DIR = 'results/';
+
+export const SALAMI = '/Users/flo/Projects/Code/FAST/grateful-dead/structure/SALAMI/';
+export const SALAMI_AUDIO = SALAMI+'lma-audio/';
+export const SALAMI_ANNOTATIONS = SALAMI+'salami-data-public/annotations/';
+export const SALAMI_RESULTS = './results/salami/'//'/Volumes/FastSSD/salami/';
+
+export const GD_SONG_MAP = 'data/top_song_map2.json';
+export const GD_AUDIO = '/Users/flo/Projects/Code/FAST/musical-structure/data/goodlovin/';//'/Volumes/gspeed1/thomasw/grateful_dead/lma_soundboards/sbd/' //'/Users/flo/Projects/Code/FAST/musical-structure/data/goodlovin/';
+export const GD_RESULTS ='results/gd/' //'/Volumes/FastSSD/gd/';
+
+/*export var PORT = '4199';
 export var SERVER_PATH = 'http://localhost:' + PORT + '/';
 import { QUANT_FUNCS } from 'siafun';
 import * as math from 'mathjs';
@@ -31,7 +43,7 @@ export const OPTIONS = {
     /*var result = 0;
     if (math.mean(norms) > 5) {//pattern.length > 10) {
       result = pattern.length * Math.sqrt(Math.log(occurrences.length) * Math.sqrt(math.mean(norms)));
-    }*/
+    }*
 
     var patternDuration = math.norm(math.subtract(pattern[pattern.length-1], pattern[0]));
     //var result = pattern.length // / Math.pow(1+gaps, 1/dim) * Math.sqrt(math.mean(norms))
@@ -55,4 +67,4 @@ function getPointsInBoundingBox(pattern, allPoints) {
   var maxes = math.max(pattern, 0);
   var mins = math.min(pattern, 0);
   return allPoints.filter(p => p.every((e,i) => maxes[i] - mins[i] == 0 || (mins[i] <= e && e <= maxes[i])));
-}
+}*/

@@ -1,5 +1,6 @@
 import * as fs from 'fs';
 import { execute, mapSeries, audioPathToDirName } from './util';
+import { getFeatureFiles } from './file-manager';
 import { FEATURES_DIR } from './config';
 
 export interface FeatureConfig {
@@ -10,6 +11,12 @@ export interface FeatureConfig {
 
 export interface VampFeatureConfig extends FeatureConfig {
   plugin: string
+}
+
+export interface Features {
+  segmentations: string[],
+  segConditions: string[],
+  otherFeatures: string[],
 }
 
 export const FEATURES = {
@@ -35,57 +42,75 @@ export const FEATURES = {
   MFCC: {name:'mfcc', plugin:'vamp:qm-vamp-plugins:qm-mfcc:coefficients', isSegmentation: false},
   CHROMA: {name:'chroma', plugin:'vamp:qm-vamp-plugins:qm-chromagram:chromagram', isSegmentation: false},
   CHORDS: {name:'chords', plugin:'vamp:nnls-chroma:chordino:simplechord', isSegmentation: false},
-  JOHAN_CHORDS: {name:'johanchords', isSegmentation: false}
+  JOHAN_CHORDS: {name:'johan', isSegmentation: false}
 }
 
-export class FeatureExtractor {
+export async function getFeatures(audioPath: string, features: FeatureConfig[]): Promise<Features> {
+  await extractFeatures([audioPath], features);
+  const featureFiles = await getFeatureFiles(audioPath);
+  return filterSelectedFeatures(featureFiles, features);
+}
 
-  extractFeatures(audioFiles: string[], features: FeatureConfig[]): Promise<any> {
-    return mapSeries(audioFiles, a => mapSeries(features, f =>
-      f.hasOwnProperty('plugin') ? this.extractVampFeature(a, <VampFeatureConfig>f)
-        : f === FEATURES.JOHAN_CHORDS ? this.extractJohanChords(a) : null
-    ));
-  }
+function filterSelectedFeatures(featureFiles: string[], features: FeatureConfig[]): Features {
+  const segs = features.filter(f => f.isSegmentation);
+  const others = features.filter(f => !f.isSegmentation);
+  const segFiles = getFiles(segs, featureFiles);
+  const segConditions = segFiles.map((_,i) => segs[i]['subset']);
+  return {
+    segmentations: segFiles,
+    segConditions: segConditions.filter((_,i)=>segFiles[i]),
+    otherFeatures: getFiles(others, featureFiles),
+  };
+}
 
-  //extracts the given feature from the audio file (path) if it doesn't exist yet
-  private extractVampFeature(audioPath: string, feature: VampFeatureConfig): Promise<any> {
-    return this.extractAndMove(audioPath, feature,
-      () => 'sonic-annotator -d ' + feature.plugin + ' ' + audioPath + ' -w jams --jams-force');
-  }
-  
-  //extracts the given feature from the audio file (path) if it doesn't exist yet
-  private extractJohanChords(audioPath: string): Promise<any> {
-    return this.extractAndMove(audioPath, FEATURES.JOHAN_CHORDS,
-      (featureOutFile) => {
-        const audioFile = audioPath.slice(audioPath.lastIndexOf('/')+1);
-        const outPath = audioPath.slice(0, audioPath.lastIndexOf('/'));
-        return 'echo -n /srv/'+audioFile+' | docker run --rm -i -v '
-        +outPath+':/srv audiocommons/faas-confident-chord-estimator python3 index.py > '
-        +featureOutFile
-      });
-  }
-  
-  private extractAndMove(audioPath: string, feature: FeatureConfig,
-      commandFunc: (featureOutFile: string) => string) {
-    const outFileName = audioPathToDirName(audioPath);
-    const extension = audioPath.slice(audioPath.lastIndexOf('.'));
-    const featureOutFile = audioPath.replace(extension, '.json');
-    const featureDestDir = FEATURES_DIR+outFileName+'/';
-    const featureDestPath = featureDestDir+outFileName+'_'+feature.name+'.json';
-    return new Promise(resolve =>
-      fs.stat(featureDestPath, err => {
-        if (err) { //only extract if file doesn't exist yet
-          console.log('extracting '+feature.name+' for '+audioPath);
-          execute(commandFunc(featureOutFile), success => {
-            if (success) {
-              fs.existsSync(featureDestDir) || fs.mkdirSync(featureDestDir);
-              execute('mv '+featureOutFile+' '+featureDestPath, resolve);
-            }
-          });
-        } else {
-          resolve();
-        }
-      }));
-  }
+function getFiles(features: FeatureConfig[], files: string[]) {
+  return features.map(f => files.filter(u => u.indexOf(f.name) >= 0)[0]);
+}
 
+function extractFeatures(audioFiles: string[], features: FeatureConfig[]): Promise<any> {
+  return mapSeries(audioFiles, a => mapSeries(features, f =>
+    f.hasOwnProperty('plugin') ? extractVampFeature(a, <VampFeatureConfig>f)
+      : f === FEATURES.JOHAN_CHORDS ? extractJohanChords(a) : null
+  ));
+}
+
+//extracts the given feature from the audio file (path) if it doesn't exist yet
+function extractVampFeature(audioPath: string, feature: VampFeatureConfig): Promise<any> {
+  return extractAndMove(audioPath, feature,
+    () => 'sonic-annotator -d ' + feature.plugin + ' ' + audioPath + ' -w jams --jams-force');
+}
+
+//extracts the given feature from the audio file (path) if it doesn't exist yet
+function extractJohanChords(audioPath: string): Promise<any> {
+  return extractAndMove(audioPath, FEATURES.JOHAN_CHORDS,
+    (featureOutFile) => {
+      const audioFile = audioPath.slice(audioPath.lastIndexOf('/')+1);
+      const outPath = audioPath.slice(0, audioPath.lastIndexOf('/'));
+      return 'echo -n /srv/'+audioFile+' | docker run --rm -i -v '
+      +outPath+':/srv audiocommons/faas-confident-chord-estimator python3 index.py > '
+      +featureOutFile
+    });
+}
+
+function extractAndMove(audioPath: string, feature: FeatureConfig,
+    commandFunc: (featureOutFile: string) => string) {
+  const outFileName = audioPathToDirName(audioPath);
+  const extension = audioPath.slice(audioPath.lastIndexOf('.'));
+  const featureOutFile = audioPath.replace(extension, '.json');
+  const featureDestDir = FEATURES_DIR+outFileName+'/';
+  const featureDestPath = featureDestDir+outFileName+'_'+feature.name+'.json';
+  return new Promise(resolve =>
+    fs.stat(featureDestPath, err => {
+      if (err) { //only extract if file doesn't exist yet
+        console.log('extracting '+feature.name+' for '+audioPath);
+        execute(commandFunc(featureOutFile), (success: boolean) => {
+          if (success) {
+            fs.existsSync(featureDestDir) || fs.mkdirSync(featureDestDir);
+            execute('mv '+featureOutFile+' '+featureDestPath, resolve);
+          }
+        });
+      } else {
+        resolve();
+      }
+    }));
 }

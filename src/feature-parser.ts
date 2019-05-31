@@ -1,7 +1,8 @@
 import * as fs from 'fs';
 import * as _ from 'lodash';
 import { indexOfMax } from 'arrayutils';
-import { FEATURES } from './feature-extractor';
+import { Quantizer, ArrayMap } from 'siafun';
+import { FEATURES, Features } from './feature-extractor';
 
 interface VampValue {
   time: number,
@@ -14,7 +15,19 @@ interface JohanChord {
   label: string
 }
 
-export function generatePoints(featureFiles: string[], condition?: any, add7ths?: boolean) {
+export function getQuantizedPoints(quantizerFuncs: ArrayMap[], features: Features, add7ths?: boolean) {
+  const points = getPoints(features, add7ths);
+  return new Quantizer(quantizerFuncs).getQuantizedPoints(points);
+}
+
+export function getPoints(features: Features, add7ths?: boolean) {
+  return generatePoints(
+    [features.segmentations[0]].concat(...features.otherFeatures),
+    features.segConditions[0],
+    add7ths);
+}
+
+function generatePoints(featureFiles: string[], condition?: any, add7ths?: boolean) {
   const points: any[][] = initPoints(featureFiles[0], condition);
   return featureFiles.slice(1)
     .reduce((p,f) => addFeature(f, p, add7ths), points)
