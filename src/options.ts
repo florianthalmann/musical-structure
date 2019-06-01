@@ -29,6 +29,13 @@ export function getVariations(minPatternLengths: number[]): [string, any[]][] {
   ]
 }
 
+export function getBestGdOptions(resultsDir: string) {
+  const options = getJohanBarsOptions(resultsDir);
+  options.minPatternLength = 3;
+  options.optimizationMethods = [OPTIMIZATION.PARTITION];
+  return options;
+}
+
 export function getJohanBarsOptions(resultsDir: string,
     heuristic: CosiatecHeuristic = HEURISTICS.SIZE_AND_1D_COMPACTNESS(0)) {
   return getIdentityOptions([FEATURES.BARS, FEATURES.JOHAN_CHORDS],

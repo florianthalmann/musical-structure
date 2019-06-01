@@ -2,7 +2,8 @@ import * as fs from 'fs';
 import * as _ from 'lodash';
 import { indexOfMax } from 'arrayutils';
 import { Quantizer, ArrayMap } from 'siafun';
-import { FEATURES, Features } from './feature-extractor';
+import { FEATURES, Features, getFeatures } from './feature-extractor';
+import { FullOptions } from './options';
 
 interface VampValue {
   time: number,
@@ -18,6 +19,10 @@ interface JohanChord {
 export function getQuantizedPoints(quantizerFuncs: ArrayMap[], features: Features, add7ths?: boolean) {
   const points = getPoints(features, add7ths);
   return new Quantizer(quantizerFuncs).getQuantizedPoints(points);
+}
+
+export async function getPointsFromAudio(audioFile: string, options: FullOptions) {
+  return getPoints(await getFeatures(audioFile, options.selectedFeatures));
 }
 
 export function getPoints(features: Features, add7ths?: boolean) {

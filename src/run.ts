@@ -1,7 +1,6 @@
 import * as _ from 'lodash';
-import { QUANT_FUNCS as QF } from 'siafun';
-import { FEATURES } from './feature-extractor';
-import { saveGdHists } from './histograms';
+//import { saveGdHists } from './histograms';
+import { saveHybridPatternGraphs } from './run-gd';
 //import { cleanCaches } from './file-manager';
 
 
@@ -15,8 +14,8 @@ import { saveGdHists } from './histograms';
 //nightJob();
 //cleanCaches('/Volumes/FastSSD/salami/chroma4beats', 'cosiatec');
 
-saveGdHists(["good lovin'", "sugar magnolia", "me and my uncle"],
-  [FEATURES.BEATS, FEATURES.CHROMA], [QF.ORDER(), QF.ABOVE_STD()], 'hists3chSB.json');
+/*saveGdHists(["good lovin'", "sugar magnolia", "me and my uncle"],
+  [FEATURES.BEATS, FEATURES.CHROMA], [QF.ORDER(), QF.ABOVE_STD()], 'hists3chSB.json');*/
 //histsToGraph();
 
-
+saveHybridPatternGraphs()

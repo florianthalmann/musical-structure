@@ -4,9 +4,9 @@ import { OPTIMIZATION } from 'siafun';
 import { GD_AUDIO, GD_SONG_MAP, GD_RESULTS } from './config';
 import { mapSeries, updateStatus } from './util';
 import { createSimilarityPatternGraph } from './pattern-stats';
-import { FullOptions, getInducerWithCaching, getMfccBeatsOptions } from './options';
+import { FullOptions, getInducerWithCaching, getMfccBeatsOptions, getBestGdOptions } from './options';
 import { getFeatures } from './feature-extractor';
-import { getPoints } from './feature-parser';
+import { getPointsFromAudio } from './feature-parser';
 
 interface GdVersion {
   recording: string,
@@ -14,6 +14,47 @@ interface GdVersion {
 }
 
 var songMap: Map<string, GdVersion[]>;
+
+export async function saveHybridPatternGraphs() {
+  const songs = ["good lovin'", "sugar magnolia", "me and my uncle"];
+  await mapSeries(songs, async n => {
+    const vs = getGdVersions(n).filter(fs.existsSync);
+    const pairs = getRandomPairs(vs);
+    let results = _.flatten(await mapSeries(pairs, async (pair,i) => {
+      updateStatus('  working on ' + n + ' - ' + (i+1) + '/' + pairs.length);
+      
+      const options = getBestGdOptions(GD_RESULTS);
+      const points = await Promise.all(pair.map(p => getPointsFromAudio(p, options)));
+      const slices = points.map(p => getSlices(p));
+      const hybrids = _.zip(...slices).map(s => _.concat(s));
+      return hybrids.map(h => {
+        const options = getBestGdOptions(GD_RESULTS);
+        options.cacheDir += "hybrid";
+        return getInducerWithCaching(pair[0]+pair[1], h, options).getCosiatec();
+      })
+    })).filter(r => r); //filter out empty results for ignored versions
+    //createSimilaritySegmentGraph(n+'-segs.json', results);
+    createSimilarityPatternGraph(results, false, n+'hybrid.json');
+    //createSimilarityPatternGraph(results, true, n+'-vecs.json');
+  });
+}
+
+function getSlices<T>(array: T[]) {
+  const start = array.slice(0, array.length/2);
+  const middle = array.slice(array.length/4, 3*array.length/4);
+  const end = array.slice(array.length/2);
+  return [start, middle, end];
+}
+
+function getRandomPairs<T>(array: T[]): T[][] {
+  const pairs: T[][] = [];
+  while (array.length > 1) {
+    const pair = _.sampleSize(array, 2);
+    pairs.push(pair);
+    array = _.difference(array, pair);
+  }
+  return pairs;
+}
 
 
 async function gdJob() {
@@ -54,7 +95,7 @@ async function saveGdPatternGraphs(songnames: string[], options: FullOptions,
 
 async function induceStructure(audioFile: string, options: FullOptions, maxLength?: number) {
   if (fs.existsSync(audioFile)) {
-    const points = getPoints(await getFeatures(audioFile, options.selectedFeatures));
+    const points = await getPointsFromAudio(audioFile, options);
     if (!maxLength || points.length < maxLength) {
       return getInducerWithCaching(audioFile, points, options)
         .getCosiatec();
