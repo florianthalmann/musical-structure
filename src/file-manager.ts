@@ -1,10 +1,24 @@
 import * as fs from 'fs';
 import * as _ from 'lodash';
 import { FEATURES_DIR, RESULTS_DIR } from './config';
-import { audioPathToDirName, audioPathToJsonFileName } from './util';
+import { audioPathToDirName } from './util';
 
 fs.existsSync(FEATURES_DIR) || fs.mkdirSync(FEATURES_DIR);
 fs.existsSync(RESULTS_DIR) || fs.mkdirSync(RESULTS_DIR);
+
+export function initDirRec(...names: string[]) {
+  names.forEach((_,i) => {
+    const subdir = names.slice(0, i+1).join('/');
+    fs.existsSync(subdir) || fs.mkdirSync(subdir);
+  });
+  return names.join('/')+'/';
+}
+
+export function renameJohanChordFeatures() {
+  fs.readdirSync(FEATURES_DIR).filter(d => d.indexOf('.DS_Store') < 0).forEach(d =>
+    fs.readdirSync(FEATURES_DIR+d).filter(p => p.indexOf('johanchords') >= 0).forEach(j =>
+      fs.renameSync(FEATURES_DIR+d+'/'+j, FEATURES_DIR+d+'/'+j.replace('johanchords', 'johan'))));
+}
 
 export async function cleanCaches(path: string, search: string) {
   const subpaths = fs.readdirSync(path)

@@ -3,6 +3,7 @@ import * as _ from 'lodash';
 import { OPTIMIZATION, StructureInducer } from 'siafun';
 import { GD_AUDIO, GD_SONG_MAP, GD_RESULTS } from './config';
 import { mapSeries, updateStatus } from './util';
+import { loadJsonFile, initDirRec } from './file-manager';
 import { createSimilarityPatternGraph } from './pattern-stats';
 import { FullOptions, getInducerWithCaching, getMfccBeatsOptions, getBestGdOptions } from './options';
 import { getPointsFromAudio } from './feature-parser';
@@ -17,26 +18,39 @@ var songMap: Map<string, GdVersion[]>;
 export async function saveHybridPatternGraphs() {
   const songs = ["good lovin'", "sugar magnolia", "me and my uncle"];
   await mapSeries(songs, async n => {
-    const vs = getGdVersions(n).filter(fs.existsSync);
-    const pairs = getRandomPairs(vs);
-    let results = _.flatten(await mapSeries(pairs, async (pair,i) => {
-      updateStatus('  working on ' + n + ' - ' + (i+1) + '/' + pairs.length);
-      
-      const options = getBestGdOptions(GD_RESULTS);
-      const points = await Promise.all(pair.map(p => getPointsFromAudio(p, options)));
-      const slices = points.map(p => getSlices(p));
-      const hybrids = _.zip(...slices).map(s => s[0].concat(s[1]));
-      return hybrids.map(h => {
-        const options = getBestGdOptions(GD_RESULTS);
-        options.cacheDir = undefined;
-        options.siatecCacheDir = undefined;
-        return new StructureInducer(h, options).getCosiatec();
-      })
-    })).filter(r => r); //filter out empty results for ignored versions
+    console.log('working on ' + n);
+    const versions = getGdVersions(n).filter(fs.existsSync);
+    const results = await getHybridCosiatec(n, 0, versions);
     //createSimilaritySegmentGraph(n+'-segs.json', results);
     createSimilarityPatternGraph(results, false, n+'-hybrid.json');
     //createSimilarityPatternGraph(results, true, n+'-vecs.json');
   });
+}
+
+async function getHybridCosiatec(name: string, index: number, audioFiles: string[]) {
+  const pairs = getHybridConfig(name, index, audioFiles);
+  return _.flatten(await mapSeries(pairs, async (pair,i) => {
+    updateStatus('  ' + (i+1) + '/' + pairs.length);
+    const options = getBestGdOptions(GD_RESULTS);
+    const points = await Promise.all(pair.map(p => getPointsFromAudio(p, options)));
+    const slices = points.map(p => getSlices(p));
+    const hybrids = _.zip(...slices).map(s => s[0].concat(s[1]));
+    return hybrids.map(h => {
+      const options = getBestGdOptions(initDirRec(GD_RESULTS+name, index+''));
+      return getInducerWithCaching(pair[0], h, options).getCosiatec();
+    })
+  }))
+}
+
+function getHybridConfig(name: string, index: number, audioFiles: string[]): string[][] {
+  const file = GD_RESULTS+'hybrid-config.json';
+  const config: {} = loadJsonFile(file) || {};
+  if (!config[name]) config[name] = [];
+  if (!config[name][index]) {
+    config[name][index] = getRandomPairs(audioFiles);
+    fs.writeFileSync(file, JSON.stringify(config));
+  }
+  return config[name][index];
 }
 
 function getSlices<T>(array: T[]) {

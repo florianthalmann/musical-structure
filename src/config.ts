@@ -4,11 +4,13 @@ export const RESULTS_DIR = 'results/';
 export const SALAMI = '/Users/flo/Projects/Code/FAST/grateful-dead/structure/SALAMI/';
 export const SALAMI_AUDIO = SALAMI+'lma-audio/';
 export const SALAMI_ANNOTATIONS = SALAMI+'salami-data-public/annotations/';
-export const SALAMI_RESULTS = './results/salami/'//'/Volumes/FastSSD/salami/';
+export const SALAMI_RESULTS = RESULTS_DIR+'salami/'//'/Volumes/FastSSD/salami/';
 
 export const GD_SONG_MAP = 'data/top_song_map2.json';
 export const GD_AUDIO = '/Users/flo/Projects/Code/FAST/musical-structure/data/goodlovin/';//'/Volumes/gspeed1/thomasw/grateful_dead/lma_soundboards/sbd/' //'/Users/flo/Projects/Code/FAST/musical-structure/data/goodlovin/';
-export const GD_RESULTS ='results/gd/' //'/Volumes/FastSSD/gd/';
+export const GD_RESULTS = RESULTS_DIR+'gd/' //'/Volumes/FastSSD/gd/';
+
+export const GRAPH_RESULTS = RESULTS_DIR+'graphs/';
 
 /*export var PORT = '4199';
 export var SERVER_PATH = 'http://localhost:' + PORT + '/';
