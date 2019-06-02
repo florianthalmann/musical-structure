@@ -167,9 +167,9 @@ function createPatternGraph(resultsByVersion: OpsiatecResult[],
     : resultsByVersion.map(v => v.patterns.map(p => toNormalForm(p.points)));
   
   //just in case... remove later
-  const cc = normsByVersion.map(n => _.countBy(n.map(n => JSON.stringify(n))));
+  /*const cc = normsByVersion.map(n => _.countBy(n.map(n => JSON.stringify(n))));
   cc.forEach((c,i) => //console.log(_.values(c).filter(c => c > 1)))
-    _.forEach(c, (v,k) => v > 1 ? console.log(i, v, k) : null));
+    _.forEach(c, (v,k) => v > 1 ? console.log(i, v, k) : null));*/
   
   return createGraph(_.flatten(normsByVersion.map((v,i) => 
     v.map(n => ({protoId: n, versions: i}))

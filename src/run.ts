@@ -1,6 +1,6 @@
 import * as _ from 'lodash';
 //import { saveGdHists } from './histograms';
-import { saveHybridPatternGraphs } from './run-gd';
+import { savePatternGraphs, saveHybridPatternGraphs } from './run-gd';
 //import { cleanCaches, renameJohanChordFeatures } from './file-manager';
 
 
@@ -15,5 +15,8 @@ import { saveHybridPatternGraphs } from './run-gd';
   [FEATURES.BEATS, FEATURES.CHROMA], [QF.ORDER(), QF.ABOVE_STD()], 'hists3chSB.json');*/
 //histsToGraph();
 
-saveHybridPatternGraphs()
+saveHybridPatternGraphs(3)
+//savePatternGraphs()
 
+//analyzePatternGraph("good lovin'.json");
+//analyzePatternGraph("results/gd/goodlovin-chroma4bars-vecs.json");
