@@ -1,11 +1,10 @@
 import * as fs from 'fs';
 import * as _ from 'lodash';
-import { OPTIMIZATION } from 'siafun';
+import { OPTIMIZATION, StructureInducer } from 'siafun';
 import { GD_AUDIO, GD_SONG_MAP, GD_RESULTS } from './config';
 import { mapSeries, updateStatus } from './util';
 import { createSimilarityPatternGraph } from './pattern-stats';
 import { FullOptions, getInducerWithCaching, getMfccBeatsOptions, getBestGdOptions } from './options';
-import { getFeatures } from './feature-extractor';
 import { getPointsFromAudio } from './feature-parser';
 
 interface GdVersion {
@@ -26,15 +25,16 @@ export async function saveHybridPatternGraphs() {
       const options = getBestGdOptions(GD_RESULTS);
       const points = await Promise.all(pair.map(p => getPointsFromAudio(p, options)));
       const slices = points.map(p => getSlices(p));
-      const hybrids = _.zip(...slices).map(s => _.concat(s));
+      const hybrids = _.zip(...slices).map(s => s[0].concat(s[1]));
       return hybrids.map(h => {
         const options = getBestGdOptions(GD_RESULTS);
-        options.cacheDir += "hybrid";
-        return getInducerWithCaching(pair[0]+pair[1], h, options).getCosiatec();
+        options.cacheDir = undefined;
+        options.siatecCacheDir = undefined;
+        return new StructureInducer(h, options).getCosiatec();
       })
     })).filter(r => r); //filter out empty results for ignored versions
     //createSimilaritySegmentGraph(n+'-segs.json', results);
-    createSimilarityPatternGraph(results, false, n+'hybrid.json');
+    createSimilarityPatternGraph(results, false, n+'-hybrid.json');
     //createSimilarityPatternGraph(results, true, n+'-vecs.json');
   });
 }
