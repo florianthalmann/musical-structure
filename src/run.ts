@@ -17,8 +17,8 @@ import { analyzePatternGraph } from './pattern-stats';
 //histsToGraph();
 
 //saveHybridPatternGraphs(3)
-//savePatternGraphs()
-saveVersionSequences("plots/d3/newest/sequences5.json", 5);
+savePatternGraphs("madmom")
+//saveVersionSequences("plots/d3/newest/sequences5m.json", 5, "madmom");
 
 //analyzePatternGraph("results/graphs/good lovin'.json");
 //analyzePatternGraph("results/graphs/good lovin'-hybrid0.json");

@@ -16,13 +16,13 @@ interface GdVersion {
 var songMap: Map<string, GdVersion[]>;
 
 
-export async function saveVersionSequences(file: string, hubSize: number) {
+export async function saveVersionSequences(file: string, hubSize: number, appendix = '') {
   const song = "good lovin'";
   const results = await getCosiatec(song, getGdVersions(song).filter(fs.existsSync));
   const sequences = results.map((v,i) => v.points.map((_,j) =>
     ({version:i, point:j, type:0})));
   const nfMap = getNormalFormsMap(results);
-  const mostCommon = getHubPatternNFs(GRAPH_RESULTS+song+'.json', hubSize);
+  const mostCommon = getHubPatternNFs(GRAPH_RESULTS+song+appendix+'.json', hubSize);
   mostCommon.slice(0, 10).forEach((nfs,nfi) =>
     nfs.forEach(nf => nfMap.get(nf).forEach(([v, p]) => {
       const pattern = results[v].patterns[p];
@@ -34,24 +34,24 @@ export async function saveVersionSequences(file: string, hubSize: number) {
   //visuals.map(v => v.join('')).slice(0, 10).forEach(v => console.log(v));
 }
 
-export async function savePatternGraphs(versionCount?: number) {
+export async function savePatternGraphs(appendix = '', versionCount?: number) {
   const songs = ["good lovin'", "sugar magnolia", "me and my uncle"];
   await mapSeries(songs, async n => {
     console.log('working on ' + n);
     const versions = getGdVersions(n).filter(fs.existsSync).slice(0, versionCount);
     const results = await getCosiatec(n, versions);
-    createSimilarityPatternGraph(results, false, GRAPH_RESULTS+n+'.json');
+    createSimilarityPatternGraph(results, false, GRAPH_RESULTS+n+appendix+'.json');
   });
 }
 
-export async function saveHybridPatternGraphs(count = 1) {
+export async function saveHybridPatternGraphs(appendix = '', count = 1) {
   const songs = ["good lovin'", "sugar magnolia", "me and my uncle"];
   await mapSeries(songs, async n =>
     await mapSeries(_.range(count), async i => {
       console.log('working on ' + n + ' - hybrid ' + i);
       const versions = getGdVersions(n).filter(fs.existsSync);
       const results = await getHybridCosiatec(n, i, versions);
-      createSimilarityPatternGraph(results, false, GRAPH_RESULTS+n+'-hybrid'+i+'.json');
+      createSimilarityPatternGraph(results, false, GRAPH_RESULTS+n+'-hybrid'+appendix+i+'.json');
     })
   );
 }
