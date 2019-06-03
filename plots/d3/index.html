@@ -20,13 +20,13 @@ async function draw() {
   
   const simulation = d3.forceSimulation()
     .force("link", d3.forceLink().id(d => d.id))//.strength(0.3).distance(30))
-    .force("charge", d3.forceManyBody().strength(-3))//.distanceMax(50))//.strength(-3).distanceMax(1000))//.theta(1))
+    .force("charge", d3.forceManyBody().strength(-3))//.distanceMax(100))//.strength(-3).distanceMax(1000))//.theta(1))
     .force("center", d3.forceCenter(width / 2, height / 2));
     /*.force("link", d3.forceLink().id(d => d.id).strength(0.3).distance(30))
     .force("charge", d3.forceManyBody().strength(-3).distanceMax(1000))//.theta(1))
     .force("center", d3.forceCenter(width / 2, height / 2));*/
   
-  const graph = await d3.json("newest/hists3chS.json");
+  const graph = await d3.json("newest/gljobe900.json");
   graph.edges.forEach(e => { e.source = e.source.id; e.target = e.target.id });
   
   const link = svg.append("g")
@@ -42,8 +42,10 @@ async function draw() {
     .selectAll("circle")
     .data(graph.nodes)
     .enter().append("circle")
-      .attr("r", n => Math.sqrt(n.count)*2)
-      .attr("fill", e => e.type !== null ? d3.hsl((e.type+400)*40, 0.7, 0.5) : "black")
+      .attr("r", n => n.count)//Math.sqrt(n.count)*2)
+      .attr("fill", e => e.type != null ? d3.hsl((e.type+400)*40, 0.7, 0.5) : "black")
+      /*.attr("r", n => n.count)
+      .attr("fill", e => "black")*/
       //.attr("opacity", n => n.size/20)
       .on("mouseover", n => {tooltip.style("visibility", "visible"); tooltip.text(n.id)})
       .on("mousemove", () => tooltip.style("top", (event.pageY-10)+"px").style("left",(event.pageX+10)+"px"))

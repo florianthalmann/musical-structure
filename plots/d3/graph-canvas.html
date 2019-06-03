@@ -15,7 +15,7 @@
       .force("charge", d3.forceManyBody().strength(-1))
       .force("center", d3.forceCenter());
     
-    let graph = await d3.json("good lovin'.json");
+    let graph = await d3.json("newest/good lovin'.json");
     graph = {nodes: graph.nodes,
       links: graph.edges.map(e => ({source: e.source.id, target: e.target.id}))}
     

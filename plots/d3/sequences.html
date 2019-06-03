@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<svg width="1200" height="700"></svg>
+<script src="https://d3js.org/d3.v5.min.js"></script>
+<script>
+const YSIZE = false;
+draw();
+async function draw() {
+  const svg = d3.select("svg"),
+  width = +svg.attr("width"),
+  height = +svg.attr("height");
+  
+  const HEIGHT = 15;
+  const WIDTH = 3;
+  
+  let seqs = await d3.json("newest/sequences5.json");
+  seqs = seqs.filter(s => s.version < 40);
+
+  const rect = svg.append("g")
+    .selectAll("rect")
+    .data(seqs)
+    .enter().append("rect")
+      .attr("x", s => s.point*WIDTH)
+      .attr("y", s => s.version*HEIGHT)
+      .attr("width", WIDTH)
+      .attr("height", HEIGHT)
+      .attr("fill", e => e.type > 0 && e.type < 10 ? d3.hsl((e.type+400)*40, 0.7, 0.5) : d3.rgb(230, 230, 230))
+
+}
+</script>
