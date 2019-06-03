@@ -40,9 +40,10 @@ function generatePoints(featureFiles: string[], condition?: any, add7ths?: boole
 }
 
 function initPoints(filename: string, condition?: any): number[][] {
-  if (filename.indexOf(FEATURES.MADMOM_BEATS.name) >= 0
-      || filename.indexOf(FEATURES.MADMOM_BARS.name) >= 0) {
-    return getMadmomValues(filename).map(b => [b]);
+  if (filename.indexOf(FEATURES.MADMOM_BEATS.name) >= 0) {
+    return getMadmomBeats(filename).map(b => [b]);
+  } else if (filename.indexOf(FEATURES.MADMOM_BARS.name) >= 0) {
+    return getMadmomDownbeats(filename).map(b => [b]);
   }
   return getVampValues(filename, condition).map(v => [v.time]);
 }
@@ -139,7 +140,12 @@ function getJohanChordValues(filename: string): JohanChord[] {
   return json['chordSequence'];
 }
 
-function getMadmomValues(filename: string): number[] {
+function getMadmomDownbeats(filename: string): number[] {
+  return fs.readFileSync(filename, 'utf8').split('\n').map(l => l.split('\t'))
+    .filter(l => l[1] == '1').map(l => parseFloat(l[0]));
+}
+
+function getMadmomBeats(filename: string): number[] {
   return fs.readFileSync(filename, 'utf8').split('\n').map(parseFloat);
 }
 
