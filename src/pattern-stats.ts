@@ -19,20 +19,47 @@ interface SegmentNode extends Node {
   version: number
 }
 
+export function getHubPatternNFs(path: string, maxDistance: number): string[][] {
+  let normalForms: string[][] = [];
+  let graph = loadGraph(path);
+  while (graph.getSize() > 0) {
+    const largest = getLargestHub(graph, maxDistance);
+    normalForms.push(largest.map(n => n.id));
+    largest.forEach(n => graph.removeNode(n));
+    graph = graph.pruneIsolatedNodes();
+  }
+  return normalForms;
+}
+
+function getDensestHub(graph: DirectedGraph, maxDistance: number) {
+  const largest = getDensestAdjacent(graph, maxDistance)[0];
+  if (largest[1].length > 2) console.log(largest[1].length+1, largest[2]);
+  return _.union([largest[0]], largest[1]);
+}
+
+function getLargestHub(graph: DirectedGraph, maxDistance: number) {
+  const largest = getMostAdjacents(graph, maxDistance)[0];
+  if (largest[1].length > 2) console.log(largest[1].length+1, largest[2]);
+  return _.union([largest[0]], largest[1]);
+}
+
+export function getMostCommonPatternNFs(path: string) {
+  const graph = loadGraph(path);
+  const nodes = <PatternNode[]>graph.getNodes();
+  nodes.sort((a,b) => b.count-a.count);
+  return nodes.map(n => n.id);
+}
+
 export function analyzePatternGraph(path: string) {
   const graph = loadGraph(path);
   const nodes = <PatternNode[]>graph.getNodes();
   console.log('nodes:', nodes.length);
   console.log('edges:', graph.getEdges().length);
   nodes.sort((a,b) => b.count-a.count);
-  console.log('most common:', nodes.slice(0,5));
+  console.log('most common:', nodes.slice(0,5).map(n => n.count + ': ' + n.id));
   
-  const adjacents = <PatternNode[][]>nodes.map(n => graph.getAdjacent(n));
-  let counts = adjacents.map(as => _.sum(as.map(n => n.count)));
-  counts = _.zipWith(nodes, counts, (n,c) => n.count + c);
-  let nc = _.zip(nodes, counts);
-  nc.sort((a,b) => b[1]-a[1]);
-  console.log('most adjacent:', nc.slice(0,5));
+  const adjacents = getMostAdjacents(graph);
+  console.log('most adjacent:', adjacents.slice(0,5).map(a => a[1] + ', ' + a[0].count + ': ' + a[0].id));
   
   /*const neighbors = <PatternNode[][]>nodes.map(n => graph.getNeighbors(n));
   counts = neighbors.map(as => _.sum(as.map(n => n.count)));
@@ -48,6 +75,26 @@ export function analyzePatternGraph(path: string) {
   nc = _.zip(nodes, counts);
   nc.sort((a,b) => b[1]-a[1]);
   console.log('most recursive neighbors:', nc.slice(0,5));*/
+}
+
+function getDensestAdjacent(graph: DirectedGraph, maxDistance = 1) {
+  const adjacentsAndCounts = getAdjacentsAndCounts(graph, maxDistance);
+  adjacentsAndCounts.sort((a,b) => (b[2]*b[2]/b[1].length)-(a[2]*a[2]/a[1].length));
+  return adjacentsAndCounts;
+}
+
+function getMostAdjacents(graph: DirectedGraph, maxDistance = 1) {
+  const adjacentsAndCounts = getAdjacentsAndCounts(graph, maxDistance);
+  adjacentsAndCounts.sort((a,b) => b[2]-a[2]); //sort by count sum
+  return adjacentsAndCounts;
+}
+
+function getAdjacentsAndCounts(graph: DirectedGraph, maxDistance = 1) {
+  const nodes = <PatternNode[]>graph.getNodes();
+  const adjacents = <PatternNode[][]>nodes.map(n => graph.getAdjacent(n, maxDistance));
+  let counts = adjacents.map(as => _.sum(as.map(n => n.count)));
+  counts = _.zipWith(nodes, counts, (n,c) => n.count + c);
+  return _.zip(nodes, adjacents, counts);
 }
 
 export function createSimilaritySegmentGraph(path: string,
@@ -156,6 +203,18 @@ export function createSimilarityPatternGraph(resultsByVersion: OpsiatecResult[],
   console.log('pruned:', graph.getNodes().length);
   if (path) saveGraph(path, graph);
   return graph;
+}
+
+export function getNormalFormsMap(resultsByVersion: OpsiatecResult[]) {
+  const map = new Map<string, [number, number][]>();
+  resultsByVersion.forEach((v,i) =>
+    v.patterns.forEach((p,j) => {
+      const nf = JSON.stringify(toNormalForm(p.points));
+      if (!map.has(nf)) map.set(nf, []);
+      map.get(nf).push([i, j]);
+    })
+  );
+  return map;
 }
 
 function createPatternGraph(resultsByVersion: OpsiatecResult[],

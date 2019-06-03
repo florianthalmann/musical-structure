@@ -31,6 +31,10 @@ export class DirectedGraph {
     return new DirectedGraph(this.getNodes(), this.getEdges());
   }
   
+  getSize(): number {
+    return this.nodes.size;
+  }
+  
   getNodes(): Node[] {
     return [...this.nodes.values()];
   }
@@ -79,11 +83,20 @@ export class DirectedGraph {
     nodes.slice(1).forEach(n => this.removeNode(n));
   }
   
-  getAdjacent(node: Node): Node[] {
-    return this.getDirectSuccessors(node)
-      .concat(this.getDirectPredecessors(node));
+  getAdjacent(node: Node, degreesRemoved = 1): Node[] {
+    let adjacent = this.getDirectAdjacent(node);
+    while (degreesRemoved > 1) {
+      adjacent = _.uniq(_.flatten(adjacent.map(n => this.getDirectAdjacent(n))));
+      degreesRemoved--;
+    }
+    return adjacent;
   }
   
+  private getDirectAdjacent(node: Node) {
+    return this.getDirectSuccessors(node).concat(this.getDirectPredecessors(node));
+  }
+  
+  /** children of same parents, parents of same children */
   getNeighbors(node: Node, degreesRemoved = 1): Node[] {
     let neighbors = this.getDirectNeighbors(node);
     while (degreesRemoved > 1) {
@@ -165,7 +178,7 @@ export class DirectedGraph {
     });
   }
   
-  private removeNode(node: Node) {
+  removeNode(node: Node) {
     this.nodes.delete(node.id);
     this.edges.delete(node);
     this.edges.forEach(e => e.delete(node));

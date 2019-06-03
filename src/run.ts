@@ -1,6 +1,7 @@
 import * as _ from 'lodash';
 //import { saveGdHists } from './histograms';
-import { savePatternGraphs, saveHybridPatternGraphs } from './run-gd';
+import { savePatternGraphs, saveHybridPatternGraphs, saveVersionSequences } from './run-gd';
+import { analyzePatternGraph } from './pattern-stats';
 //import { cleanCaches, renameJohanChordFeatures } from './file-manager';
 
 
@@ -15,8 +16,12 @@ import { savePatternGraphs, saveHybridPatternGraphs } from './run-gd';
   [FEATURES.BEATS, FEATURES.CHROMA], [QF.ORDER(), QF.ABOVE_STD()], 'hists3chSB.json');*/
 //histsToGraph();
 
-saveHybridPatternGraphs(3)
+//saveHybridPatternGraphs(3)
 //savePatternGraphs()
+saveVersionSequences("plots/d3/newest/sequences5.json", 5);
 
-//analyzePatternGraph("good lovin'.json");
+//analyzePatternGraph("results/graphs/good lovin'.json");
+//analyzePatternGraph("results/graphs/good lovin'-hybrid0.json");
+//analyzePatternGraph("results/graphs/good lovin'-hybrid1.json");
+//analyzePatternGraph("results/graphs/good lovin'-hybrid2.json");
 //analyzePatternGraph("results/gd/goodlovin-chroma4bars-vecs.json");

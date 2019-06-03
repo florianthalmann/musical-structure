@@ -1,9 +1,10 @@
 import * as fs from 'fs';
 import * as _ from 'lodash';
+import { pointsToIndices } from 'siafun';
 import { GD_AUDIO, GD_SONG_MAP, GD_RESULTS, GRAPH_RESULTS } from './config';
 import { mapSeries, updateStatus } from './util';
 import { loadJsonFile, initDirRec } from './file-manager';
-import { createSimilarityPatternGraph } from './pattern-stats';
+import { createSimilarityPatternGraph, getHubPatternNFs, getNormalFormsMap } from './pattern-stats';
 import { getInducerWithCaching, getBestGdOptions } from './options';
 import { getPointsFromAudio } from './feature-parser';
 
@@ -14,6 +15,24 @@ interface GdVersion {
 
 var songMap: Map<string, GdVersion[]>;
 
+
+export async function saveVersionSequences(file: string, hubSize: number) {
+  const song = "good lovin'";
+  const results = await getCosiatec(song, getGdVersions(song).filter(fs.existsSync));
+  const sequences = results.map((v,i) => v.points.map((_,j) =>
+    ({version:i, point:j, type:0})));
+  const nfMap = getNormalFormsMap(results);
+  const mostCommon = getHubPatternNFs(GRAPH_RESULTS+song+'.json', hubSize);
+  mostCommon.slice(0, 10).forEach((nfs,nfi) =>
+    nfs.forEach(nf => nfMap.get(nf).forEach(([v, p]) => {
+      const pattern = results[v].patterns[p];
+      const indexOccs = pointsToIndices([pattern.occurrences], results[v].points);
+      indexOccs[0].forEach(o => o.forEach(i => sequences[v][i].type = nfi+1));
+    })
+  ));
+  fs.writeFileSync(file, JSON.stringify(_.flatten(sequences)));
+  //visuals.map(v => v.join('')).slice(0, 10).forEach(v => console.log(v));
+}
 
 export async function savePatternGraphs(versionCount?: number) {
   const songs = ["good lovin'", "sugar magnolia", "me and my uncle"];
