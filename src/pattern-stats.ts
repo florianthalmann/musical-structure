@@ -2,6 +2,7 @@ import * as _ from 'lodash';
 import { OpsiatecResult } from 'siafun';
 import { compareArrays } from 'arrayutils';
 import { DirectedGraph, Node, saveGraph, loadGraph } from './graph-theory';
+import { toIndexSeqMap } from './util';
 
 interface ProtoNode {
   protoId: any
@@ -206,15 +207,8 @@ export function createSimilarityPatternGraph(resultsByVersion: OpsiatecResult[],
 }
 
 export function getNormalFormsMap(resultsByVersion: OpsiatecResult[]) {
-  const map = new Map<string, [number, number][]>();
-  resultsByVersion.forEach((v,i) =>
-    v.patterns.forEach((p,j) => {
-      const nf = JSON.stringify(toNormalForm(p.points));
-      if (!map.has(nf)) map.set(nf, []);
-      map.get(nf).push([i, j]);
-    })
-  );
-  return map;
+  const points = resultsByVersion.map(v => v.patterns.map(p => p.points));
+  return toIndexSeqMap(points, p => JSON.stringify(toNormalForm(p)));
 }
 
 function createPatternGraph(resultsByVersion: OpsiatecResult[],

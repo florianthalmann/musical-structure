@@ -74,8 +74,8 @@ function toCacheDirName(dir: string, features: FeatureConfig[], dims = '') {
   return dir + features[1].name + dims + features[0].name+'/' //e.g. chroma4beats
 }
 
-function getOptions(features: FeatureConfig[], quantizerFuncs: ArrayMap[],
-  heuristic: CosiatecHeuristic, cacheDir?: string, siatecCacheDir?: string): FullOptions {
+export function getOptions(features: FeatureConfig[], quantizerFuncs: ArrayMap[],
+  heuristic?: CosiatecHeuristic, cacheDir?: string, siatecCacheDir?: string): FullOptions {
   const options = _.clone(STANDARD_OPTIONS);
   options.selectedFeatures = features;
   options.quantizerFunctions = quantizerFuncs;

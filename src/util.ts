@@ -33,6 +33,11 @@ export function execute(command: string, callback: Function) {
   });
 }
 
+export function toIndexSeqMap<T>(mdArray: T[][], func: (t: T) => string) {
+  const indexSeq = _.flatten(mdArray.map((a,i) => a.map((t,j) => [i, j, t])));
+  return _.groupBy(indexSeq, ([,,t]) => func(<T>t));
+}
+
 export async function mapSeries<T,S>(array: T[], func: (arg: T, i?: number) => Promise<S>): Promise<S[]> {
   let result = [];
   for (let i = 0; i < array.length; i++) {

@@ -1,12 +1,14 @@
 import * as fs from 'fs';
 import * as _ from 'lodash';
-import { pointsToIndices } from 'siafun';
+import { pointsToIndices, ArrayMap } from 'siafun';
 import { GD_AUDIO, GD_SONG_MAP, GD_RESULTS, GRAPH_RESULTS } from './config';
-import { mapSeries, updateStatus } from './util';
+import { mapSeries, updateStatus, toIndexSeqMap } from './util';
 import { loadJsonFile, initDirRec } from './file-manager';
 import { createSimilarityPatternGraph, getHubPatternNFs, getNormalFormsMap } from './pattern-stats';
-import { getInducerWithCaching, getBestGdOptions } from './options';
-import { getPointsFromAudio } from './feature-parser';
+import { getInducerWithCaching, getBestGdOptions, FullOptions, getOptions, getChromaBarsOptions } from './options';
+import { FeatureConfig } from './feature-extractor';
+import { getPointsFromAudio, getQuantizedPoints } from './feature-parser';
+import { toHistogram, getMostCommonPoints } from './histograms';
 
 interface GdVersion {
   recording: string,
@@ -15,16 +17,18 @@ interface GdVersion {
 
 var songMap: Map<string, GdVersion[]>;
 
+const SONGS = ["good lovin'", "sugar magnolia", "me and my uncle"];
 
-export async function saveVersionSequences(file: string, hubSize: number, appendix = '') {
+
+export async function savePatternSequences(file: string, hubSize: number, appendix = '') {
   const song = "good lovin'";
-  const results = await getCosiatec(song, getGdVersions(song).filter(fs.existsSync));
+  const results = await getCosiatec(song, getGdVersions(song));
   const sequences = results.map((v,i) => v.points.map((_,j) =>
     ({version:i, point:j, type:0})));
   const nfMap = getNormalFormsMap(results);
   const mostCommon = getHubPatternNFs(GRAPH_RESULTS+song+appendix+'.json', hubSize);
   mostCommon.slice(0, 10).forEach((nfs,nfi) =>
-    nfs.forEach(nf => nfMap.get(nf).forEach(([v, p]) => {
+    nfs.forEach(nf => nfMap[nf].forEach(([v, p]: [number, number]) => {
       const pattern = results[v].patterns[p];
       const indexOccs = pointsToIndices([pattern.occurrences], results[v].points);
       indexOccs[0].forEach(o => o.forEach(i => sequences[v][i].type = nfi+1));
@@ -34,19 +38,39 @@ export async function saveVersionSequences(file: string, hubSize: number, append
   //visuals.map(v => v.join('')).slice(0, 10).forEach(v => console.log(v));
 }
 
+export async function saveVectorSequences(file: string, typeCount = 3) {
+  const song = "good lovin'";
+  const versions = await getGdQuantizedPoints(song, getChromaBarsOptions(3, GD_RESULTS));
+  const atemporalPoints = versions.map(v => v.map(p => p.slice(1)));
+  const pointMap = toIndexSeqMap(atemporalPoints, JSON.stringify);
+  const mostCommon = getMostCommonPoints(_.flatten(atemporalPoints));
+  console.log(mostCommon.slice(0, 10))
+  const sequences = versions.map((v,i) => v.map((_,j) =>
+    ({version:i, point:j, type:0})));
+  mostCommon.slice(0, typeCount).forEach((p,i) =>
+    pointMap[JSON.stringify(p)].forEach(([v, p]) => sequences[v][p].type = i+1));
+  fs.writeFileSync(file, JSON.stringify(_.flatten(sequences)));
+}
+
+export async function saveGdHists(features: FeatureConfig[], quantFuncs: ArrayMap[], filename: string) {
+  const options = getOptions(features, quantFuncs);
+  const points = await mapSeries(SONGS, s => getGdQuantizedPoints(s, options));
+  const atemporalPoints = points.map(s => s.map(p => p.slice(1)));
+  const hists = atemporalPoints.map(p => p.map(toHistogram));
+  fs.writeFileSync(filename, JSON.stringify(hists));
+}
+
 export async function savePatternGraphs(appendix = '', versionCount?: number) {
-  const songs = ["good lovin'", "sugar magnolia", "me and my uncle"];
-  await mapSeries(songs, async n => {
+  await mapSeries(SONGS, async n => {
     console.log('working on ' + n);
-    const versions = getGdVersions(n).filter(fs.existsSync).slice(0, versionCount);
+    const versions = getGdVersions(n, versionCount);
     const results = await getCosiatec(n, versions);
     createSimilarityPatternGraph(results, false, GRAPH_RESULTS+n+appendix+'.json');
   });
 }
 
 export async function saveHybridPatternGraphs(appendix = '', count = 1) {
-  const songs = ["good lovin'", "sugar magnolia", "me and my uncle"];
-  await mapSeries(songs, async n =>
+  await mapSeries(SONGS, async n =>
     await mapSeries(_.range(count), async i => {
       console.log('working on ' + n + ' - hybrid ' + i);
       const versions = getGdVersions(n).filter(fs.existsSync);
@@ -116,10 +140,19 @@ function getRandomPairs<T>(array: T[]): T[][] {
   })
 }*/
 
-export function getGdVersions(songname: string) {
+function getGdQuantizedPoints(song: string, options: FullOptions) {
+  return mapSeries(getGdVersions(song), a => getQuantizedPoints(a, options));
+}
+
+function getGdPoints(song: string, options: FullOptions) {
+  return mapSeries(getGdVersions(song), a => getPointsFromAudio(a, options));
+}
+
+export function getGdVersions(songname: string, count?: number) {
   return getGdSongMap().get(songname)
     .map(s => GD_AUDIO+s.recording+'/'+s.track)
-    .filter(v => fs.existsSync(v));;
+    .filter(fs.existsSync)
+    .slice(0, count);
 }
 
 function getGdSongMap() {

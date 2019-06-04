@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import * as _ from 'lodash';
 import { indexOfMax } from 'arrayutils';
-import { Quantizer, ArrayMap } from 'siafun';
+import { Quantizer } from 'siafun';
 import { FEATURES, Features, getFeatures } from './feature-extractor';
 import { FullOptions } from './options';
 
@@ -16,9 +16,9 @@ interface JohanChord {
   label: string
 }
 
-export function getQuantizedPoints(quantizerFuncs: ArrayMap[], features: Features, add7ths?: boolean) {
-  const points = getPoints(features, add7ths);
-  return new Quantizer(quantizerFuncs).getQuantizedPoints(points);
+export async function getQuantizedPoints(audioFile: string, options: FullOptions) {
+  const points = await getPointsFromAudio(audioFile, options);
+  return new Quantizer(options.quantizerFunctions).getQuantizedPoints(points);
 }
 
 export async function getPointsFromAudio(audioFile: string, options: FullOptions) {
