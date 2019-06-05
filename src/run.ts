@@ -2,7 +2,7 @@ import * as _ from 'lodash';
 //import { saveGdHists } from './histograms';
 import { savePatternGraphs, saveHybridPatternGraphs, savePatternSequences, saveVectorSequences } from './run-gd';
 import { analyzePatternGraph } from './pattern-stats';
-//import { cleanCaches, renameJohanChordFeatures } from './file-manager';
+import { cleanCaches, renameJohanChordFeatures, moveToFeaturesDir } from './file-manager';
 
 
 /*fs.writeFileSync('connections3.json', JSON.stringify(
@@ -11,6 +11,7 @@ import { analyzePatternGraph } from './pattern-stats';
 
 //cleanCaches('/Volumes/FastSSD/salami/chroma4beats', 'cosiatec');
 //renameJohanChordFeatures();
+//moveToFeaturesDir('madbars/');
 
 /*saveGdHists([FEATURES.BEATS, FEATURES.CHROMA], [QF.ORDER(), QF.ABOVE_STD()], 'hists3chSB.json');*/
 //histsToGraph();

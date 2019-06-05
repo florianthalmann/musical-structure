@@ -6,15 +6,17 @@
 const YSIZE = false;
 draw();
 async function draw() {
-  const svg = d3.select("svg"),
-  width = +svg.attr("width"),
-  height = +svg.attr("height");
+  const svg = d3.select("svg")
+    .style("height", 5000)
+    .style("width", 2000);
+  //width = +svg.attr("width"),
+  //height = +svg.attr("height");
   
   const HEIGHT = 15;
   const WIDTH = 3;
   
-  let seqs = await d3.json("newest/sequences5.json");
-  seqs = seqs.filter(s => s.version < 40);
+  let seqs = await d3.json("newest/chordSeq.json");
+  //seqs = seqs.filter(s => s.version < 40);
 
   const rect = svg.append("g")
     .selectAll("rect")

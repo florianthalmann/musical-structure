@@ -14,6 +14,14 @@ export function initDirRec(...names: string[]) {
   return names.join('/')+'/';
 }
 
+export function moveToFeaturesDir(currentDir: string) {
+  fs.readdirSync(currentDir).forEach(f => {
+    const destDir = FEATURES_DIR + f.slice(0, _.lastIndexOf(f, '_')) + '/';
+    fs.existsSync(destDir) || fs.mkdirSync(destDir);
+    fs.copyFileSync(currentDir+f, destDir+f);
+  });
+}
+
 export function renameJohanChordFeatures() {
   fs.readdirSync(FEATURES_DIR).filter(d => d.indexOf('.DS_Store') < 0).forEach(d =>
     fs.readdirSync(FEATURES_DIR+d).filter(p => p.indexOf('johanchords') >= 0).forEach(j =>
