@@ -22,28 +22,28 @@ export async function getQuantizedPoints(audioFile: string, options: FullOptions
 }
 
 export async function getPointsFromAudio(audioFile: string, options: FullOptions) {
-  return getPoints(await getFeatures(audioFile, options.selectedFeatures));
+  return getPoints(await getFeatures(audioFile, options.selectedFeatures), options.seventhChords, options.halftime);
 }
 
-export function getPoints(features: Features, add7ths?: boolean) {
+export function getPoints(features: Features, add7ths?: boolean, halftime?: boolean) {
   return generatePoints(
     [features.segmentations[0]].concat(...features.otherFeatures),
     features.segConditions[0],
-    add7ths);
+    add7ths, halftime);
 }
 
-function generatePoints(featureFiles: string[], condition?: any, add7ths?: boolean) {
-  const points: any[][] = initPoints(featureFiles[0], condition);
+function generatePoints(featureFiles: string[], condition?: any, add7ths?: boolean, halftime?: boolean) {
+  let points: any[][] = initPoints(featureFiles[0], condition);
+  if (halftime) points = points.filter((_,i) => i % 2 == 0);
   return featureFiles.slice(1)
     .reduce((p,f) => addFeature(f, p, add7ths), points)
     .filter(p => p.every(x => x != null));
 }
 
 function initPoints(filename: string, condition?: any): number[][] {
-  if (filename.indexOf(FEATURES.MADMOM_BEATS.name) >= 0) {
-    return getMadmomBeats(filename).map(b => [b]);
-  } else if (filename.indexOf(FEATURES.MADMOM_BARS.name) >= 0) {
-    return getMadmomDownbeats(filename).map(b => [b]);
+  if (filename.indexOf(FEATURES.MADMOM_BARS.name) >= 0) {
+    return condition == '1' ? getMadmomDownbeats(filename).map(b => [b])
+      : getMadmomBeats(filename).map(b => [b]);
   }
   return getVampValues(filename, condition).map(v => [v.time]);
 }

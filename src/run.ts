@@ -17,11 +17,11 @@ import { cleanCaches, renameJohanChordFeatures, moveToFeaturesDir } from './file
 //histsToGraph();
 
 //saveHybridPatternGraphs(3)
-//savePatternGraphs("madmom")
-saveVectorSequences("plots/d3/newest/chordSeq.json")
+//savePatternGraphs("madbarshalf")
+//saveVectorSequences("plots/d3/newest/chordSeqMB.json")
 //savePatternSequences("plots/d3/newest/sequences5m.json", 5, "madmom");
 
-//analyzePatternGraph("results/graphs/good lovin'.json");
+analyzePatternGraph("results/graphs/good lovin'madbarshalf.json", 10);
 //analyzePatternGraph("results/graphs/good lovin'-hybrid0.json");
 //analyzePatternGraph("results/graphs/good lovin'-hybrid1.json");
 //analyzePatternGraph("results/graphs/good lovin'-hybrid2.json");

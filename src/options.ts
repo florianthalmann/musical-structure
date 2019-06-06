@@ -7,7 +7,8 @@ import { FeatureConfig, FEATURES } from './feature-extractor';
 
 export interface FullOptions extends StructureOptions {
   selectedFeatures: FeatureConfig[],
-  seventhChords?: boolean
+  seventhChords?: boolean,
+  halftime?: boolean
 }
 
 const STANDARD_OPTIONS: FullOptions = {
@@ -29,10 +30,15 @@ export function getVariations(minPatternLengths: number[]): [string, any[]][] {
   ]
 }
 
-export function getBestGdOptions(resultsDir: string) {
+export function getBestGdOptions(resultsDir: string, halftime?: boolean) {
   const options = getJohanBarsOptions(resultsDir);
   options.minPatternLength = 3;
   options.optimizationMethods = [OPTIMIZATION.PARTITION];
+  if (halftime) {
+    options.halftime = true;
+    options.cacheDir = options.cacheDir.slice(0, options.cacheDir.length-1)+'half/';
+    fs.existsSync(options.cacheDir) || fs.mkdirSync(options.cacheDir);
+  }
   return options;
 }
 

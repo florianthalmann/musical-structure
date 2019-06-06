@@ -51,16 +51,16 @@ export function getMostCommonPatternNFs(path: string) {
   return nodes.map(n => n.id);
 }
 
-export function analyzePatternGraph(path: string) {
+export function analyzePatternGraph(path: string, top = 5) {
   const graph = loadGraph(path);
   const nodes = <PatternNode[]>graph.getNodes();
   console.log('nodes:', nodes.length);
   console.log('edges:', graph.getEdges().length);
   nodes.sort((a,b) => b.count-a.count);
-  console.log('most common:', nodes.slice(0,5).map(n => n.count + ': ' + n.id));
+  console.log('most common:', nodes.slice(0,top).map(n => n.count + ': ' + n.id));
   
   const adjacents = getMostAdjacents(graph);
-  console.log('most adjacent:', adjacents.slice(0,5).map(a => a[1] + ', ' + a[0].count + ': ' + a[0].id));
+  console.log('most adjacent:', adjacents.slice(0,top).map(a => a[2] + ', ' + a[0].count + ': ' + a[0].id));
   
   /*const neighbors = <PatternNode[][]>nodes.map(n => graph.getNeighbors(n));
   counts = neighbors.map(as => _.sum(as.map(n => n.count)));

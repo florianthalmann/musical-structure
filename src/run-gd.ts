@@ -23,8 +23,8 @@ const SONGS = ["good lovin'", "sugar magnolia", "me and my uncle"];
 export async function savePatternSequences(file: string, hubSize: number, appendix = '') {
   const song = "good lovin'";
   const results = await getCosiatec(song, getGdVersions(song));
-  const sequences = results.map((v,i) => v.points.map((_,j) =>
-    ({version:i, point:j, type:0})));
+  const sequences = results.map((v,i) => v.points.map((p,j) =>
+    ({version:i, index:j, type:0, point:p})));
   const nfMap = getNormalFormsMap(results);
   const mostCommon = getHubPatternNFs(GRAPH_RESULTS+song+appendix+'.json', hubSize);
   mostCommon.slice(0, 10).forEach((nfs,nfi) =>
@@ -38,15 +38,14 @@ export async function savePatternSequences(file: string, hubSize: number, append
   //visuals.map(v => v.join('')).slice(0, 10).forEach(v => console.log(v));
 }
 
-export async function saveVectorSequences(file: string, typeCount = 3) {
+export async function saveVectorSequences(file: string, typeCount = 5) {
   const song = "good lovin'";
-  const versions = await getGdQuantizedPoints(song, getChromaBarsOptions(3, GD_RESULTS));
+  const versions = await getGdQuantizedPoints(song, getBestGdOptions(GD_RESULTS));
   const atemporalPoints = versions.map(v => v.map(p => p.slice(1)));
   const pointMap = toIndexSeqMap(atemporalPoints, JSON.stringify);
   const mostCommon = getMostCommonPoints(_.flatten(atemporalPoints));
-  console.log(mostCommon.slice(0, 10))
-  const sequences = versions.map((v,i) => v.map((_,j) =>
-    ({version:i, point:j, type:0})));
+  const sequences = versions.map((v,i) => v.map((p,j) =>
+    ({version:i, index:j, type:0, point:p})));
   mostCommon.slice(0, typeCount).forEach((p,i) =>
     pointMap[JSON.stringify(p)].forEach(([v, p]) => sequences[v][p].type = i+1));
   fs.writeFileSync(file, JSON.stringify(_.flatten(sequences)));
@@ -63,8 +62,7 @@ export async function saveGdHists(features: FeatureConfig[], quantFuncs: ArrayMa
 export async function savePatternGraphs(appendix = '', versionCount?: number) {
   await mapSeries(SONGS, async n => {
     console.log('working on ' + n);
-    const versions = getGdVersions(n, versionCount);
-    const results = await getCosiatec(n, versions);
+    const results = await getCosiatec(n, getGdVersions(n, versionCount));
     createSimilarityPatternGraph(results, false, GRAPH_RESULTS+n+appendix+'.json');
   });
 }
@@ -83,9 +81,9 @@ export async function saveHybridPatternGraphs(appendix = '', count = 1) {
 async function getCosiatec(name: string, audioFiles: string[], maxLength?: number) {
   return mapSeries(audioFiles, async (a,i) => {
     updateStatus('  ' + (i+1) + '/' + audioFiles.length);
-    const points = await getPointsFromAudio(a, getBestGdOptions(GD_RESULTS));
+    const points = await getPointsFromAudio(a, getBestGdOptions(GD_RESULTS, true));
     if (!maxLength || points.length < maxLength) {
-      const options = getBestGdOptions(GD_RESULTS+name+'/');
+      const options = getBestGdOptions(GD_RESULTS+name+'/', true);
       return getInducerWithCaching(a, points, options).getCosiatec();
     }
   });

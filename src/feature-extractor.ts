@@ -5,6 +5,7 @@ import { FEATURES_DIR } from './config';
 
 export interface FeatureConfig {
   name: string,
+  file?: string,
   isSegmentation: boolean,
   subset?: string
 }
@@ -21,7 +22,7 @@ export interface Features {
 
 export const FEATURES = {
   SECTIONS: {name:'sections', plugin:'vamp:qm-vamp-plugins:qm-segmenter:segmentation', isSegmentation: true},
-  BARS: {name:'bars', plugin:'vamp:qm-vamp-plugins:qm-barbeattracker:beats', isSegmentation: true, subset:'1'},
+  BARS: {name:'bars', file:'beats', plugin:'vamp:qm-vamp-plugins:qm-barbeattracker:beats', isSegmentation: true, subset:'1'},
   BEATS: {name:'beats', plugin:'vamp:qm-vamp-plugins:qm-barbeattracker:beats', isSegmentation: true},
   ONSETS: {name:'onsets', plugin:'vamp:qm-vamp-plugins:qm-onsetdetector:onsets', isSegmentation: true},
   ONSETS2: {name:'onsets2', plugin:'vamp:vamp-aubio:aubioonset:onsets', isSegmentation: true},
@@ -43,8 +44,8 @@ export const FEATURES = {
   CHROMA: {name:'chroma', plugin:'vamp:qm-vamp-plugins:qm-chromagram:chromagram', isSegmentation: false},
   CHORDS: {name:'chords', plugin:'vamp:nnls-chroma:chordino:simplechord', isSegmentation: false},
   JOHAN_CHORDS: {name:'johan', isSegmentation: false},
-  MADMOM_BARS: {name:'madbars', isSegmentation: true},
-  MADMOM_BEATS: {name:'madbeats', isSegmentation: true}
+  MADMOM_BARS: {name:'madbars', isSegmentation: true, subset:'1'},
+  MADMOM_BEATS: {name:'madbeats', file: 'madbars', isSegmentation: true}
 }
 
 export async function getFeatures(audioPath: string, features: FeatureConfig[]): Promise<Features> {
@@ -66,7 +67,7 @@ function filterSelectedFeatures(featureFiles: string[], features: FeatureConfig[
 }
 
 function getFiles(features: FeatureConfig[], files: string[]) {
-  return features.map(f => files.filter(u => u.indexOf(f.name) >= 0)[0]);
+  return features.map(f => files.filter(u => u.indexOf(f.file||f.name) >= 0)[0]);
 }
 
 function extractFeatures(audioFiles: string[], features: FeatureConfig[]): Promise<any> {
@@ -118,7 +119,7 @@ function extractAndMove(audioPath: string, feature: FeatureConfig,
   const extension = audioPath.slice(audioPath.lastIndexOf('.'));
   const featureOutFile = audioPath.replace(extension, '.json');
   const featureDestDir = FEATURES_DIR+outFileName+'/';
-  const featureDestPath = featureDestDir+outFileName+'_'+feature.name+'.json';
+  const featureDestPath = featureDestDir+outFileName+'_'+(feature.file||feature.name)+'.json';
   return new Promise(resolve =>
     fs.stat(featureDestPath, err => {
       if (err) { //only extract if file doesn't exist yet
