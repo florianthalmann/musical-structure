@@ -38,14 +38,20 @@ export async function savePatternSequences(file: string, hubSize: number, append
   //visuals.map(v => v.join('')).slice(0, 10).forEach(v => console.log(v));
 }
 
-export async function saveVectorSequences(file: string, typeCount = 5) {
+export async function saveVectorSequences(file: string, typeCount = 3) {
   const song = "good lovin'";
-  const versions = await getGdQuantizedPoints(song, getBestGdOptions(GD_RESULTS));
-  const atemporalPoints = versions.map(v => v.map(p => p.slice(1)));
+  const versions = getGdVersions(song).slice(0,40);
+  const points = await mapSeries(versions, a =>
+    getPointsFromAudio(a, getBestGdOptions(GD_RESULTS)));
+  const quantPoints = await mapSeries(versions, a =>
+    getQuantizedPoints(a, getBestGdOptions(GD_RESULTS)));
+  const atemporalPoints = quantPoints.map(v => v.map(p => p.slice(1)));
   const pointMap = toIndexSeqMap(atemporalPoints, JSON.stringify);
   const mostCommon = getMostCommonPoints(_.flatten(atemporalPoints));
-  const sequences = versions.map((v,i) => v.map((p,j) =>
-    ({version:i, index:j, type:0, point:p})));
+  const sequences = quantPoints.map((v,i) => v.map((p,j) =>
+    ({version:i, index:j, type:0, point:p, path: versions[i],
+      start: points[i][j][0][0],
+      duration: points[i][j+1] ? points[i][j+1][0][0]-points[i][j][0][0] : 1})));
   mostCommon.slice(0, typeCount).forEach((p,i) =>
     pointMap[JSON.stringify(p)].forEach(([v, p]) => sequences[v][p].type = i+1));
   fs.writeFileSync(file, JSON.stringify(_.flatten(sequences)));

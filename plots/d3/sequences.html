@@ -13,20 +13,40 @@ async function draw() {
   //height = +svg.attr("height");
   
   const HEIGHT = 15;
-  const WIDTH = 3;
+  const WIDTH = 4;
   
-  let seqs = await d3.json("newest/chordSeq.json");
+  const tooltip = d3.select("body")
+    .append("div")
+    .style("position", "absolute")
+    .style("z-index", "10")
+    .style("visibility", "hidden")
+    .style("font-size", "10px")
+    .text("");
+  
+  let seqs = await d3.json("newest/chordSeqMB.json");
   //seqs = seqs.filter(s => s.version < 40);
 
   const rect = svg.append("g")
     .selectAll("rect")
     .data(seqs)
     .enter().append("rect")
-      .attr("x", s => s.point*WIDTH)
+      .attr("x", s => s.index*WIDTH)
       .attr("y", s => s.version*HEIGHT)
       .attr("width", WIDTH)
       .attr("height", HEIGHT)
       .attr("fill", e => e.type > 0 && e.type < 10 ? d3.hsl((e.type+400)*40, 0.7, 0.5) : d3.rgb(230, 230, 230))
-
+      .on("mouseover", n => { tooltip.style("visibility", "visible"); tooltip.text(n.point) })
+      .on("mousemove", () => tooltip.style("top", (event.pageY-10)+"px").style("left",(event.pageX+10)+"px"))
+      .on("mouseout", () => tooltip.style("visibility", "hidden"))
+      .on("click", play)
+  
+  function play(segment) {
+    console.log(segment)
+    const path = segment.path.replace("/Users/flo/Projects/Code/FAST/musical-structure/", "")
+    const audio = new Audio(path);
+    audio.currentTime = segment.start;
+    audio.play();
+    setTimeout(() => audio.pause(), segment.duration*1000);
+  }
 }
 </script>
