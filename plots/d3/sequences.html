@@ -24,7 +24,7 @@ async function draw() {
     .text("");
   
   let seqs = await d3.json("newest/chordSeqMB.json");
-  //seqs = seqs.filter(s => s.version < 40);
+  //seqs = seqs.filter(s => s.version < 2);
 
   const rect = svg.append("g")
     .selectAll("rect")

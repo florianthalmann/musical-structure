@@ -55,13 +55,13 @@ export function getChromaBarsOptions(dims: number, resultsDir: string) {
 }
 
 export function getMfccBeatsOptions(dims: number, resultsDir: string) {
-  return getSummaryOptions([FEATURES.BEATS, FEATURES.MFCC], dims,
+  return getSummaryOptions([FEATURES.MADMOM_BEATS, FEATURES.MFCC], dims,
     HEURISTICS.SIZE_AND_1D_COMPACTNESS(0), resultsDir
   );
 }
 
 export function getChromaBeatsOptions(dims: number, resultsDir: string) {
-  return getSummaryOptions([FEATURES.BEATS, FEATURES.CHROMA], dims,
+  return getSummaryOptions([FEATURES.MADMOM_BEATS, FEATURES.CHROMA], dims,
     HEURISTICS.SIZE_AND_1D_COMPACTNESS(0), resultsDir
   );
 }

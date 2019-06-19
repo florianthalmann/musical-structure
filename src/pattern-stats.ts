@@ -20,9 +20,8 @@ interface SegmentNode extends Node {
   version: number
 }
 
-export function getHubPatternNFs(path: string, maxDistance: number): string[][] {
+export function getHubPatternNFs(graph: DirectedGraph, maxDistance: number): string[][] {
   let normalForms: string[][] = [];
-  let graph = loadGraph(path);
   while (graph.getSize() > 0) {
     const largest = getLargestHub(graph, maxDistance);
     normalForms.push(largest.map(n => n.id));
@@ -34,13 +33,13 @@ export function getHubPatternNFs(path: string, maxDistance: number): string[][] 
 
 function getDensestHub(graph: DirectedGraph, maxDistance: number) {
   const largest = getDensestAdjacent(graph, maxDistance)[0];
-  if (largest[1].length > 2) console.log(largest[1].length+1, largest[2]);
+  //if (largest[1].length > 2) console.log(largest[1].length+1, largest[2]);
   return _.union([largest[0]], largest[1]);
 }
 
 function getLargestHub(graph: DirectedGraph, maxDistance: number) {
   const largest = getMostAdjacents(graph, maxDistance)[0];
-  if (largest[1].length > 2) console.log(largest[1].length+1, largest[2]);
+  //if (largest[1].length > 2) console.log(largest[1].length+1, largest[2]);
   return _.union([largest[0]], largest[1]);
 }
 
