@@ -35,6 +35,7 @@ async function draw() {
       .attr("width", WIDTH)
       .attr("height", HEIGHT)
       .attr("fill", e => e.type > 0 && e.type < 10 ? d3.hsl((e.type+400)*40, 0.7, 0.5) : d3.rgb(230, 230, 230))
+      .attr("opacity", n => n.version % 2 ? 0.2 : 1)
       .on("mouseover", n => { tooltip.style("visibility", "visible"); tooltip.text(n.point) })
       .on("mousemove", () => tooltip.style("top", (event.pageY-10)+"px").style("left",(event.pageX+10)+"px"))
       .on("mouseout", () => tooltip.style("visibility", "hidden"))

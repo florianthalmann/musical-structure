@@ -31,8 +31,8 @@ const SONGS = ["good lovin'", "sugar magnolia", "me and my uncle"];
 
 
 export async function savePatternAndVectorSequences(file: string) {
-  const options = getBestGdOptions(GD_RESULTS);
-  const versions = getGdVersions(SONGS[0]).slice(0, 10);
+  const options = getBestGdOptions(GD_RESULTS+SONGS[0]+'/');
+  const versions = getGdVersions(SONGS[0])//.slice(0, 40);
   const vecsec = _.flatten(await getVectorSequences(versions, options, 3));
   vecsec.forEach(s => s.version = s.version*2+1);
   
@@ -43,7 +43,7 @@ export async function savePatternAndVectorSequences(file: string) {
 }
 
 export async function savePatternSequences(file: string, hubSize: number, appendix = '') {
-  const options = getBestGdOptions(GD_RESULTS);
+  const options = getBestGdOptions(GD_RESULTS+SONGS[0]+'/');
   const versions = getGdVersions(SONGS[0]).slice(0,40);
   const graphFile = GRAPH_RESULTS+SONGS[0]+appendix+'.json';
   const sequences = await getPatternSequences(SONGS[0], versions, options, 10, hubSize);
@@ -64,19 +64,17 @@ async function getPatternSequences(songname: string, audio: string[],
   const mostCommon = getHubPatternNFs(graph, hubSize);
   console.log(mostCommon.slice(0, typeCount))
   mostCommon.slice(0, typeCount).forEach((nfs,nfi) =>
-    nfs.forEach(nf => {
-      //console.log("NF", nf, nfMap[nf])
-      nfMap[nf].forEach(([v, p]: [number, number]) => {
+    nfs.forEach(nf => nfMap[nf].forEach(([v, p]: [number, number]) => {
       const pattern = results[v].patterns[p];
-      const indexOccs = pointsToIndices([pattern.occurrences], results[v].points);
-      indexOccs[0].forEach(o => o.forEach(i => sequences[v][i].type = nfi+1));
+      const indexOccs = pointsToIndices([pattern.occurrences], results[v].points)[0];
+      indexOccs.forEach(o => o.forEach(i => sequences[v][i].type = nfi+1));
     })
-  }));
+  ));
   return sequences;
 }
 
 export async function saveVectorSequences(file: string, typeCount?: number) {
-  const options = getBestGdOptions(GD_RESULTS);
+  const options = getBestGdOptions(GD_RESULTS+SONGS[0]+'/');
   const versions = getGdVersions(SONGS[0]).slice(0,40);
   const sequences = await getVectorSequences(versions, options, typeCount);
   fs.writeFileSync(file, JSON.stringify(_.flatten(sequences)));
@@ -125,12 +123,11 @@ export async function saveHybridPatternGraphs(appendix = '', count = 1) {
 }
 
 async function getCosiatec(name: string, audioFiles: string[],
-    options = getBestGdOptions(GD_RESULTS), maxLength?: number) {
+    options = getBestGdOptions(GD_RESULTS+name+'/'), maxLength?: number) {
   return mapSeries(audioFiles, async (a,i) => {
     updateStatus('  ' + (i+1) + '/' + audioFiles.length);
     const points = await getPointsFromAudio(a, options);
     if (!maxLength || points.length < maxLength) {
-      options.cacheDir = GD_RESULTS+name+'/';
       return getInducerWithCaching(a, points, options).getCosiatec();
     }
   });
@@ -138,14 +135,13 @@ async function getCosiatec(name: string, audioFiles: string[],
 
 async function getHybridCosiatec(name: string, index: number, audioFiles: string[]) {
   const pairs = getHybridConfig(name, index, audioFiles);
+  const options = getBestGdOptions(initDirRec(GD_RESULTS+name, 'hybrid'+index));
   return _.flatten(await mapSeries(pairs, async (pair,i) => {
     updateStatus('  ' + (i+1) + '/' + pairs.length);
-    const options = getBestGdOptions(GD_RESULTS);
     const points = await Promise.all(pair.map(p => getPointsFromAudio(p, options)));
     const slices = points.map(p => getSlices(p));
     const hybrids = _.zip(...slices).map(s => s[0].concat(s[1]));
     return hybrids.map(h => {
-      const options = getBestGdOptions(initDirRec(GD_RESULTS+name, 'hybrid'+index));
       return getInducerWithCaching(pair[0], h, options).getCosiatec();
     });
   }))

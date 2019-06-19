@@ -31,21 +31,17 @@ export function getVariations(minPatternLengths: number[]): [string, any[]][] {
 }
 
 export function getBestGdOptions(resultsDir: string, halftime?: boolean) {
-  const options = getJohanBarsOptions(resultsDir);
+  const options = getJohanBarsOptions(resultsDir,
+    HEURISTICS.SIZE_AND_1D_COMPACTNESS_AXIS(0), halftime);
   options.minPatternLength = 3;
   options.optimizationMethods = [OPTIMIZATION.PARTITION];
-  if (halftime) {
-    options.halftime = true;
-    options.cacheDir = options.cacheDir.slice(0, options.cacheDir.length-1)+'half/';
-    fs.existsSync(options.cacheDir) || fs.mkdirSync(options.cacheDir);
-  }
   return options;
 }
 
 export function getJohanBarsOptions(resultsDir: string,
-    heuristic: CosiatecHeuristic = HEURISTICS.SIZE_AND_1D_COMPACTNESS(0)) {
+    heuristic: CosiatecHeuristic = HEURISTICS.SIZE_AND_1D_COMPACTNESS(0), halftime?: boolean) {
   return getIdentityOptions([FEATURES.MADMOM_BARS, FEATURES.JOHAN_CHORDS],
-    heuristic, resultsDir);
+    heuristic, resultsDir, halftime);
 }
 
 export function getChromaBarsOptions(dims: number, resultsDir: string) {
@@ -66,37 +62,58 @@ export function getChromaBeatsOptions(dims: number, resultsDir: string) {
   );
 }
 
-export function getIdentityOptions(features: FeatureConfig[], heuristic: CosiatecHeuristic, resultsDir: string) {
-  return getOptions(features, [QF.ORDER(), QF.IDENTITY()], heuristic,
-    toCacheDirName(resultsDir, features));
+export function getIdentityOptions(features: FeatureConfig[],
+    heuristic: CosiatecHeuristic, resultsDir: string, halftime?: boolean) {
+  return getOptions(features, [QF.ORDER(), QF.IDENTITY()], halftime, heuristic, resultsDir);
 }
 
-export function getSummaryOptions(features: FeatureConfig[], dims: number, heuristic: CosiatecHeuristic, resultsDir: string) {
-  return getOptions(features, [QF.ORDER(), QF.SORTED_SUMMARIZE(dims)], heuristic,
-    toCacheDirName(resultsDir, features, ''+dims));
-}
-
-function toCacheDirName(dir: string, features: FeatureConfig[], dims = '') {
-  return dir + features[1].name + dims + features[0].name+'/' //e.g. chroma4beats
+export function getSummaryOptions(features: FeatureConfig[], dims: number,
+    heuristic: CosiatecHeuristic, resultsDir: string, halftime?: boolean) {
+  return getOptions(features, [QF.ORDER(), QF.SORTED_SUMMARIZE(dims)], halftime,
+    heuristic, resultsDir, ''+dims);
 }
 
 export function getOptions(features: FeatureConfig[], quantizerFuncs: ArrayMap[],
-  heuristic?: CosiatecHeuristic, cacheDir?: string, siatecCacheDir?: string): FullOptions {
+  halftime?: boolean, heuristic?: CosiatecHeuristic, cacheDir?: string, dims = ''): FullOptions {
   const options = _.clone(STANDARD_OPTIONS);
   options.selectedFeatures = features;
   options.quantizerFunctions = quantizerFuncs;
   options.selectionHeuristic = heuristic;
   options.optimizationHeuristic = heuristic;
-  //!!folder name should contain features, quantfuncs, heuristic. everything else cached
-  options.cacheDir = cacheDir;
-  options.siatecCacheDir = siatecCacheDir;
-  fs.existsSync(cacheDir) || fs.mkdirSync(cacheDir);
+  options.halftime = halftime;
+  if (cacheDir) {
+    //!!folder name should contain features, quantfuncs, heuristic. everything else cached
+    options.siatecCacheDir = generateSiatecCacheDir(cacheDir, features, dims);
+    options.cacheDir = generateCosiatecCacheDir(options.selectionHeuristic, options.siatecCacheDir);
+    fs.existsSync(options.cacheDir) || fs.mkdirSync(options.cacheDir);
+    fs.existsSync(options.siatecCacheDir) || fs.mkdirSync(options.siatecCacheDir);
+  }
   return options;
 }
 
+function generateCosiatecCacheDir(heuristic: CosiatecHeuristic, siatecCacheDir: string) {
+  return siatecCacheDir.slice(0, -1) + heuristicToName(heuristic) + '/';
+}
+
+function generateSiatecCacheDir(baseDir: string, features: FeatureConfig[], dims = '', halftime?: boolean) {
+  const addition = halftime ? "half" : "";
+  return baseDir + features[1].name + dims + features[0].name + addition+'/' //e.g. chroma4beatshalf
+}
+
+function heuristicToName(heuristic: CosiatecHeuristic) {
+  const str = heuristic.toString();
+  return str === HEURISTICS.SIZE_AND_1D_COMPACTNESS_AXIS(0).toString() ? "s1dc0a"
+    : str === HEURISTICS.SIZE_AND_1D_COMPACTNESS_NOAXIS(0).toString() ? "s1dc0na"
+    : str === HEURISTICS.COMPACTNESS.toString() ? "com"
+    : str === HEURISTICS.COVERAGE.toString() ? "cov"
+    : "" //should be HEURISTICS.SIZE_AND_1D_COMPACTNESS(0)
+}
+
 export function getInducerWithCaching(audio: string, points: number[][], options: FullOptions) {
+  options = _.clone(options);
   options.cacheDir = options.cacheDir+audioPathToDirName(audio)+'/';
   options.siatecCacheDir = options.siatecCacheDir ? options.siatecCacheDir+audioPathToDirName(audio)+'/' : undefined;
   fs.existsSync(options.cacheDir) || fs.mkdirSync(options.cacheDir);
+  fs.existsSync(options.siatecCacheDir) || fs.mkdirSync(options.siatecCacheDir);
   return new StructureInducer(points, options);
 }
