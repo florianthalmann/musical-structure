@@ -1,6 +1,6 @@
 import * as fs from 'fs';
 import * as _ from 'lodash';
-import { pointsToIndices, ArrayMap } from 'siafun';
+import { pointsToIndices, ArrayMap, OpsiatecResult } from 'siafun';
 import { GD_AUDIO, GD_SONG_MAP, GD_RESULTS, GRAPH_RESULTS } from './config';
 import { mapSeries, updateStatus, toIndexSeqMap } from './util';
 import { loadJsonFile, initDirRec } from './file-manager';
@@ -32,7 +32,7 @@ const SONGS = ["good lovin'", "sugar magnolia", "me and my uncle"];
 
 export async function savePatternAndVectorSequences(file: string) {
   const options = getBestGdOptions(GD_RESULTS+SONGS[0]+'/');
-  const versions = getGdVersions(SONGS[0])//.slice(0, 40);
+  const versions = getGdVersions(SONGS[0]).slice(0, 100);
   const vecsec = _.flatten(await getVectorSequences(versions, options, 3));
   vecsec.forEach(s => s.version = s.version*2+1);
   
@@ -55,6 +55,7 @@ async function getPatternSequences(songname: string, audio: string[],
     options: FullOptions, typeCount = 10, hubSize = 3): Promise<VisualsPoint[][]> {
   const points = await mapSeries(audio, a => getPointsFromAudio(a, options));
   const results = await getCosiatec(songname, audio, options);
+  results.forEach(r => removeNonParallelOccurrences(r));
   const sequences = results.map((v,i) => v.points.map((p,j) =>
     ({version:i, index:j, type:0, point:p, path: audio[i],
       start: points[i][j][0][0],
@@ -71,6 +72,14 @@ async function getPatternSequences(songname: string, audio: string[],
     })
   ));
   return sequences;
+}
+
+function removeNonParallelOccurrences(results: OpsiatecResult, dimIndex = 0) {
+  results.patterns.forEach(p => {
+    const parallel = p.vectors.map(v => v.every((d,i) => i == dimIndex || d == 0));
+    p.vectors = p.vectors.filter((_,i) => parallel[i]);
+    p.occurrences = p.occurrences.filter((_,i) => parallel[i]);
+  })
 }
 
 export async function saveVectorSequences(file: string, typeCount?: number) {

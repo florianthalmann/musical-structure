@@ -45,7 +45,8 @@ export const FEATURES = {
   CHORDS: {name:'chords', plugin:'vamp:nnls-chroma:chordino:simplechord', isSegmentation: false},
   JOHAN_CHORDS: {name:'johan', isSegmentation: false},
   MADMOM_BARS: {name:'madbars', isSegmentation: true, subset:'1'},
-  MADMOM_BEATS: {name:'madbeats', file: 'madbars', isSegmentation: true}
+  MADMOM_BEATS: {name:'madbeats', file: 'madbars', isSegmentation: true},
+  SILVET: {name:'silvet', plugin:'vamp:silvet:silvet:notes', isSegmentation: false}
 }
 
 export async function getFeatures(audioPath: string, features: FeatureConfig[]): Promise<Features> {

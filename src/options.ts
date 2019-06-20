@@ -102,11 +102,14 @@ function generateSiatecCacheDir(baseDir: string, features: FeatureConfig[], dims
 
 function heuristicToName(heuristic: CosiatecHeuristic) {
   const str = heuristic.toString();
-  return str === HEURISTICS.SIZE_AND_1D_COMPACTNESS_AXIS(0).toString() ? "s1dc0a"
+  const name = str === HEURISTICS.SIZE_AND_1D_COMPACTNESS(0).toString() ? "" //was standard
+    : str === HEURISTICS.SIZE_AND_1D_COMPACTNESS_AXIS(0).toString() ? "s1dc0a"
     : str === HEURISTICS.SIZE_AND_1D_COMPACTNESS_NOAXIS(0).toString() ? "s1dc0na"
     : str === HEURISTICS.COMPACTNESS.toString() ? "com"
-    : str === HEURISTICS.COVERAGE.toString() ? "cov"
-    : "" //should be HEURISTICS.SIZE_AND_1D_COMPACTNESS(0)
+    : str === HEURISTICS.COVERAGE.toString() ? "cov" : undefined;
+  if (name != null) {
+    return name;
+  } else throw new Error("heuristic unknown to options generator");
 }
 
 export function getInducerWithCaching(audio: string, points: number[][], options: FullOptions) {
