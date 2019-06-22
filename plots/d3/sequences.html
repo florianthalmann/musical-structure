@@ -23,7 +23,7 @@ async function draw() {
     .style("font-size", "10px")
     .text("");
   
-  let seqs = await d3.json("newest/chordSeqMB.json");
+  let seqs = await d3.json("newest/qmtrans.json");
   seqs = seqs.filter(s => s.version < 80);
 
   const rect = svg.append("g")

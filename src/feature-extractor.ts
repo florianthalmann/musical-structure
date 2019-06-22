@@ -46,7 +46,8 @@ export const FEATURES = {
   JOHAN_CHORDS: {name:'johan', isSegmentation: false},
   MADMOM_BARS: {name:'madbars', isSegmentation: true, subset:'1'},
   MADMOM_BEATS: {name:'madbeats', file: 'madbars', isSegmentation: true},
-  SILVET: {name:'silvet', plugin:'vamp:silvet:silvet:notes', isSegmentation: false}
+  SILVET: {name:'silvet', plugin:'vamp:silvet:silvet:notes', isSegmentation: false},
+  TRANSCRIPTION: {name:'qmtrans', plugin:'vamp:qm-vamp-plugins:qm-transcription:transcription', isSegmentation: false}
 }
 
 export async function getFeatures(audioPath: string, features: FeatureConfig[]): Promise<Features> {
@@ -129,6 +130,9 @@ function extractAndMove(audioPath: string, feature: FeatureConfig,
           if (success) {
             fs.existsSync(featureDestDir) || fs.mkdirSync(featureDestDir);
             execute('mv '+featureOutFile+' '+featureDestPath, resolve);
+          } else {
+            console.log('failed to extract '+feature.name+' for '+audioPath)
+            resolve();
           }
         });
       } else {

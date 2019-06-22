@@ -28,25 +28,26 @@ interface VisualsPoint {
 var songMap: Map<string, GdVersion[]>;
 
 const SONGS = ["good lovin'", "sugar magnolia", "me and my uncle"];
+const SONG = SONGS[2];
 
 
 export async function savePatternAndVectorSequences(file: string) {
-  const options = getBestGdOptions(GD_RESULTS+SONGS[0]+'/');
-  const versions = getGdVersions(SONGS[0]).slice(0, 100);
+  const options = getBestGdOptions(GD_RESULTS+SONG+'/');
+  const versions = getGdVersions(SONG)//.slice(0, 10);
   const vecsec = _.flatten(await getVectorSequences(versions, options, 3));
   vecsec.forEach(s => s.version = s.version*2+1);
   
-  const patsec = _.flatten(await getPatternSequences(SONGS[0], versions, options, 3, 3));
+  const patsec = _.flatten(await getPatternSequences(SONG, versions, options, 5, 10));
   patsec.forEach(s => s.version = s.version*2);
   
   fs.writeFileSync(file, JSON.stringify(_.union(vecsec, patsec)));
 }
 
 export async function savePatternSequences(file: string, hubSize: number, appendix = '') {
-  const options = getBestGdOptions(GD_RESULTS+SONGS[0]+'/');
-  const versions = getGdVersions(SONGS[0]).slice(0,40);
-  const graphFile = GRAPH_RESULTS+SONGS[0]+appendix+'.json';
-  const sequences = await getPatternSequences(SONGS[0], versions, options, 10, hubSize);
+  const options = getBestGdOptions(GD_RESULTS+SONG+'/');
+  const versions = getGdVersions(SONG)//.slice(0,40);
+  const graphFile = GRAPH_RESULTS+SONG+appendix+'.json';
+  const sequences = await getPatternSequences(SONG, versions, options, 10, hubSize);
   fs.writeFileSync(file, JSON.stringify(_.flatten(sequences)));
   //visuals.map(v => v.join('')).slice(0, 10).forEach(v => console.log(v));
 }
@@ -63,12 +64,12 @@ async function getPatternSequences(songname: string, audio: string[],
   const nfMap = getNormalFormsMap(results);
   const graph = createSimilarityPatternGraph(results, false);
   const mostCommon = getHubPatternNFs(graph, hubSize);
-  console.log(mostCommon.slice(0, typeCount))
+  //console.log(mostCommon.slice(0, typeCount));
   mostCommon.slice(0, typeCount).forEach((nfs,nfi) =>
     nfs.forEach(nf => nfMap[nf].forEach(([v, p]: [number, number]) => {
       const pattern = results[v].patterns[p];
       const indexOccs = pointsToIndices([pattern.occurrences], results[v].points)[0];
-      indexOccs.forEach(o => o.forEach(i => sequences[v][i].type = nfi+1));
+      indexOccs.forEach(o => o.forEach(i => i >= 0 ? sequences[v][i].type = nfi+1 : null));
     })
   ));
   return sequences;
@@ -83,8 +84,8 @@ function removeNonParallelOccurrences(results: OpsiatecResult, dimIndex = 0) {
 }
 
 export async function saveVectorSequences(file: string, typeCount?: number) {
-  const options = getBestGdOptions(GD_RESULTS+SONGS[0]+'/');
-  const versions = getGdVersions(SONGS[0]).slice(0,40);
+  const options = getBestGdOptions(GD_RESULTS+SONG+'/');
+  const versions = getGdVersions(SONG).slice(0,10);
   const sequences = await getVectorSequences(versions, options, typeCount);
   fs.writeFileSync(file, JSON.stringify(_.flatten(sequences)));
 }

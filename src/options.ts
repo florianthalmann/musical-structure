@@ -35,12 +35,14 @@ export function getBestGdOptions(resultsDir: string, halftime?: boolean) {
     HEURISTICS.SIZE_AND_1D_COMPACTNESS_AXIS(0), halftime);
   options.minPatternLength = 3;
   options.optimizationMethods = [OPTIMIZATION.PARTITION];
+  options.ignoreNovelty = true;
+  options.minHeuristicValue = 0.00001;
   return options;
 }
 
 export function getJohanBarsOptions(resultsDir: string,
     heuristic: CosiatecHeuristic = HEURISTICS.SIZE_AND_1D_COMPACTNESS(0), halftime?: boolean) {
-  return getIdentityOptions([FEATURES.MADMOM_BARS, FEATURES.JOHAN_CHORDS],
+  return getIdentityOptions([FEATURES.MADMOM_BARS, FEATURES.SILVET],
     heuristic, resultsDir, halftime);
 }
 

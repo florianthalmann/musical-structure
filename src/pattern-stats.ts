@@ -10,6 +10,7 @@ interface ProtoNode {
 
 interface PatternNode extends Node {
   points: string[],
+  npoints: number[][],
   size: number,
   count: number,
   versions: number[]
@@ -197,7 +198,8 @@ export function createSimilarityPatternGraph(resultsByVersion: OpsiatecResult[],
     includeVecs: boolean, path?: string) {
   let graph = createPatternGraph(resultsByVersion, includeVecs,
     (p1, p2) => distinct(p1.versions, p2.versions)
-      && realSimilar(p1.points, p2.points, 0.8));
+      && realSimilarSliding(p1.npoints, p2.npoints, p1.points, p2.points, 0.6));
+      //&& similar(p1.points, p2.points, 0.6));
       //&& realSameButN(p1.points, p2.points, 1));
   graph = graph.pruneIsolatedNodes();
   console.log('pruned:', graph.getNodes().length);
@@ -241,6 +243,7 @@ export function createGraph(protoNodes: ProtoNode[],
     Object.assign({
       id: i,
       points: points[i],
+      npoints: JSON.parse(i),
       count: grouped[i].length,
       size: sizes[i]
     }, combined[i]));
@@ -302,6 +305,33 @@ function realSameButN<T>(s1: T[], s2: T[], n: number) {
 
 function realSimilarCardinality<T>(s1: T[], s2: T[], ratio: number) {
   return s1.length == s2.length && realSimilar(s1, s2, ratio);
+}
+
+function similarSliding(s1: number[][], s2: number[][], s1s: string[], s2s: string[], ratio: number) {
+  //console.log(s1, s2, s1s, s2s)
+  //FIX PROBLEM: SHOULD INCLUDE ALL PREVIOUS EDGES (especially before pruning!!!!)
+  //slide both until ranges no longer overlap by 'ratio'
+  //maybe check atemporal vectors similar first to speed up!
+  if (2 * Math.min(s1.length, s2.length) / (s1.length+s2.length) >= ratio) {
+    if (_.last(s2)[0] < _.last(s1)[0]) { let o = s1; s1 = s2; s2 = o; s2s = s1s; }
+    return _.range(1 + _.last(s2)[0] - _.last(s1)[0]).some(i =>
+      similar(addToElement(s1, 0, i), s2s, ratio));
+  }
+}
+
+function realSimilarSliding(s1: number[][], s2: number[][], s1s: string[], s2s: string[], ratio: number) {
+  return s1 !== s2 && similarSliding(s1, s2, s1s, s2s, ratio);
+}
+
+function addToElement(array: number[][], index: number, value: number) {
+  /*if (value == 0) console.log(array, _.cloneDeep(array).map(vec => {
+    vec[index] = vec[index]+value;
+    return JSON.stringify(vec);
+  }));*/
+  return _.cloneDeep(array).map(vec => {
+    vec[index] = vec[index]+value;
+    return JSON.stringify(vec);
+  });
 }
 
 function distinct<T>(s1: T[], s2: T[]) {
