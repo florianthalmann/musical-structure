@@ -33,7 +33,7 @@ const SONG = SONGS[2];
 
 export async function savePatternAndVectorSequences(file: string) {
   const options = getBestGdOptions(GD_RESULTS+SONG+'/');
-  const versions = getGdVersions(SONG)//.slice(0, 10);
+  const versions = getGdVersions(SONG).slice(0, 10);
   const vecsec = _.flatten(await getVectorSequences(versions, options, 3));
   vecsec.forEach(s => s.version = s.version*2+1);
   

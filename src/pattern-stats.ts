@@ -198,7 +198,7 @@ export function createSimilarityPatternGraph(resultsByVersion: OpsiatecResult[],
     includeVecs: boolean, path?: string) {
   let graph = createPatternGraph(resultsByVersion, includeVecs,
     (p1, p2) => distinct(p1.versions, p2.versions)
-      && realSimilarSliding(p1.npoints, p2.npoints, p1.points, p2.points, 0.6));
+      && realSimilarSliding(p1.npoints, p2.npoints, p2.points, 0.6));
       //&& similar(p1.points, p2.points, 0.6));
       //&& realSameButN(p1.points, p2.points, 1));
   graph = graph.pruneIsolatedNodes();
@@ -283,6 +283,20 @@ function realSubset2<T>(s1: T[], s2: T[]) {
   return s1.length < s2.length && subset2(s1, s2);
 }
 
+//calculates similarity between multisets, based on intersection
+function multiSimilar<T>(s1: T[], s2: T[], ratio: number): boolean {
+  //first line optimizes by excluding impossible cases
+  return 2 * Math.min(s1.length, s2.length) / (s1.length+s2.length) >= ratio
+    && 2 * multiIntersection(s1, s2).length / (s1.length+s2.length) >= ratio;
+}
+
+//works for Ts lodash can sort, e.g. strings and numbers
+function multiIntersection<T>(s1: T[], s2: T[]) {
+  return _.flatten(_.intersection(s1, s2).map(i => _.times(
+    Math.min(s1.filter(s => s === i).length, s2.filter(s => s === i).length),
+    _.constant(i))));
+}
+
 function similar<T>(s1: T[], s2: T[], ratio: number): boolean {
   //first line optimizes by excluding impossible cases
   return 2 * Math.min(s1.length, s2.length) / (s1.length+s2.length) >= ratio
@@ -307,30 +321,46 @@ function realSimilarCardinality<T>(s1: T[], s2: T[], ratio: number) {
   return s1.length == s2.length && realSimilar(s1, s2, ratio);
 }
 
-function similarSliding(s1: number[][], s2: number[][], s1s: string[], s2s: string[], ratio: number) {
-  //console.log(s1, s2, s1s, s2s)
-  //FIX PROBLEM: SHOULD INCLUDE ALL PREVIOUS EDGES (especially before pruning!!!!)
-  //slide both until ranges no longer overlap by 'ratio'
-  //maybe check atemporal vectors similar first to speed up!
-  if (2 * Math.min(s1.length, s2.length) / (s1.length+s2.length) >= ratio) {
-    if (_.last(s2)[0] < _.last(s1)[0]) { let o = s1; s1 = s2; s2 = o; s2s = s1s; }
-    return _.range(1 + _.last(s2)[0] - _.last(s1)[0]).some(i =>
-      similar(addToElement(s1, 0, i), s2s, ratio));
+function similarSliding(s1: number[][], s2: number[][], s2s: string[], ratio: number) {
+  //slide s1 along s2 within a range determined by ratio, slower the smaller ratio....
+  //check if atemporal material intersects to see if worth sliding
+  if (multiSimilar(atemporal(s1), atemporal(s2), ratio)) {
+    const minsize = Math.ceil(ratio * (s1.length+s2.length)/2);
+    const s1max = s1[minsize-1][0];
+    const s1min = s1[s1.length-minsize][0];
+    const s1last = _.last(s1)[0];
+    const s2max = s2[minsize-1][0];
+    const s2min = s2[s2.length-minsize][0];
+    const s2last = _.last(s2)[0];
+    const bottom = Math.max(s2max-s1last, -1*s1min);
+    const top = Math.min(s2last-s1max, s2min);
+    const range = _.range(bottom, top+1);
+    //console.log(s1, s2, range)
+    return range.some(i => {
+      const slid = addToElement(s1, 0, i);
+      //first line speeds up! looks at temporal intersection...
+      return similar(temporal(slid), temporal(s2), ratio)
+        && similar(slid.map(s => JSON.stringify(s)), s2s, ratio);
+    });
   }
 }
 
-function realSimilarSliding(s1: number[][], s2: number[][], s1s: string[], s2s: string[], ratio: number) {
-  return s1 !== s2 && similarSliding(s1, s2, s1s, s2s, ratio);
+function temporal(s: number[][]) {
+  return s.map(s => s[0]);
+}
+
+function atemporal(s: number[][]) {
+  return s.map(s => JSON.stringify(s.slice(1)));
+}
+
+function realSimilarSliding(s1: number[][], s2: number[][], s2s: string[], ratio: number) {
+  return s1 !== s2 && similarSliding(s1, s2, s2s, ratio);
 }
 
 function addToElement(array: number[][], index: number, value: number) {
-  /*if (value == 0) console.log(array, _.cloneDeep(array).map(vec => {
-    vec[index] = vec[index]+value;
-    return JSON.stringify(vec);
-  }));*/
   return _.cloneDeep(array).map(vec => {
     vec[index] = vec[index]+value;
-    return JSON.stringify(vec);
+    return vec//JSON.stringify(vec);
   });
 }
 
