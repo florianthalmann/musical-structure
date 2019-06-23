@@ -198,8 +198,8 @@ export function createSimilarityPatternGraph(resultsByVersion: OpsiatecResult[],
     includeVecs: boolean, path?: string) {
   let graph = createPatternGraph(resultsByVersion, includeVecs,
     (p1, p2) => distinct(p1.versions, p2.versions)
-      && realSimilarSliding(p1.npoints, p2.npoints, p2.points, 0.6));
-      //&& similar(p1.points, p2.points, 0.6));
+      //&& realSimilarSliding(p1.npoints, p2.npoints, p2.points, 0.8));
+      && similar(p1.points, p2.points, 0.8));
       //&& realSameButN(p1.points, p2.points, 1));
   graph = graph.pruneIsolatedNodes();
   console.log('pruned:', graph.getNodes().length);
@@ -335,7 +335,6 @@ function similarSliding(s1: number[][], s2: number[][], s2s: string[], ratio: nu
     const bottom = Math.max(s2max-s1last, -1*s1min);
     const top = Math.min(s2last-s1max, s2min);
     const range = _.range(bottom, top+1);
-    //console.log(s1, s2, range)
     return range.some(i => {
       const slid = addToElement(s1, 0, i);
       //first line speeds up! looks at temporal intersection...

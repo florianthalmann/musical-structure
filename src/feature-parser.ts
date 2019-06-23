@@ -63,10 +63,10 @@ function addFeature(filename: string, points: number[][], add7ths?: boolean) {
 function addVampTranscription(filename: string, points: number[][]) {
   const times = points.map(p => p[0]);
   let values = getGroupedVampValues(filename, times);
-  //values = filterMinProportion(values, times, 0.2);
+  values = filterMinProportion(values, times, 0.2);
   values = values.map(vs =>
     mergeVampValues(vs, v => (v.value % 12).toString()));
-  values = filterMaxDurations(values, times, 1);
+  values = filterMaxDurations(values, times, 3);
   const pcSets = values.map(g => g.map(v => v.value));
   return _.zip(points, pcSets);
 }

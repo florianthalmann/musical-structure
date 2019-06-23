@@ -20,7 +20,7 @@ import { cleanCaches, renameJohanChordFeatures, moveToFeaturesDir } from './file
 //savePatternGraphs("madbarshalf")
 //saveVectorSequences("plots/d3/newest/qmtrans.json")
 //savePatternSequences("plots/d3/newest/sequences5m.json", 5, "madmom");
-savePatternAndVectorSequences("plots/d3/newest/qmtrans.json");
+savePatternAndVectorSequences("plots/d3/newest/johanmadbars.json");
 
 //analyzePatternGraph("results/graphs/good lovin'madbarshalf.json", 10);
 //analyzePatternGraph("results/graphs/good lovin'-hybrid0.json");

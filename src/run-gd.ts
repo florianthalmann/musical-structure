@@ -33,11 +33,11 @@ const SONG = SONGS[2];
 
 export async function savePatternAndVectorSequences(file: string) {
   const options = getBestGdOptions(GD_RESULTS+SONG+'/');
-  const versions = getGdVersions(SONG).slice(0, 10);
+  const versions = getGdVersions(SONG)//.slice(0, 40);
   const vecsec = _.flatten(await getVectorSequences(versions, options, 3));
   vecsec.forEach(s => s.version = s.version*2+1);
   
-  const patsec = _.flatten(await getPatternSequences(SONG, versions, options, 5, 10));
+  const patsec = _.flatten(await getPatternSequences(SONG, versions, options, 5, 3));
   patsec.forEach(s => s.version = s.version*2);
   
   fs.writeFileSync(file, JSON.stringify(_.union(vecsec, patsec)));
@@ -64,7 +64,7 @@ async function getPatternSequences(songname: string, audio: string[],
   const nfMap = getNormalFormsMap(results);
   const graph = createSimilarityPatternGraph(results, false);
   const mostCommon = getHubPatternNFs(graph, hubSize);
-  //console.log(mostCommon.slice(0, typeCount));
+  console.log(mostCommon.slice(0, typeCount));
   mostCommon.slice(0, typeCount).forEach((nfs,nfi) =>
     nfs.forEach(nf => nfMap[nf].forEach(([v, p]: [number, number]) => {
       const pattern = results[v].patterns[p];
