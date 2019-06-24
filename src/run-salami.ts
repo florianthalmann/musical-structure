@@ -15,8 +15,7 @@ import { evaluate } from './eval';
 //NEXT: chroma3bars and chroma4bars with new heuristics!!!!
 export async function dayJob() {
   const options = getJohanBarsOptions(SALAMI_RESULTS, HEURISTICS.COVERAGE);
-  options.cacheDir = SALAMI_RESULTS+'johanbarscov/'
-  options.siatecCacheDir = SALAMI_RESULTS+'johanbars/';
+  options.cacheDir = SALAMI_RESULTS+'johanbars/'
   const variations = getVariations([3]);
   const startTime = Date.now()
   await runBatchSalami(options, variations, [], 0);

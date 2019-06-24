@@ -35,14 +35,14 @@ export function getBestGdOptions(resultsDir: string, halftime?: boolean) {
     HEURISTICS.SIZE_AND_1D_COMPACTNESS_AXIS(0), halftime);
   options.minPatternLength = 3;
   options.optimizationMethods = [OPTIMIZATION.PARTITION];
-  options.ignoreNovelty = true;
-  options.minHeuristicValue = 0.00001;
+  /*options.ignoreNovelty = true;
+  options.minHeuristicValue = 0.00001;*/
   return options;
 }
 
 export function getJohanBarsOptions(resultsDir: string,
     heuristic: CosiatecHeuristic = HEURISTICS.SIZE_AND_1D_COMPACTNESS(0), halftime?: boolean) {
-  return getIdentityOptions([FEATURES.MADMOM_BARS, FEATURES.SILVET],
+  return getIdentityOptions([FEATURES.MADMOM_BARS, FEATURES.JOHAN_CHORDS],
     heuristic, resultsDir, halftime);
 }
 
@@ -84,41 +84,22 @@ export function getOptions(features: FeatureConfig[], quantizerFuncs: ArrayMap[]
   options.optimizationHeuristic = heuristic;
   options.halftime = halftime;
   if (cacheDir) {
-    //!!folder name should contain features, quantfuncs, heuristic. everything else cached
-    options.siatecCacheDir = generateSiatecCacheDir(cacheDir, features, dims);
-    options.cacheDir = generateCosiatecCacheDir(options.selectionHeuristic, options.siatecCacheDir);
+    //!!folder name should contain features and quantfuncs. everything else cached
+    options.cacheDir = generateCacheDir(cacheDir, features, dims);
     fs.existsSync(options.cacheDir) || fs.mkdirSync(options.cacheDir);
-    fs.existsSync(options.siatecCacheDir) || fs.mkdirSync(options.siatecCacheDir);
   }
   return options;
 }
 
-function generateCosiatecCacheDir(heuristic: CosiatecHeuristic, siatecCacheDir: string) {
-  return siatecCacheDir.slice(0, -1) + heuristicToName(heuristic) + '/';
-}
-
-function generateSiatecCacheDir(baseDir: string, features: FeatureConfig[], dims = '', halftime?: boolean) {
+function generateCacheDir(baseDir: string, features: FeatureConfig[], dims = '', halftime?: boolean) {
   const addition = halftime ? "half" : "";
+  //add hybrid etc
   return baseDir + features[1].name + dims + features[0].name + addition+'/' //e.g. chroma4beatshalf
-}
-
-function heuristicToName(heuristic: CosiatecHeuristic) {
-  const str = heuristic.toString();
-  const name = str === HEURISTICS.SIZE_AND_1D_COMPACTNESS(0).toString() ? "" //was standard
-    : str === HEURISTICS.SIZE_AND_1D_COMPACTNESS_AXIS(0).toString() ? "s1dc0a"
-    : str === HEURISTICS.SIZE_AND_1D_COMPACTNESS_NOAXIS(0).toString() ? "s1dc0na"
-    : str === HEURISTICS.COMPACTNESS.toString() ? "com"
-    : str === HEURISTICS.COVERAGE.toString() ? "cov" : undefined;
-  if (name != null) {
-    return name;
-  } else throw new Error("heuristic unknown to options generator");
 }
 
 export function getInducerWithCaching(audio: string, points: number[][], options: FullOptions) {
   options = _.clone(options);
   options.cacheDir = options.cacheDir+audioPathToDirName(audio)+'/';
-  options.siatecCacheDir = options.siatecCacheDir ? options.siatecCacheDir+audioPathToDirName(audio)+'/' : undefined;
   fs.existsSync(options.cacheDir) || fs.mkdirSync(options.cacheDir);
-  fs.existsSync(options.siatecCacheDir) || fs.mkdirSync(options.siatecCacheDir);
   return new StructureInducer(points, options);
 }

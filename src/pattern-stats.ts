@@ -21,7 +21,7 @@ interface SegmentNode extends Node {
   version: number
 }
 
-export function getHubPatternNFs(graph: DirectedGraph, maxDistance: number): string[][] {
+export function getHubPatternNFs(graph: DirectedGraph, maxDistance: number, minPatternCount?: number): string[][] {
   let normalForms: string[][] = [];
   while (graph.getSize() > 0) {
     const largest = getLargestHub(graph, maxDistance);
@@ -198,11 +198,13 @@ export function createSimilarityPatternGraph(resultsByVersion: OpsiatecResult[],
     includeVecs: boolean, path?: string) {
   let graph = createPatternGraph(resultsByVersion, includeVecs,
     (p1, p2) => distinct(p1.versions, p2.versions)
+      && topologicallySimilar(p1.npoints, p2.npoints, p1.id, p2.id, 0.8));
       //&& realSimilarSliding(p1.npoints, p2.npoints, p2.points, 0.8));
-      && similar(p1.points, p2.points, 0.8));
+      //&& similar(p1.points, p2.points, 0.8));
       //&& realSameButN(p1.points, p2.points, 1));
   graph = graph.pruneIsolatedNodes();
-  console.log('pruned:', graph.getNodes().length);
+  console.log('pruned nodes:', graph.getNodes().length);
+  //console.log(graph.getEdges().map(e => e.source.id + " - " + e.target.id))
   if (path) saveGraph(path, graph);
   return graph;
 }
@@ -319,6 +321,41 @@ function realSameButN<T>(s1: T[], s2: T[], n: number) {
 
 function realSimilarCardinality<T>(s1: T[], s2: T[], ratio: number) {
   return s1.length == s2.length && realSimilar(s1, s2, ratio);
+}
+
+function topologicallySimilar(s1: number[][], s2: number[][], s1nf: string, s2nf: string, ratio: number) {
+  const t1 = getTopology(s1, s1nf);
+  const t2 = getTopology(s2, s2nf);
+  
+  const minIsect = Math.ceil((s1.length+s2.length)/2 * ratio);
+  if (Math.min(s1.length, s2.length) >= minIsect) {
+    //not perfect but a good measure (works less well for smaller sets)
+    const minConnections = minIsect*(minIsect-1)/2;
+    //console.log(t1)
+    //console.log(minIsect, s1.length, s2.length, minConnections, t1.length, t2.length);
+    return multiIntersection(t1, t2).length >= minConnections;
+  }
+}
+
+
+//4, 6 ---- 8/10     3-> 6/10
+
+/*
+1 0 
+2 1
+3 3
+4 6*/
+
+const topologies = new Map<string, string[]>();
+
+function getTopology(s: number[][], snf: string) {
+  if (!topologies.has(snf)) {
+    const temp = temporal(s);
+    const atemp = atemporal(s);
+    topologies.set(snf, _.flatten(s.map((_,i) => s.slice(i+1).map((_,j) =>
+      atemp[i]+(temp[j]-temp[i])+atemp[j]))));
+  }
+  return topologies.get(snf);
 }
 
 function similarSliding(s1: number[][], s2: number[][], s2s: string[], ratio: number) {
