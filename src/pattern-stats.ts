@@ -197,10 +197,10 @@ export function createSubsetPatternGraph(resultsByVersion: OpsiatecResult[],
 export function createSimilarityPatternGraph(resultsByVersion: OpsiatecResult[],
     includeVecs: boolean, path?: string) {
   let graph = createPatternGraph(resultsByVersion, includeVecs,
-    (p1, p2) => distinct(p1.versions, p2.versions)
-      && topologicallySimilar(p1.npoints, p2.npoints, p1.id, p2.id, 0.8));
+    (p1, p2) => true//distinct(p1.versions, p2.versions)
+      //&& topologicallySimilar(p1.npoints, p2.npoints, p1.id, p2.id, 0.95));
       //&& realSimilarSliding(p1.npoints, p2.npoints, p2.points, 0.8));
-      //&& similar(p1.points, p2.points, 0.8));
+      && similar(p1.points, p2.points, 0.8));
       //&& realSameButN(p1.points, p2.points, 1));
   graph = graph.pruneIsolatedNodes();
   console.log('pruned nodes:', graph.getNodes().length);
@@ -241,7 +241,7 @@ export function createGraph(protoNodes: ProtoNode[],
   const points = _.zipObject(ids, ids.map(s => stringToPoints(s)));
   const sizes = _.zipObject(ids, ids.map(i => JSON.parse(i).length));
   const combined = _.mapValues(grouped, g => combineProtoNodes(g));
-  const nodes: PatternNode[] = ids.map(i => <PatternNode>
+  let nodes: PatternNode[] = ids.map(i => <PatternNode>
     Object.assign({
       id: i,
       points: points[i],
@@ -249,6 +249,8 @@ export function createGraph(protoNodes: ProtoNode[],
       count: grouped[i].length,
       size: sizes[i]
     }, combined[i]));
+  
+  nodes = nodes.filter(n => n.count > 1);
   
   const graph = new DirectedGraph(nodes, []);
   console.log('adding edges...')
@@ -289,20 +291,30 @@ function realSubset2<T>(s1: T[], s2: T[]) {
 function multiSimilar<T>(s1: T[], s2: T[], ratio: number): boolean {
   //first line optimizes by excluding impossible cases
   return 2 * Math.min(s1.length, s2.length) / (s1.length+s2.length) >= ratio
-    && 2 * multiIntersection(s1, s2).length / (s1.length+s2.length) >= ratio;
+    && 2 * intersection(s1, s2, true).length / (s1.length+s2.length) >= ratio;
 }
 
-//works for Ts lodash can sort, e.g. strings and numbers
-function multiIntersection<T>(s1: T[], s2: T[]) {
-  return _.flatten(_.intersection(s1, s2).map(i => _.times(
-    Math.min(s1.filter(s => s === i).length, s2.filter(s => s === i).length),
-    _.constant(i))));
+//works for sorted T[], multi true returns a multiset intersection
+function intersection<T>(s1: T[], s2: T[], multi: boolean) {
+  let i = 0, j = 0;
+  const intersection = [];
+  while (i < s1.length && j < s2.length) {
+    if (s1[i] === s2[j]) {
+      if (multi || s1[i] !== _.last(intersection)) {
+        intersection.push(s1[i]);
+      }
+      i++; j++;
+    }
+    else if (s1[i] < s2[j]) i++;
+    else j++;
+  }
+  return intersection;
 }
 
 function similar<T>(s1: T[], s2: T[], ratio: number): boolean {
   //first line optimizes by excluding impossible cases
   return 2 * Math.min(s1.length, s2.length) / (s1.length+s2.length) >= ratio
-    && 2 * _.intersection(s1, s2).length / (s1.length+s2.length) >= ratio;
+    && 2 * intersection(s1, s2, true).length / (s1.length+s2.length) >= ratio;
 }
 
 function realSimilar<T>(s1: T[], s2: T[], ratio: number) {
@@ -310,8 +322,8 @@ function realSimilar<T>(s1: T[], s2: T[], ratio: number) {
 }
 
 function sameButN<T>(s1: T[], s2: T[], n: number) {
-  const l = _.intersection(s1, s2).length;
-  return l >= s1.length-n && l >= s2.length-n;
+  const l = intersection(s1, s2, true).length;
+  return l >= Math.min(s1.length, s2.length) - n;
 }
 
 //same except n differring elements
@@ -333,7 +345,7 @@ function topologicallySimilar(s1: number[][], s2: number[][], s1nf: string, s2nf
     const minConnections = minIsect*(minIsect-1)/2;
     //console.log(t1)
     //console.log(minIsect, s1.length, s2.length, minConnections, t1.length, t2.length);
-    return multiIntersection(t1, t2).length >= minConnections;
+    return intersection(t1, t2, true).length >= minConnections;
   }
 }
 
@@ -352,8 +364,9 @@ function getTopology(s: number[][], snf: string) {
   if (!topologies.has(snf)) {
     const temp = temporal(s);
     const atemp = atemporal(s);
-    topologies.set(snf, _.flatten(s.map((_,i) => s.slice(i+1).map((_,j) =>
+    const topo = _.sortBy(_.flatten(s.map((_,i) => s.slice(i+1).map((_,j) =>
       atemp[i]+(temp[j]-temp[i])+atemp[j]))));
+    topologies.set(snf, topo);
   }
   return topologies.get(snf);
 }
@@ -401,7 +414,7 @@ function addToElement(array: number[][], index: number, value: number) {
 }
 
 function distinct<T>(s1: T[], s2: T[]) {
-  return _.intersection(s1, s2).length < _.union(s1, s2).length;
+  return intersection(s1, s2, false).length < _.union(s1, s2).length;
 }
 
 function toNormalForm(points: number[][]): number[][] {

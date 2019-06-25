@@ -44,6 +44,7 @@ export const FEATURES = {
   CHROMA: {name:'chroma', plugin:'vamp:qm-vamp-plugins:qm-chromagram:chromagram', isSegmentation: false},
   CHORDS: {name:'chords', plugin:'vamp:nnls-chroma:chordino:simplechord', isSegmentation: false},
   JOHAN_CHORDS: {name:'johan', isSegmentation: false},
+  JOHAN_SEVENTHS: {name:'johan7', file: 'johan', isSegmentation: false},
   MADMOM_BARS: {name:'madbars', isSegmentation: true, subset:'1'},
   MADMOM_BEATS: {name:'madbeats', file: 'madbars', isSegmentation: true},
   SILVET: {name:'silvet', plugin:'vamp:silvet:silvet:notes', isSegmentation: false},
@@ -75,7 +76,7 @@ function getFiles(features: FeatureConfig[], files: string[]) {
 function extractFeatures(audioFiles: string[], features: FeatureConfig[]): Promise<any> {
   return mapSeries(audioFiles, a => mapSeries(features, f =>
     f.hasOwnProperty('plugin') ? extractVampFeature(a, <VampFeatureConfig>f)
-      : f === FEATURES.JOHAN_CHORDS ? extractJohanChords(a)
+      : f === FEATURES.JOHAN_CHORDS || f === FEATURES.JOHAN_SEVENTHS ? extractJohanChords(a, f)
       : f === FEATURES.MADMOM_BARS ? extractMadmomBars(a)
       : f === FEATURES.MADMOM_BEATS ? extractMadmomBeats(a) : null
   ));
@@ -88,8 +89,8 @@ function extractVampFeature(audioPath: string, feature: VampFeatureConfig): Prom
 }
 
 //extracts the given feature from the audio file (path) if it doesn't exist yet
-function extractJohanChords(audioPath: string): Promise<any> {
-  return extractAndMove(audioPath, FEATURES.JOHAN_CHORDS,
+function extractJohanChords(audioPath: string, config: FeatureConfig): Promise<any> {
+  return extractAndMove(audioPath, config,
     (featureOutFile) => {
       const audioFile = audioPath.slice(audioPath.lastIndexOf('/')+1);
       const outPath = audioPath.slice(0, audioPath.lastIndexOf('/'));

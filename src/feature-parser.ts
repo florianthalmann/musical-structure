@@ -23,22 +23,22 @@ export async function getQuantizedPoints(audioFile: string, options: FullOptions
 }
 
 export async function getPointsFromAudio(audioFile: string, options: FullOptions) {
-  return getPoints(await getFeatures(audioFile, options.selectedFeatures), options.seventhChords, options.halftime);
+  return getPoints(await getFeatures(audioFile, options.selectedFeatures), options);
 }
 
-export function getPoints(features: Features, add7ths?: boolean, halftime?: boolean) {
-  return generatePoints(
+export function getPoints(features: Features, options: FullOptions) {
+  return generatePoints(options,
     [features.segmentations[0]].concat(...features.otherFeatures),
-    features.segConditions[0],
-    add7ths, halftime);
+    features.segConditions[0]);
 }
 
-function generatePoints(featureFiles: string[], condition?: any, add7ths?: boolean, halftime?: boolean) {
+function generatePoints(options: FullOptions, featureFiles: string[], condition?: any) {
   if (featureFiles.every(fs.existsSync)) {
     let points: any[][] = initPoints(featureFiles[0], condition);
-    if (halftime) points = points.filter((_,i) => i % 2 == 0);
+    if (options.halftime) points = points.filter((_,i) => i % 2 == 0);
+    const add7 = options.selectedFeatures.indexOf(FEATURES.JOHAN_SEVENTHS) >= 0;
     return featureFiles.slice(1)
-      .reduce((p,f) => addFeature(f, p, add7ths), points)
+      .reduce((p,f) => addFeature(f, p, add7), points)
       .filter(p => p.every(x => x != null));
   }
 }

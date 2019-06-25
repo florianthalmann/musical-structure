@@ -79,7 +79,7 @@ async function evaluateSalamiFile(filename: number, groundtruth: Annotation[], o
     ps.patterns = normalize(mapToTimegrid(ps.times, ps.patterns, timegrid, true)));
   
   if (options.loggingLevel >= 0) console.log('    inferring structure', filename);
-  const points = getPoints(features);
+  const points = getPoints(features, options);
   
   if (!maxLength || points.length < maxLength) {
     const result = await getInducerWithCaching(audio, points, options)
