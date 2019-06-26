@@ -1,6 +1,6 @@
 import * as _ from 'lodash';
 //import { saveGdHists } from './histograms';
-import { savePatternGraphs, saveHybridPatternGraphs, savePatternSequences, saveVectorSequences, savePatternAndVectorSequences } from './run-gd';
+import { saveHybridPatternGraphs, savePatternSequences, saveVectorSequences, savePatternAndVectorSequences } from './run-gd';
 import { analyzePatternGraph } from './pattern-stats';
 import { cleanCaches, renameJohanChordFeatures, moveToFeaturesDir } from './file-manager';
 

@@ -21,27 +21,26 @@ interface SegmentNode extends Node {
   version: number
 }
 
-export function getHubPatternNFs(graph: DirectedGraph, maxDistance: number, minPatternCount?: number): string[][] {
-  let normalForms: string[][] = [];
-  while (graph.getSize() > 0) {
-    const largest = getLargestHub(graph, maxDistance);
-    normalForms.push(largest.map(n => n.id));
-    largest.forEach(n => graph.removeNode(n));
-    graph = graph.pruneIsolatedNodes();
-  }
-  return normalForms;
+export enum PATTERN_RATING {
+  CONNECTIONS, //most connections to anywhere (largest hubs)
+  CONNECTIONS_AVG, //most connections to anywhere per pattern
+  INTERNAL, //most internal connections within group
+  COUNT, //highest pattern count
+  COUNT_AVG, //highest pattern count per pattern
 }
 
-function getDensestHub(graph: DirectedGraph, maxDistance: number) {
-  const largest = getDensestAdjacent(graph, maxDistance)[0];
-  //if (largest[1].length > 2) console.log(largest[1].length+1, largest[2]);
-  return _.union([largest[0]], largest[1]);
+type GroupingCondition = (n: PatternNode, c?: PatternNode) => boolean
+
+export interface PatternGroupingOptions {
+  maxDistance?: number,
+  rating?: PATTERN_RATING,
+  condition?: GroupingCondition
 }
 
-function getLargestHub(graph: DirectedGraph, maxDistance: number) {
-  const largest = getMostAdjacents(graph, maxDistance)[0];
-  //if (largest[1].length > 2) console.log(largest[1].length+1, largest[2]);
-  return _.union([largest[0]], largest[1]);
+interface PatternGroup {
+  center: PatternNode,
+  members: PatternNode[], //members don't include center
+  totalCount: number
 }
 
 export function getMostCommonPatternNFs(path: string) {
@@ -51,6 +50,43 @@ export function getMostCommonPatternNFs(path: string) {
   return nodes.map(n => n.id);
 }
 
+export function getPatternGroupNFs(graph: DirectedGraph, options: PatternGroupingOptions): string[][] {
+  let normalForms: string[][] = [];
+  while (graph.getSize() > 0) {
+    const best = getBestPatternGroup(graph, options);
+    normalForms.push(best.map(n => n.id));
+    best.forEach(n => graph.removeNode(n));
+    graph = graph.pruneIsolatedNodes();
+  }
+  return normalForms;
+}
+
+function getBestPatternGroup(graph: DirectedGraph, options: PatternGroupingOptions) {
+  let ratingFunc: (a: PatternGroup) => number;
+  if (!options.rating || options.rating === PATTERN_RATING.COUNT) {
+    ratingFunc = g => g.totalCount;
+  } else if (options.rating === PATTERN_RATING.COUNT_AVG) {
+    ratingFunc = g => Math.pow(g.totalCount, 1)/g.members.length;
+  }
+  const adjacentsAndCounts = getAdjacents(graph, options.maxDistance, options.condition);
+  adjacentsAndCounts.sort((a,b) => ratingFunc(b)-ratingFunc(a));
+  return _.union([adjacentsAndCounts[0].center], adjacentsAndCounts[0].members);
+}
+
+function getAdjacents(graph: DirectedGraph, maxDistance = 1,
+    condition?: GroupingCondition): PatternGroup[] {
+  const nodes = <PatternNode[]>graph.getNodes();
+  let adjacents = <PatternNode[][]>nodes.map(n => graph.getAdjacent(n, maxDistance));
+  if (condition) adjacents = 
+    adjacents.map((a,i) => a.filter(n => condition(n, nodes[i])));
+  return nodes.map((n,i) =>({
+    center: n, 
+    members: adjacents[i],
+    totalCount: n.count + _.sum(adjacents[i].map(m => m.count))
+  }));
+}
+
+
 export function analyzePatternGraph(path: string, top = 5) {
   const graph = loadGraph(path);
   const nodes = <PatternNode[]>graph.getNodes();
@@ -59,7 +95,7 @@ export function analyzePatternGraph(path: string, top = 5) {
   nodes.sort((a,b) => b.count-a.count);
   console.log('most common:', nodes.slice(0,top).map(n => n.count + ': ' + n.id));
   
-  const adjacents = getMostAdjacents(graph);
+  const adjacents = getBestPatternGroup(graph, {rating: PATTERN_RATING.COUNT});
   console.log('most adjacent:', adjacents.slice(0,top).map(a => a[2] + ', ' + a[0].count + ': ' + a[0].id));
   
   /*const neighbors = <PatternNode[][]>nodes.map(n => graph.getNeighbors(n));
@@ -78,25 +114,7 @@ export function analyzePatternGraph(path: string, top = 5) {
   console.log('most recursive neighbors:', nc.slice(0,5));*/
 }
 
-function getDensestAdjacent(graph: DirectedGraph, maxDistance = 1) {
-  const adjacentsAndCounts = getAdjacentsAndCounts(graph, maxDistance);
-  adjacentsAndCounts.sort((a,b) => (b[2]*b[2]/b[1].length)-(a[2]*a[2]/a[1].length));
-  return adjacentsAndCounts;
-}
 
-function getMostAdjacents(graph: DirectedGraph, maxDistance = 1) {
-  const adjacentsAndCounts = getAdjacentsAndCounts(graph, maxDistance);
-  adjacentsAndCounts.sort((a,b) => b[2]-a[2]); //sort by count sum
-  return adjacentsAndCounts;
-}
-
-function getAdjacentsAndCounts(graph: DirectedGraph, maxDistance = 1) {
-  const nodes = <PatternNode[]>graph.getNodes();
-  const adjacents = <PatternNode[][]>nodes.map(n => graph.getAdjacent(n, maxDistance));
-  let counts = adjacents.map(as => _.sum(as.map(n => n.count)));
-  counts = _.zipWith(nodes, counts, (n,c) => n.count + c);
-  return _.zip(nodes, adjacents, counts);
-}
 
 export function createSimilaritySegmentGraph(path: string,
     resultsByVersion: OpsiatecResult[]) {
@@ -195,13 +213,14 @@ export function createSubsetPatternGraph(resultsByVersion: OpsiatecResult[],
 }
 
 export function createSimilarityPatternGraph(resultsByVersion: OpsiatecResult[],
-    includeVecs: boolean, path?: string) {
+    includeVecs: boolean, path?: string, minPatternOcurrence?: number) {
   let graph = createPatternGraph(resultsByVersion, includeVecs,
-    (p1, p2) => true//distinct(p1.versions, p2.versions)
-      //&& topologicallySimilar(p1.npoints, p2.npoints, p1.id, p2.id, 0.95));
-      //&& realSimilarSliding(p1.npoints, p2.npoints, p2.points, 0.8));
-      && similar(p1.points, p2.points, 0.8));
-      //&& realSameButN(p1.points, p2.points, 1));
+    (p1, p2) =>
+      //topologicallySimilar(p1.npoints, p2.npoints, p1.id, p2.id, 0.95),
+      //realSimilarSliding(p1.npoints, p2.npoints, p2.points, 0.8),
+      //similar(p1.points, p2.points, 0.8),
+      realSameButN(p1.points, p2.points, 1),
+    minPatternOcurrence);
   graph = graph.pruneIsolatedNodes();
   console.log('pruned nodes:', graph.getNodes().length);
   //console.log(graph.getEdges().map(e => e.source.id + " - " + e.target.id))
@@ -215,7 +234,8 @@ export function getNormalFormsMap(resultsByVersion: OpsiatecResult[]) {
 }
 
 function createPatternGraph(resultsByVersion: OpsiatecResult[],
-    includeVecs: boolean, edgeFunc: (p1: PatternNode, p2: PatternNode) => boolean) {
+    includeVecs: boolean, edgeFunc: (p1: PatternNode, p2: PatternNode) => boolean,
+    minPatternOcurrence?: number) {
   
   console.log('versions:', resultsByVersion.length);
   const normsByVersion = includeVecs ? resultsByVersion.map(v =>
@@ -226,14 +246,19 @@ function createPatternGraph(resultsByVersion: OpsiatecResult[],
   /*const cc = normsByVersion.map(n => _.countBy(n.map(n => JSON.stringify(n))));
   cc.forEach((c,i) => //console.log(_.values(c).filter(c => c > 1)))
     _.forEach(c, (v,k) => v > 1 ? console.log(i, v, k) : null));*/
+    
+  
+  const nodeFilter = minPatternOcurrence ?
+    (n: PatternNode) => n.count >= minPatternOcurrence : undefined;
   
   return createGraph(_.flatten(normsByVersion.map((v,i) => 
     v.map(n => ({protoId: n, versions: i}))
-  )), edgeFunc);
+  )), edgeFunc, nodeFilter);
 }
 
 export function createGraph(protoNodes: ProtoNode[],
-    edgeFunc: (p1: PatternNode, p2: PatternNode) => boolean) {
+    edgeFunc: (p1: PatternNode, p2: PatternNode) => boolean,
+    nodeFilter?: (p1: PatternNode) => boolean) {
   console.log('nodes:', protoNodes.length);
   const grouped = _.groupBy(protoNodes, n => JSON.stringify(n.protoId));
   const ids = _.keys(grouped);
@@ -250,7 +275,10 @@ export function createGraph(protoNodes: ProtoNode[],
       size: sizes[i]
     }, combined[i]));
   
-  nodes = nodes.filter(n => n.count > 1);
+  if (nodeFilter) {
+    nodes = nodes.filter(n => nodeFilter(n));
+    console.log('filtered:', nodes.length);
+  }
   
   const graph = new DirectedGraph(nodes, []);
   console.log('adding edges...')

@@ -4,7 +4,7 @@ import { pointsToIndices, ArrayMap, OpsiatecResult } from 'siafun';
 import { GD_AUDIO, GD_SONG_MAP, GD_RESULTS, GRAPH_RESULTS } from './config';
 import { mapSeries, updateStatus, toIndexSeqMap } from './util';
 import { loadJsonFile, initDirRec } from './file-manager';
-import { createSimilarityPatternGraph, getHubPatternNFs, getNormalFormsMap } from './pattern-stats';
+import { createSimilarityPatternGraph, getPatternGroupNFs, getNormalFormsMap, PatternGroupingOptions } from './pattern-stats';
 import { getInducerWithCaching, getBestGdOptions, getChromaBeatsOptions, FullOptions, getOptions, getChromaBarsOptions } from './options';
 import { FeatureConfig } from './feature-extractor';
 import { getPointsFromAudio, getQuantizedPoints } from './feature-parser';
@@ -37,7 +37,8 @@ export async function savePatternAndVectorSequences(file: string, graphFile?: st
   const vecsec = _.flatten(await getVectorSequences(versions, options, 3));
   vecsec.forEach(s => s.version = s.version*2+1);
   
-  const patsec = _.flatten(await getPatternSequences(SONG, versions, options, 5, 3, graphFile));
+  const grouping = {maxDistance: 3, condition: (n,c) => n.count > 1};
+  const patsec = _.flatten(await getPatternSequences(SONG, versions, options, grouping, 5, 2, graphFile));
   patsec.forEach(s => s.version = s.version*2);
   
   fs.writeFileSync(file, JSON.stringify(_.union(vecsec, patsec)));
@@ -47,13 +48,13 @@ export async function savePatternSequences(file: string, hubSize: number, append
   const options = getBestGdOptions(GD_RESULTS+SONG+'/');
   const versions = getGdVersions(SONG)//.slice(0,40);
   const graphFile = GRAPH_RESULTS+SONG+appendix+'.json';
-  const sequences = await getPatternSequences(SONG, versions, options, 10, hubSize);
+  const sequences = await getPatternSequences(SONG, versions, options, {maxDistance: 3}, 10);
   fs.writeFileSync(file, JSON.stringify(_.flatten(sequences)));
   //visuals.map(v => v.join('')).slice(0, 10).forEach(v => console.log(v));
 }
 
 async function getPatternSequences(songname: string, audio: string[],
-    options: FullOptions, typeCount = 10, hubSize = 3, path?: string): Promise<VisualsPoint[][]> {
+    options: FullOptions, groupingOptions: PatternGroupingOptions, typeCount = 10, minCount = 2, path?: string): Promise<VisualsPoint[][]> {
   const points = await mapSeries(audio, a => getPointsFromAudio(a, options));
   const results = await getCosiatec(songname, audio, options);
   results.forEach(r => removeNonParallelOccurrences(r));
@@ -62,8 +63,8 @@ async function getPatternSequences(songname: string, audio: string[],
       start: points[i][j][0][0],
       duration: points[i][j+1] ? points[i][j+1][0][0]-points[i][j][0][0] : 1})));
   const nfMap = getNormalFormsMap(results);
-  const graph = createSimilarityPatternGraph(results, false, path);
-  const mostCommon = getHubPatternNFs(graph, hubSize);
+  const graph = createSimilarityPatternGraph(results, false, path, minCount);
+  const mostCommon = getPatternGroupNFs(graph, groupingOptions);
   //console.log(mostCommon.slice(0, typeCount));
   mostCommon.slice(0, typeCount).forEach((nfs,nfi) =>
     nfs.forEach(nf => nfMap[nf].forEach(([v, p]: [number, number]) => {
@@ -111,14 +112,6 @@ export async function saveGdHists(features: FeatureConfig[], quantFuncs: ArrayMa
   const atemporalPoints = points.map(s => s.map(p => p.slice(1)));
   const hists = atemporalPoints.map(p => p.map(toHistogram));
   fs.writeFileSync(filename, JSON.stringify(hists));
-}
-
-export async function savePatternGraphs(appendix = '', versionCount?: number) {
-  await mapSeries(SONGS, async n => {
-    console.log('working on ' + n);
-    const results = await getCosiatec(n, getGdVersions(n, versionCount));
-    createSimilarityPatternGraph(results, false, GRAPH_RESULTS+n+appendix+'.json');
-  });
 }
 
 export async function saveHybridPatternGraphs(appendix = '', count = 1) {
