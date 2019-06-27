@@ -68,15 +68,16 @@ function getBestPatternGroup(graph: DirectedGraph, options: PatternGroupingOptio
   } else if (options.rating === PATTERN_RATING.COUNT_AVG) {
     ratingFunc = g => Math.pow(g.totalCount, 1)/g.members.length;
   }
-  const adjacentsAndCounts = getAdjacents(graph, options.maxDistance, options.condition);
-  adjacentsAndCounts.sort((a,b) => ratingFunc(b)-ratingFunc(a));
-  return _.union([adjacentsAndCounts[0].center], adjacentsAndCounts[0].members);
+  const adjacents = getAdjacents(graph, options.maxDistance, options.condition);
+  adjacents.sort((a,b) => ratingFunc(b)-ratingFunc(a));
+  //console.log(adjacents[0].center.id, adjacents[0].members.length, ratingFunc(adjacents[0]));
+  return _.concat([adjacents[0].center], adjacents[0].members);
 }
 
 function getAdjacents(graph: DirectedGraph, maxDistance = 1,
     condition?: GroupingCondition): PatternGroup[] {
   const nodes = <PatternNode[]>graph.getNodes();
-  let adjacents = <PatternNode[][]>nodes.map(n => graph.getAdjacent(n, maxDistance));
+  let adjacents = <PatternNode[][]>nodes.map(n => graph.getAdjacents(n, maxDistance));
   if (condition) adjacents = 
     adjacents.map((a,i) => a.filter(n => condition(n, nodes[i])));
   return nodes.map((n,i) =>({
@@ -215,11 +216,12 @@ export function createSubsetPatternGraph(resultsByVersion: OpsiatecResult[],
 export function createSimilarityPatternGraph(resultsByVersion: OpsiatecResult[],
     includeVecs: boolean, path?: string, minPatternOcurrence?: number) {
   let graph = createPatternGraph(resultsByVersion, includeVecs,
-    (p1, p2) =>
+    (p1, p2) => p1 !== p2 &&
       //topologicallySimilar(p1.npoints, p2.npoints, p1.id, p2.id, 0.95),
-      //realSimilarSliding(p1.npoints, p2.npoints, p2.points, 0.8),
+      realSameButNSliding(p1.npoints, p2.npoints, p2.points, 1),
+      //realSimilarSliding(p1.npoints, p2.npoints, p2.points, 0.9),
       //similar(p1.points, p2.points, 0.8),
-      realSameButN(p1.points, p2.points, 1),
+      //realSameButN(p1.points, p2.points, 1),
     minPatternOcurrence);
   graph = graph.pruneIsolatedNodes();
   console.log('pruned nodes:', graph.getNodes().length);
@@ -350,13 +352,14 @@ function realSimilar<T>(s1: T[], s2: T[], ratio: number) {
 }
 
 function sameButN<T>(s1: T[], s2: T[], n: number) {
-  const l = intersection(s1, s2, true).length;
-  return l >= Math.min(s1.length, s2.length) - n;
+  return Math.abs(s1.length - s2.length) <= n
+    && intersection(s1, s2, true).length >= Math.max(s1.length, s2.length) - n;
 }
 
 //same except n differring elements
-function realSameButN<T>(s1: T[], s2: T[], n: number) {
-  return s1 !== s2 && sameButN(s1, s2, n);
+function realSameButN<T>(s1: T[], s2: T[], n: number, minSize = 0) {
+  return Math.min(s1.length, s2.length) >= minSize
+    && s1 !== s2 && sameButN(s1, s2, n);
 }
 
 function realSimilarCardinality<T>(s1: T[], s2: T[], ratio: number) {
@@ -418,6 +421,29 @@ function similarSliding(s1: number[][], s2: number[][], s2s: string[], ratio: nu
       //first line speeds up! looks at temporal intersection...
       return similar(temporal(slid), temporal(s2), ratio)
         && similar(slid.map(s => JSON.stringify(s)), s2s, ratio);
+    });
+  }
+}
+
+function realSameButNSliding(s1: number[][], s2: number[][], s2s: string[], n: number, minSize?: number) {
+  //slide s1 along s2 within a range determined by ratio, slower the smaller ratio....
+  //check if atemporal material intersects to see if worth sliding
+  if (realSameButN(atemporal(s1), atemporal(s2), n, minSize)) {
+    const minsize = Math.min(s1.length, s2.length) - n;
+    const s1max = s1[minsize-1][0];
+    const s1min = s1[s1.length-minsize][0];
+    const s1last = _.last(s1)[0];
+    const s2max = s2[minsize-1][0];
+    const s2min = s2[s2.length-minsize][0];
+    const s2last = _.last(s2)[0];
+    const bottom = Math.max(s2max-s1last, -1*s1min);
+    const top = Math.min(s2last-s1max, s2min);
+    const range = _.range(bottom, top+1);
+    return range.some(i => {
+      const slid = addToElement(s1, 0, i);
+      //first line speeds up! looks at temporal intersection...
+      return realSameButN(temporal(slid), temporal(s2), n, minSize)
+        && realSameButN(slid.map(s => JSON.stringify(s)), s2s, n, minSize);
     });
   }
 }

@@ -67,7 +67,10 @@ export class DirectedGraph {
     }
     let result = []
     P.forEach(n => {
-      result = _.concat(result, this.bronKerbosch(_.concat(R, n), _.intersection(P, this.getAdjacent(n)), _.intersection(X, this.getAdjacent(n))));
+      result = _.concat(result,
+        this.bronKerbosch(_.concat(R, n),
+          _.intersection(P, this.getAdjacents(n)),
+          _.intersection(X, this.getAdjacents(n))));
       P = _.difference(P, [n]);
       X = _.concat(X, n);
     });
@@ -83,16 +86,23 @@ export class DirectedGraph {
     nodes.slice(1).forEach(n => this.removeNode(n));
   }
   
-  getAdjacent(node: Node, degreesRemoved = 1): Node[] {
-    let adjacent = this.getDirectAdjacent(node);
-    while (degreesRemoved > 1) {
-      adjacent = _.uniq(_.flatten(adjacent.map(n => this.getDirectAdjacent(n))));
-      degreesRemoved--;
+  getAdjacents(node: Node, maxDegreesRemoved = 1): Node[] {
+    let adjacents = this.getDirectAdjacents(node);
+    let latest = adjacents;
+    let checked = [node];
+    while (maxDegreesRemoved > 1 || maxDegreesRemoved <= 0) {
+      const checking = _.difference(latest, checked);
+      latest = _.uniq(_.flatten(checking.map(n => this.getDirectAdjacents(n))));
+      const previousSize = adjacents.length;
+      adjacents = _.union(adjacents, latest);
+      if (adjacents.length <= previousSize) return adjacents; //entire connected component reached
+      checked = _.concat(checked, checking);
+      maxDegreesRemoved--;
     }
-    return adjacent;
+    return adjacents;
   }
   
-  private getDirectAdjacent(node: Node) {
+  private getDirectAdjacents(node: Node) {
     return this.getDirectSuccessors(node).concat(this.getDirectPredecessors(node));
   }
   

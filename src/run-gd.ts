@@ -33,12 +33,12 @@ const SONG = SONGS[2];
 
 export async function savePatternAndVectorSequences(file: string, graphFile?: string) {
   const options = getBestGdOptions(GD_RESULTS+SONG+'/');
-  const versions = getGdVersions(SONG).slice(0, 20);
+  const versions = getGdVersions(SONG)//.slice(0, 200);
   const vecsec = _.flatten(await getVectorSequences(versions, options, 3));
   vecsec.forEach(s => s.version = s.version*2+1);
   
-  const grouping = {maxDistance: 3, condition: (n,c) => n.count > 1};
-  const patsec = _.flatten(await getPatternSequences(SONG, versions, options, grouping, 5, 2, graphFile));
+  const grouping = {maxDistance: 4}//, condition: (n,c) => n.size > 4};
+  const patsec = _.flatten(await getPatternSequences(SONG, versions, options, grouping, 5, 3, graphFile));
   patsec.forEach(s => s.version = s.version*2);
   
   fs.writeFileSync(file, JSON.stringify(_.union(vecsec, patsec)));
@@ -54,7 +54,8 @@ export async function savePatternSequences(file: string, hubSize: number, append
 }
 
 async function getPatternSequences(songname: string, audio: string[],
-    options: FullOptions, groupingOptions: PatternGroupingOptions, typeCount = 10, minCount = 2, path?: string): Promise<VisualsPoint[][]> {
+    options: FullOptions, groupingOptions: PatternGroupingOptions, 
+    typeCount = 10, minCount = 2, path?: string): Promise<VisualsPoint[][]> {
   const points = await mapSeries(audio, a => getPointsFromAudio(a, options));
   const results = await getCosiatec(songname, audio, options);
   results.forEach(r => removeNonParallelOccurrences(r));
@@ -65,7 +66,7 @@ async function getPatternSequences(songname: string, audio: string[],
   const nfMap = getNormalFormsMap(results);
   const graph = createSimilarityPatternGraph(results, false, path, minCount);
   const mostCommon = getPatternGroupNFs(graph, groupingOptions);
-  //console.log(mostCommon.slice(0, typeCount));
+  mostCommon.slice(0, typeCount).forEach(p => console.log(p[0]+ " " + p.length));
   mostCommon.slice(0, typeCount).forEach((nfs,nfi) =>
     nfs.forEach(nf => nfMap[nf].forEach(([v, p]: [number, number]) => {
       const pattern = results[v].patterns[p];

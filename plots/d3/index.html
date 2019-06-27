@@ -42,7 +42,7 @@ async function draw() {
     .selectAll("circle")
     .data(graph.nodes)
     .enter().append("circle")
-      .attr("r", n => n.count)//Math.sqrt(n.count)*2)
+      .attr("r", n => Math.sqrt(n.count)*2)
       .attr("fill", e => e.type != null ? d3.hsl((e.type+400)*40, 0.7, 0.5) : "black")
       /*.attr("r", n => n.count)
       .attr("fill", e => "black")*/
