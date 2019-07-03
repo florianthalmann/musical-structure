@@ -13,7 +13,7 @@ async function draw() {
   //height = +svg.attr("height");
   
   const HEIGHT = 15;
-  const WIDTH = 4;
+  const WIDTH = 2;
   
   const tooltip = d3.select("body")
     .append("div")
@@ -23,7 +23,7 @@ async function draw() {
     .style("font-size", "10px")
     .text("");
   
-  let seqs = await d3.json("newest/johanmadbars-seqs.json");
+  let seqs = await d3.json("latest/goodlovin-johanflobars-double-seqs.json");
   seqs = seqs.filter(s => s.version < 80);
 
   const rect = svg.append("g")
@@ -35,7 +35,7 @@ async function draw() {
       .attr("width", WIDTH)
       .attr("height", HEIGHT)
       .attr("fill", e => e.type > 0 && e.type < 10 ? d3.hsl((e.type+400)*40, 0.7, 0.5) : d3.rgb(230, 230, 230))
-      .attr("opacity", n => n.version % 2 ? 0.2 : 1)
+      .attr("opacity", n => n.version % 2 ? 0.5 : 1)
       .on("mouseover", n => { tooltip.style("visibility", "visible"); tooltip.text(n.point) })
       .on("mousemove", () => tooltip.style("top", (event.pageY-10)+"px").style("left",(event.pageX+10)+"px"))
       .on("mouseout", () => tooltip.style("visibility", "hidden"))

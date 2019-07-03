@@ -4,10 +4,11 @@ import { pointsToIndices, ArrayMap, OpsiatecResult } from 'siafun';
 import { GD_AUDIO, GD_SONG_MAP, GD_RESULTS, GRAPH_RESULTS } from './config';
 import { mapSeries, updateStatus, toIndexSeqMap } from './util';
 import { loadJsonFile, initDirRec } from './file-manager';
-import { createSimilarityPatternGraph, getPatternGroupNFs, getNormalFormsMap, PatternGroupingOptions } from './pattern-stats';
-import { getInducerWithCaching, getBestGdOptions, getChromaBeatsOptions, FullOptions, getOptions, getChromaBarsOptions } from './options';
+import { createSimilarityPatternGraph, getPatternGroupNFs, getNormalFormsMap,
+  PatternGroupingOptions, getConnectednessByVersion } from './pattern-stats';
+import { getInducerWithCaching, getBestGdOptions, FullOptions, getOptions } from './options';
 import { FeatureConfig } from './feature-extractor';
-import { getPointsFromAudio, getQuantizedPoints } from './feature-parser';
+import { getPointsFromAudio, getQuantizedPoints, quantize } from './feature-parser';
 import { toHistogram, getMostCommonPoints } from './histograms';
 
 interface GdVersion {
@@ -28,18 +29,46 @@ interface VisualsPoint {
 var songMap: Map<string, GdVersion[]>;
 
 const SONGS = ["good lovin'", "sugar magnolia", "me and my uncle"];
-const SONG = SONGS[2];
+const SONG = SONGS[0];
 
-
-export async function savePatternAndVectorSequences(file: string, graphFile?: string) {
+export async function savePatternAndVectorSequences(filebase: string, tryHalftime = false) {
+  const file = filebase+"-seqs.json";
+  const graphFile = filebase+"-graph.json";
+  const versions = getGdVersions(SONG)//.slice(0,10);
+  
   const options = getBestGdOptions(GD_RESULTS+SONG+'/');
-  const versions = getGdVersions(SONG)//.slice(0, 200);
-  const vecsec = _.flatten(await getVectorSequences(versions, options, 3));
+  const points = await mapSeries(versions, a => getPointsFromAudio(a, options));
+  const results = await getCosiatec(SONG, versions, options);
+  results.forEach(r => removeNonParallelOccurrences(r));
+  
+  if (tryHalftime) {
+    const doubleOptions = getBestGdOptions(GD_RESULTS+SONG+'/', true);
+    const doublePoints = await mapSeries(versions, a => getPointsFromAudio(a, doubleOptions));
+    const doubleResults = await getCosiatec(SONG, versions, doubleOptions);
+    doubleResults.forEach(r => removeNonParallelOccurrences(r));
+    
+    const graph = createSimilarityPatternGraph(results.concat(doubleResults), false, null, 2);
+    let conn = getConnectednessByVersion(graph);
+    //console.log(conn)
+    //conn = conn.map((c,v) => c / points.concat(doublePoints)[v].length);
+    //console.log(conn)
+    versions.forEach((_,i) => {
+      if (conn[i+versions.length] > conn[i]) {
+        console.log("version", i, "is better analyzed doubletime");
+        points[i] = doublePoints[i];
+        results[i] = doubleResults[i];
+      }
+    })
+  }
+  
+  const vecsec = _.flatten(await getVectorSequences(versions, points, options, 5));
   vecsec.forEach(s => s.version = s.version*2+1);
   
-  const grouping = {maxDistance: 4}//, condition: (n,c) => n.size > 4};
-  const patsec = _.flatten(await getPatternSequences(SONG, versions, options, grouping, 5, 3, graphFile));
+  const grouping = { maxDistance: 10 }//, condition: (n,c) => n.size > 4};
+  const patsec = _.flatten(await getPatternSequences(versions, points, results, grouping, 5, 2, graphFile));
   patsec.forEach(s => s.version = s.version*2);
+  
+  //TODO TAKE MOST CONNECTED ONES :)
   
   fs.writeFileSync(file, JSON.stringify(_.union(vecsec, patsec)));
 }
@@ -48,23 +77,24 @@ export async function savePatternSequences(file: string, hubSize: number, append
   const options = getBestGdOptions(GD_RESULTS+SONG+'/');
   const versions = getGdVersions(SONG)//.slice(0,40);
   const graphFile = GRAPH_RESULTS+SONG+appendix+'.json';
-  const sequences = await getPatternSequences(SONG, versions, options, {maxDistance: 3}, 10);
+  const points = await mapSeries(versions, a => getPointsFromAudio(a, options));
+  const results = await getCosiatec(SONG, versions, options);
+  results.forEach(r => removeNonParallelOccurrences(r));
+  const sequences = await getPatternSequences(versions, points, results, {maxDistance: 3}, 10);
   fs.writeFileSync(file, JSON.stringify(_.flatten(sequences)));
   //visuals.map(v => v.join('')).slice(0, 10).forEach(v => console.log(v));
 }
 
-async function getPatternSequences(songname: string, audio: string[],
-    options: FullOptions, groupingOptions: PatternGroupingOptions, 
+async function getPatternSequences(audio: string[], points: any[][],
+    results: OpsiatecResult[], groupingOptions: PatternGroupingOptions, 
     typeCount = 10, minCount = 2, path?: string): Promise<VisualsPoint[][]> {
-  const points = await mapSeries(audio, a => getPointsFromAudio(a, options));
-  const results = await getCosiatec(songname, audio, options);
-  results.forEach(r => removeNonParallelOccurrences(r));
   const sequences = results.map((v,i) => v.points.map((p,j) =>
     ({version:i, index:j, type:0, point:p, path: audio[i],
       start: points[i][j][0][0],
       duration: points[i][j+1] ? points[i][j+1][0][0]-points[i][j][0][0] : 1})));
   const nfMap = getNormalFormsMap(results);
   const graph = createSimilarityPatternGraph(results, false, path, minCount);
+  
   const mostCommon = getPatternGroupNFs(graph, groupingOptions);
   mostCommon.slice(0, typeCount).forEach(p => console.log(p[0]+ " " + p.length));
   mostCommon.slice(0, typeCount).forEach((nfs,nfi) =>
@@ -88,13 +118,13 @@ function removeNonParallelOccurrences(results: OpsiatecResult, dimIndex = 0) {
 export async function saveVectorSequences(file: string, typeCount?: number) {
   const options = getBestGdOptions(GD_RESULTS+SONG+'/');
   const versions = getGdVersions(SONG).slice(0,10);
-  const sequences = await getVectorSequences(versions, options, typeCount);
+  const points = await mapSeries(versions, a => getPointsFromAudio(a, options));
+  const sequences = await getVectorSequences(versions, points, options, typeCount);
   fs.writeFileSync(file, JSON.stringify(_.flatten(sequences)));
 }
 
-async function getVectorSequences(audio: string[], options: FullOptions, typeCount = 3): Promise<VisualsPoint[][]> {
-  const points = await mapSeries(audio, a => getPointsFromAudio(a, options));
-  const quantPoints = await mapSeries(audio, a => getQuantizedPoints(a, options));
+async function getVectorSequences(audio: string[], points: any[][], options: FullOptions, typeCount = 3): Promise<VisualsPoint[][]> {
+  const quantPoints = points.map(p => quantize(p, options));
   const atemporalPoints = quantPoints.map(v => v.map(p => p.slice(1)));
   const pointMap = toIndexSeqMap(atemporalPoints, JSON.stringify);
   const mostCommon = getMostCommonPoints(_.flatten(atemporalPoints));

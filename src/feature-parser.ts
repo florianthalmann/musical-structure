@@ -17,6 +17,10 @@ interface JohanChord {
   label: string
 }
 
+export function quantize(points: any[][], options: FullOptions) {
+  return new Quantizer(options.quantizerFunctions).getQuantizedPoints(points);
+}
+
 export async function getQuantizedPoints(audioFile: string, options: FullOptions) {
   const points = await getPointsFromAudio(audioFile, options);
   return new Quantizer(options.quantizerFunctions).getQuantizedPoints(points);
@@ -35,7 +39,7 @@ export function getPoints(features: Features, options: FullOptions) {
 function generatePoints(options: FullOptions, featureFiles: string[], condition?: any) {
   if (featureFiles.every(fs.existsSync)) {
     let points: any[][] = initPoints(featureFiles[0], condition);
-    if (options.halftime) points = points.filter((_,i) => i % 2 == 0);
+    if (options.doubletime) points = points.filter((_,i) => i % 2 == 0);
     const add7 = options.selectedFeatures.indexOf(FEATURES.JOHAN_SEVENTHS) >= 0;
     return featureFiles.slice(1)
       .reduce((p,f) => addFeature(f, p, add7), points)
@@ -47,6 +51,8 @@ function initPoints(filename: string, condition?: any): number[][] {
   if (filename.indexOf(FEATURES.MADMOM_BARS.name) >= 0) {
     return condition == '1' ? getMadmomDownbeats(filename).map(b => [b])
       : getMadmomBeats(filename).map(b => [b]);
+  } else if (filename.indexOf(FEATURES.FLOHAN_BEATS.file) >= 0) {
+    return getFlohanBeats(filename).map(b => [b]);
   }
   return getVampValues(filename, condition).map(v => [v.time]);
 }
@@ -185,6 +191,63 @@ export function getVampValues(filename: string, condition?: string): VampValue[]
     console.log('error parsing features of '+filename+':', e);
     return [];
   }
+}
+
+interface Grid {
+  offset: number,
+  unit: number,
+  points: number[]
+}
+
+function getFlohanBeats(filename: string): number[] {
+  const solutions = 5;
+  const trials = 10;
+  const chords = getJohanChordValues(filename);
+  const harmonicRhythm = chords.map(c => c.start);
+  //console.log(chords.map(c => c.end - c.start))
+  const shortest = _.min(chords.map(c => c.end - c.start));
+  const maxTime = _.last(harmonicRhythm);
+  let grids = [getGrid(0, shortest, maxTime)];
+  let errors = grids.map(g => getError(g, harmonicRhythm));
+  let previousMinError = Infinity;
+  let minError = _.min(errors);
+  let precision = 10;
+  while (minError < previousMinError && precision > 0.0001) {
+    let newGrids = _.flatten(_.flatten(
+      grids.map(g => _.times(trials, i => _.times(trials, j =>
+        getGrid(g.offset+((i-(trials/2))/trials*precision),
+          g.unit+((j-(trials/2))/trials*precision), maxTime))))));
+    newGrids = _.uniqBy(newGrids, g => g.offset + " " + g.unit)
+      .filter(g => g.unit > 0 && 0 <= g.offset && g.offset < g.unit);
+    const newErrors = newGrids.map(g => getError(g, harmonicRhythm));
+    previousMinError = minError;
+    minError = _.min(newErrors);
+    const all = _.uniqBy(_.zip(_.concat(grids, newGrids), _.concat(errors, newErrors)),
+      g => g[0].offset + " " + g[0].unit);
+    const best = _.sortBy(all, a => a[1]).slice(0, solutions).filter(b => b);
+    grids = best.map(b => b[0]);
+    errors = best.map(b => b[1]);
+    precision /= 10;
+    //console.log(grids.slice(0,3).map(g => g.offset + " " + g.unit), errors.slice(0,3), previousMinError);
+  }
+  //console.log(grids[0].offset, grids[0].unit, errors[0]);
+  return grids[0].points;
+}
+
+function getGrid(offset: number, unit: number, max: number): Grid {
+  return {
+    offset: offset,
+    unit: unit,
+    points: _.times((max-offset)/unit, i => offset + i*unit)
+  }
+}
+
+function getError(grid: Grid, times: number[]) {
+  return _.sum(times.map(h => {
+    const dist = (h-grid.offset) % grid.unit;
+    return Math.min(dist, grid.unit-dist);
+  }))
+  + _.sum(grid.points.map(g => _.min(times.map(h => Math.abs(g-h)))))
 }
 
 function getJohanChordValues(filename: string): JohanChord[] {

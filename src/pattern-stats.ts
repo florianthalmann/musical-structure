@@ -43,6 +43,16 @@ interface PatternGroup {
   totalCount: number
 }
 
+export function getConnectednessByVersion(graph: DirectedGraph) {
+  const nodes = <PatternNode[]>graph.getNodes();
+  const allVersions = _.uniq(_.flatten(nodes.map(n => n.versions)));
+  const grouped = allVersions.map(v => nodes.filter(n => n.versions.indexOf(v) >= 0));
+  const conns: number[] = [];
+  allVersions.forEach((v,i) =>
+    conns[v] = _.sum(grouped[i].map(n => graph.getAdjacents(n).length)));
+  return conns;
+}
+
 export function getMostCommonPatternNFs(path: string) {
   const graph = loadGraph(path);
   const nodes = <PatternNode[]>graph.getNodes();

@@ -45,6 +45,8 @@ export const FEATURES = {
   CHORDS: {name:'chords', plugin:'vamp:nnls-chroma:chordino:simplechord', isSegmentation: false},
   JOHAN_CHORDS: {name:'johan', isSegmentation: false},
   JOHAN_SEVENTHS: {name:'johan7', file: 'johan', isSegmentation: false},
+  FLOHAN_BEATS: {name:'flohanbeats', file: 'johan', isSegmentation: true},
+  FLOHAN_BARS: {name:'flohanbeats', file: 'johan', isSegmentation: true},
   MADMOM_BARS: {name:'madbars', isSegmentation: true, subset:'1'},
   MADMOM_BEATS: {name:'madbeats', file: 'madbars', isSegmentation: true},
   SILVET: {name:'silvet', plugin:'vamp:silvet:silvet:notes', isSegmentation: false},
@@ -76,9 +78,9 @@ function getFiles(features: FeatureConfig[], files: string[]) {
 function extractFeatures(audioFiles: string[], features: FeatureConfig[]): Promise<any> {
   return mapSeries(audioFiles, a => mapSeries(features, f =>
     f.hasOwnProperty('plugin') ? extractVampFeature(a, <VampFeatureConfig>f)
-      : f === FEATURES.JOHAN_CHORDS || f === FEATURES.JOHAN_SEVENTHS ? extractJohanChords(a, f)
       : f === FEATURES.MADMOM_BARS ? extractMadmomBars(a)
-      : f === FEATURES.MADMOM_BEATS ? extractMadmomBeats(a) : null
+      : f === FEATURES.MADMOM_BEATS ? extractMadmomBeats(a)
+      : extractJohanChords(a, f)
   ));
 }
 

@@ -8,7 +8,7 @@ import { FeatureConfig, FEATURES } from './feature-extractor';
 export interface FullOptions extends StructureOptions {
   selectedFeatures: FeatureConfig[],
   seventhChords?: boolean,
-  halftime?: boolean
+  doubletime?: boolean
 }
 
 const STANDARD_OPTIONS: FullOptions = {
@@ -30,9 +30,9 @@ export function getVariations(minPatternLengths: number[]): [string, any[]][] {
   ]
 }
 
-export function getBestGdOptions(resultsDir: string, halftime?: boolean) {
+export function getBestGdOptions(resultsDir: string, doubletime?: boolean) {
   const options = getJohanBarsOptions(resultsDir,
-    HEURISTICS.SIZE_AND_1D_COMPACTNESS_AXIS(0), halftime);
+    HEURISTICS.SIZE_AND_1D_COMPACTNESS_AXIS(0), doubletime);
   options.minPatternLength = 3;
   options.optimizationMethods = [OPTIMIZATION.PARTITION];
   options.ignoreNovelty = true;
@@ -41,9 +41,9 @@ export function getBestGdOptions(resultsDir: string, halftime?: boolean) {
 }
 
 export function getJohanBarsOptions(resultsDir: string,
-    heuristic: CosiatecHeuristic = HEURISTICS.SIZE_AND_1D_COMPACTNESS(0), halftime?: boolean) {
-  return getIdentityOptions([FEATURES.MADMOM_BARS, FEATURES.JOHAN_SEVENTHS],
-    heuristic, resultsDir, halftime);
+    heuristic: CosiatecHeuristic = HEURISTICS.SIZE_AND_1D_COMPACTNESS(0), doubletime?: boolean) {
+  return getIdentityOptions([FEATURES.MADMOM_BEATS, FEATURES.JOHAN_CHORDS],
+    heuristic, resultsDir, doubletime);
 }
 
 export function getChromaBarsOptions(dims: number, resultsDir: string) {
@@ -65,36 +65,36 @@ export function getChromaBeatsOptions(dims: number, resultsDir: string) {
 }
 
 export function getIdentityOptions(features: FeatureConfig[],
-    heuristic: CosiatecHeuristic, resultsDir: string, halftime?: boolean) {
-  return getOptions(features, [QF.ORDER(), QF.IDENTITY()], halftime, heuristic, resultsDir);
+    heuristic: CosiatecHeuristic, resultsDir: string, doubletime?: boolean) {
+  return getOptions(features, [QF.ORDER(), QF.IDENTITY()], doubletime, heuristic, resultsDir);
 }
 
 export function getSummaryOptions(features: FeatureConfig[], dims: number,
-    heuristic: CosiatecHeuristic, resultsDir: string, halftime?: boolean) {
-  return getOptions(features, [QF.ORDER(), QF.SORTED_SUMMARIZE(dims)], halftime,
+    heuristic: CosiatecHeuristic, resultsDir: string, doubletime?: boolean) {
+  return getOptions(features, [QF.ORDER(), QF.SORTED_SUMMARIZE(dims)], doubletime,
     heuristic, resultsDir, ''+dims);
 }
 
 export function getOptions(features: FeatureConfig[], quantizerFuncs: ArrayMap[],
-  halftime?: boolean, heuristic?: CosiatecHeuristic, cacheDir?: string, dims = ''): FullOptions {
+  doubletime?: boolean, heuristic?: CosiatecHeuristic, cacheDir?: string, dims = ''): FullOptions {
   const options = _.clone(STANDARD_OPTIONS);
   options.selectedFeatures = features;
   options.quantizerFunctions = quantizerFuncs;
   options.selectionHeuristic = heuristic;
   options.optimizationHeuristic = heuristic;
-  options.halftime = halftime;
+  options.doubletime = doubletime;
   if (cacheDir) {
     //!!folder name should contain features and quantfuncs. everything else cached
-    options.cacheDir = generateCacheDir(cacheDir, features, dims);
+    options.cacheDir = generateCacheDir(cacheDir, features, dims, doubletime);
     fs.existsSync(options.cacheDir) || fs.mkdirSync(options.cacheDir);
   }
   return options;
 }
 
-function generateCacheDir(baseDir: string, features: FeatureConfig[], dims = '', halftime?: boolean) {
-  const addition = halftime ? "half" : "";
+function generateCacheDir(baseDir: string, features: FeatureConfig[], dims = '', doubletime?: boolean) {
+  const addition = doubletime ? "double" : "";
   //add hybrid etc
-  return baseDir + features[1].name + dims + features[0].name + addition+'/' //e.g. chroma4beatshalf
+  return baseDir + features[1].name + dims + features[0].name + addition+'/' //e.g. chroma4beatsdouble
 }
 
 export function getInducerWithCaching(audio: string, points: number[][], options: FullOptions) {
