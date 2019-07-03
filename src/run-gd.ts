@@ -234,7 +234,9 @@ function getGdSongMap() {
   if (!songMap) {
     const json = JSON.parse(fs.readFileSync(GD_SONG_MAP, 'utf8'));
     songMap = new Map<string, GdVersion[]>();
-    _.mapValues(json, (v,k) => songMap.set(k, v));
+    _.mapValues(json, (recs, song) => songMap.set(song,
+      _.flatten(_.map(recs, (tracks, rec) =>
+        _.map(tracks, track => ({recording: rec, track: track.filename}))))));
   }
   return songMap;
 }
