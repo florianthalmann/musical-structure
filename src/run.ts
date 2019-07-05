@@ -1,6 +1,7 @@
 import * as _ from 'lodash';
 //import { saveGdHists } from './histograms';
-import { saveHybridPatternGraphs, savePatternSequences, saveVectorSequences, savePatternAndVectorSequences } from './run-gd';
+import { saveHybridPatternGraphs, savePatternSequences, saveVectorSequences,
+  savePatternAndVectorSequences, saveAllSongSequences } from './run-gd';
 import { analyzePatternGraph } from './pattern-stats';
 import { cleanCaches, renameJohanChordFeatures, moveToFeaturesDir } from './file-manager';
 
@@ -20,7 +21,8 @@ import { cleanCaches, renameJohanChordFeatures, moveToFeaturesDir } from './file
 //savePatternGraphs("madbarsdouble")
 //saveVectorSequences("plots/d3/newest/qmtrans.json")
 //savePatternSequences("plots/d3/newest/sequences5m.json", 5, "madmom");
-savePatternAndVectorSequences("plots/d3/latest/goodlovin-johanflobars-double", false);
+//savePatternAndVectorSequences("plots/d3/latest/goodlovin-johanflobars-double", false);
+saveAllSongSequences(0, 10, 10);
 
 //analyzePatternGraph("results/graphs/good lovin'madbarsdouble.json", 10);
 //analyzePatternGraph("results/graphs/good lovin'-hybrid0.json");

@@ -3,6 +3,7 @@ import * as _ from 'lodash';
 import { StructureInducer, StructureOptions, ArrayMap, CosiatecHeuristic,
   QUANT_FUNCS as QF, HEURISTICS, OPTIMIZATION } from 'siafun';
 import { audioPathToDirName } from './util';
+import { initDirRec } from './file-manager';
 import { FeatureConfig, FEATURES } from './feature-extractor';
 
 export interface FullOptions extends StructureOptions {
@@ -86,7 +87,7 @@ export function getOptions(features: FeatureConfig[], quantizerFuncs: ArrayMap[]
   if (cacheDir) {
     //!!folder name should contain features and quantfuncs. everything else cached
     options.cacheDir = generateCacheDir(cacheDir, features, dims, doubletime);
-    fs.existsSync(options.cacheDir) || fs.mkdirSync(options.cacheDir);
+    fs.existsSync(options.cacheDir) || initDirRec(options.cacheDir);
   }
   return options;
 }

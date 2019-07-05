@@ -6,12 +6,13 @@ import { audioPathToDirName } from './util';
 fs.existsSync(FEATURES_DIR) || fs.mkdirSync(FEATURES_DIR);
 fs.existsSync(RESULTS_DIR) || fs.mkdirSync(RESULTS_DIR);
 
-export function initDirRec(...names: string[]) {
-  names.forEach((_,i) => {
-    const subdir = names.slice(0, i+1).join('/');
+export function initDirRec(path: string) {
+  const dirNames = path.split('/');
+  dirNames.forEach((_,i) => {
+    const subdir = dirNames.slice(0, i+1).join('/');
     fs.existsSync(subdir) || fs.mkdirSync(subdir);
   });
-  return names.join('/')+'/';
+  return dirNames.join('/')+'/';
 }
 
 export function moveToFeaturesDir(currentDir: string) {
