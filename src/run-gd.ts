@@ -233,6 +233,16 @@ function getGdPoints(song: string, options: FullOptions) {
   return mapSeries(getGdVersions(song), a => getPointsFromAudio(a, options));
 }
 
+export function copyGdVersions(songname: string) {
+  fs.existsSync(songname) || fs.mkdirSync(songname);
+  const versions = getGdVersions(songname);
+  versions.forEach(v => {
+    const destination = v.replace(GD_AUDIO, songname+'/');
+    initDirRec(destination.split('/').slice(0, -1).join('/'));
+    fs.copyFileSync(v, destination);
+  });
+}
+
 export function getGdVersions(songname: string, count?: number) {
   return getGdSongMap().get(songname)
     .map(s => GD_AUDIO+s.recording+'/'+s.track)
