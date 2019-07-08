@@ -58,6 +58,12 @@ function saveOutFile(filePath: string, content: string): Promise<any> {
   });
 }
 
+export function getFoldersInFolder(folder): string[] {
+  return fs.readdirSync(folder, { withFileTypes: true })
+    .filter(dirent => dirent.isDirectory())
+    .map(dirent => dirent.name);
+}
+
 function getFilesInFolder(folder, fileTypes): Promise<string[]> {
   return new Promise(resolve => {
     fs.readdir(folder, (err, files) => {
