@@ -42,7 +42,8 @@ export async function saveAllSongSequences(offset = 0, skip = 0, total = 10) {
 }
 
 export async function saveThomasSongSequences() {
-  mapSeries(getFoldersInFolder('thomas/').filter(f => f !== 'temp' && f !== 'studio_reference').slice(4), folder => {
+  mapSeries(getFoldersInFolder('thomas/')
+      .filter(f => f !== 'temp' && f !== 'studio_reference').slice(13), folder => {
     GD_AUDIO = '/Volumes/gspeed1/florian/musical-structure/thomas/'+folder+'/';
     const songname = folder.split('_').join(' ');
     return savePatternAndVectorSequences(GD_GRAPHS+songname, true, songname, true);
@@ -60,13 +61,16 @@ export async function savePatternAndVectorSequences(filebase: string, tryHalftim
   const results = await getCosiatec(song, versions, options);
   results.forEach(r => removeNonParallelOccurrences(r));
 
+  const MIN_OCCURRENCE = 3;
+  const PATTERN_TYPES = 5;
+
   if (tryHalftime) {
     const doubleOptions = getBestGdOptions(GD_PATTERNS+song+'/', true);
     const doublePoints = await mapSeries(versions, a => getPointsFromAudio(a, doubleOptions));
     const doubleResults = await getCosiatec(song, versions, doubleOptions);
     doubleResults.forEach(r => removeNonParallelOccurrences(r));
 
-    const graph = createSimilarityPatternGraph(results.concat(doubleResults), false, null, 2);
+    const graph = createSimilarityPatternGraph(results.concat(doubleResults), false, null, MIN_OCCURRENCE);
     let conn = getConnectednessByVersion(graph);
     //console.log(conn)
     //conn = conn.map((c,v) => c / points.concat(doublePoints)[v].length);
@@ -83,8 +87,8 @@ export async function savePatternAndVectorSequences(filebase: string, tryHalftim
   const vecsec = _.flatten(await getVectorSequences(versions, points, options, 5));
   vecsec.forEach(s => s.version = s.version*2+1);
 
-  const grouping = { maxDistance: 10 }//, condition: (n,c) => n.size > 4};
-  const patsec = _.flatten(await getPatternSequences(versions, points, results, grouping, 5, 2, graphFile));
+  const grouping = { maxDistance: 5 }//, condition: (n,c) => n.size > 4};
+  const patsec = _.flatten(await getPatternSequences(versions, points, results, grouping, PATTERN_TYPES, MIN_OCCURRENCE, graphFile));
   patsec.forEach(s => s.version = s.version*2);
 
   //TODO TAKE MOST CONNECTED ONES :)

@@ -43,7 +43,7 @@ export function getBestGdOptions(resultsDir: string, doubletime?: boolean) {
 
 export function getJohanBarsOptions(resultsDir: string,
     heuristic: CosiatecHeuristic = HEURISTICS.SIZE_AND_1D_COMPACTNESS(0), doubletime?: boolean) {
-  return getIdentityOptions([FEATURES.MADMOM_BARS, FEATURES.JOHAN_CHORDS],
+  return getIdentityOptions([FEATURES.MADMOM_BARS, FEATURES.JOHAN_SEVENTHS],
     heuristic, resultsDir, doubletime);
 }
 

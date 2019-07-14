@@ -96,9 +96,9 @@ function extractJohanChords(audioPath: string, config: FeatureConfig): Promise<a
     (featureOutFile) => {
       const audioFile = audioPath.slice(audioPath.lastIndexOf('/')+1);
       const outPath = audioPath.slice(0, audioPath.lastIndexOf('/'));
-      return 'echo -n /srv/'+audioFile+' | docker run --rm -i -v '
-        +outPath+':/srv audiocommons/faas-confident-chord-estimator python3 index.py > '
-        +featureOutFile
+      return 'echo -n /srv/'+audioFile+' | docker run --rm -i -v "'
+        +outPath+':/srv" audiocommons/faas-confident-chord-estimator python3 index.py > "'
+        +featureOutFile+'"'
     });
 }
 
@@ -106,7 +106,7 @@ function extractJohanChords(audioPath: string, config: FeatureConfig): Promise<a
 function extractMadmomBeats(audioPath: string): Promise<any> {
   return extractAndMove(audioPath, FEATURES.MADMOM_BEATS,
     (featureOutFile) => {
-      return 'DBNBeatTracker single -o '+featureOutFile+' '+audioPath
+      return 'DBNBeatTracker single -o "'+featureOutFile+'" "'+audioPath+'"'
     });
 }
 
@@ -114,7 +114,7 @@ function extractMadmomBeats(audioPath: string): Promise<any> {
 function extractMadmomBars(audioPath: string): Promise<any> {
   return extractAndMove(audioPath, FEATURES.MADMOM_BARS,
     (featureOutFile) => {
-      return 'DBNDownbeatTracker single -o '+featureOutFile+' '+audioPath
+      return 'DBNDownbeatTracker single -o "'+featureOutFile+'" "'+audioPath+'"'
     });
 }
 
@@ -132,7 +132,7 @@ function extractAndMove(audioPath: string, feature: FeatureConfig,
         execute(commandFunc(featureOutFile), (success: boolean) => {
           if (success) {
             fs.existsSync(featureDestDir) || fs.mkdirSync(featureDestDir);
-            execute('mv '+featureOutFile+' '+featureDestPath, resolve);
+            execute('mv "'+featureOutFile+'" "'+featureDestPath+'"', resolve);
           } else {
             console.log('failed to extract '+feature.name+' for '+audioPath)
             resolve();
