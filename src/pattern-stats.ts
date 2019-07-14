@@ -351,6 +351,7 @@ function intersection<T>(s1: T[], s2: T[], multi: boolean) {
   return intersection;
 }
 
+//sørensen-dice
 function similar<T>(s1: T[], s2: T[], ratio: number): boolean {
   //first line optimizes by excluding impossible cases
   return 2 * Math.min(s1.length, s2.length) / (s1.length+s2.length) >= ratio
