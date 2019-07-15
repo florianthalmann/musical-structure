@@ -46,14 +46,14 @@ export async function saveThomasSongSequences() {
       .filter(f => f !== 'temp' && f !== 'studio_reference').slice(13), folder => {
     GD_AUDIO = '/Volumes/gspeed1/florian/musical-structure/thomas/'+folder+'/';
     const songname = folder.split('_').join(' ');
-    return savePatternAndVectorSequences(GD_GRAPHS+songname, true, songname, true);
+    return savePatternAndVectorSequences(GD_GRAPHS+songname, true, songname, '.wav');
   });
 }
 
-export async function savePatternAndVectorSequences(filebase: string, tryHalftime = false, song = SONG, wav = false) {
+export async function savePatternAndVectorSequences(filebase: string, tryHalftime = false, song = SONG, extension?: string) {
   const file = filebase+"-seqs.json";
   const graphFile = filebase+"-graph.json";
-  const versions = getGdVersions(song, undefined, wav)//.slice(0,40);
+  const versions = getGdVersions(song, undefined, extension)//.slice(0,40);
   console.log("\n"+song+" "+versions.length+"\n")
 
   const options = getBestGdOptions(GD_PATTERNS+song+'/');
@@ -61,7 +61,7 @@ export async function savePatternAndVectorSequences(filebase: string, tryHalftim
   const results = await getCosiatec(song, versions, options);
   results.forEach(r => removeNonParallelOccurrences(r));
 
-  const MIN_OCCURRENCE = 3;
+  const MIN_OCCURRENCE = 1;
   const PATTERN_TYPES = 5;
 
   if (tryHalftime) {
@@ -84,10 +84,10 @@ export async function savePatternAndVectorSequences(filebase: string, tryHalftim
     })
   }
 
-  const vecsec = _.flatten(await getVectorSequences(versions, points, options, 5));
+  const vecsec = _.flatten(await getVectorSequences(versions, points, options, PATTERN_TYPES));
   vecsec.forEach(s => s.version = s.version*2+1);
 
-  const grouping = { maxDistance: 5 }//, condition: (n,c) => n.size > 4};
+  const grouping: PatternGroupingOptions = { maxDistance: 1 }//, condition: (n,c) => n.size > 5};
   const patsec = _.flatten(await getPatternSequences(versions, points, results, grouping, PATTERN_TYPES, MIN_OCCURRENCE, graphFile));
   patsec.forEach(s => s.version = s.version*2);
 
@@ -118,9 +118,9 @@ async function getPatternSequences(audio: string[], points: any[][],
   const nfMap = getNormalFormsMap(results);
   const graph = createSimilarityPatternGraph(results, false, path, minCount);
 
-  const mostCommon = getPatternGroupNFs(graph, groupingOptions);
-  mostCommon.slice(0, typeCount).forEach(p => console.log(p[0]+ " " + p.length));
-  mostCommon.slice(0, typeCount).forEach((nfs,nfi) =>
+  const mostCommon = getPatternGroupNFs(graph, groupingOptions, typeCount);
+  //mostCommon.slice(0, typeCount).forEach(p => console.log(p[0]+ " " + p.length));
+  mostCommon.forEach((nfs,nfi) =>
     nfs.forEach(nf => nfMap[nf].forEach(([v, p]: [number, number]) => {
       const pattern = results[v].patterns[p];
       const indexOccs = pointsToIndices([pattern.occurrences], results[v].points)[0];
@@ -256,10 +256,10 @@ export function copyGdVersions(songname: string) {
   });
 }
 
-export function getGdVersions(songname: string, count?: number, wav = false) {
+export function getGdVersions(songname: string, count?: number, extension?: string) {
   return getGdSongMap().get(songname)
     .map(s => GD_AUDIO+s.recording+'/'
-      +(wav ? _.replace(s.track, '.mp3', '.wav') : s.track))
+      +(extension ? _.replace(s.track, '.mp3', extension) : s.track))
     .filter(fs.existsSync)
     .slice(0, count);
 }

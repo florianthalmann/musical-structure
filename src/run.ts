@@ -22,8 +22,9 @@ import { cleanCaches, renameJohanChordFeatures, moveToFeaturesDir } from './file
 //saveVectorSequences("plots/d3/newest/qmtrans.json")
 //savePatternSequences("plots/d3/newest/sequences5m.json", 5, "madmom");
 //savePatternAndVectorSequences("plots/d3/latest/goodlovin-johanflobars-double", false);
+savePatternAndVectorSequences("plots/d3/latest/box of rain2noptn", false, "box of rain", ".m4a");
 //saveAllSongSequences(4, 10, 10);
-saveThomasSongSequences()
+//saveThomasSongSequences()
 
 //analyzePatternGraph("results/graphs/good lovin'madbarsdouble.json", 10);
 //analyzePatternGraph("results/graphs/good lovin'-hybrid0.json");

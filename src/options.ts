@@ -33,9 +33,9 @@ export function getVariations(minPatternLengths: number[]): [string, any[]][] {
 
 export function getBestGdOptions(resultsDir: string, doubletime?: boolean) {
   const options = getJohanBarsOptions(resultsDir,
-    HEURISTICS.SIZE_AND_1D_COMPACTNESS_AXIS(0), doubletime);
+    HEURISTICS.SIZE_AND_1D_COMPACTNESS_AXIS2(0), doubletime);
   options.minPatternLength = 3;
-  options.optimizationMethods = [OPTIMIZATION.PARTITION];
+  //options.optimizationMethods = [OPTIMIZATION.PARTITION];
   options.ignoreNovelty = true;
   options.minHeuristicValue = 0.00001;
   return options;

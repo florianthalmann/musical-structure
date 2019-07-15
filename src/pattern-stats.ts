@@ -60,13 +60,14 @@ export function getMostCommonPatternNFs(path: string) {
   return nodes.map(n => n.id);
 }
 
-export function getPatternGroupNFs(graph: DirectedGraph, options: PatternGroupingOptions): string[][] {
+export function getPatternGroupNFs(graph: DirectedGraph, options: PatternGroupingOptions, count = Infinity): string[][] {
   let normalForms: string[][] = [];
-  while (graph.getSize() > 0) {
+  while (graph.getSize() > 0 && count > 0) {
     const best = getBestPatternGroup(graph, options);
     normalForms.push(best.map(n => n.id));
     best.forEach(n => graph.removeNode(n));
     graph = graph.pruneIsolatedNodes();
+    count -= 1;
   }
   return normalForms;
 }
@@ -80,14 +81,16 @@ function getBestPatternGroup(graph: DirectedGraph, options: PatternGroupingOptio
   }
   const adjacents = getAdjacents(graph, options.maxDistance, options.condition);
   adjacents.sort((a,b) => ratingFunc(b)-ratingFunc(a));
-  //console.log(adjacents[0].center.id, adjacents[0].members.length, ratingFunc(adjacents[0]));
+  
+  console.log(adjacents[0].center.id, adjacents[0].members.length, ratingFunc(adjacents[0]));
   return _.concat([adjacents[0].center], adjacents[0].members);
 }
 
-function getAdjacents(graph: DirectedGraph, maxDistance = 1,
+function getAdjacents(graph: DirectedGraph, maxDistance?: number,
     condition?: GroupingCondition): PatternGroup[] {
   const nodes = <PatternNode[]>graph.getNodes();
-  let adjacents = <PatternNode[][]>nodes.map(n => graph.getAdjacents(n, maxDistance));
+  let adjacents = <PatternNode[][]>nodes.map(n =>
+    maxDistance ? graph.getAdjacents(n, maxDistance) : []);
   if (condition) adjacents = 
     adjacents.map((a,i) => a.filter(n => condition(n, nodes[i])));
   return nodes.map((n,i) =>({
@@ -227,9 +230,9 @@ export function createSimilarityPatternGraph(resultsByVersion: OpsiatecResult[],
     includeVecs: boolean, path?: string, minPatternOcurrence?: number) {
   let graph = createPatternGraph(resultsByVersion, includeVecs,
     (p1, p2) => p1 !== p2 &&
-      //topologicallySimilar(p1.npoints, p2.npoints, p1.id, p2.id, 0.95),
-      realSameButNSliding(p1.npoints, p2.npoints, p2.points, 1),
-      //realSimilarSliding(p1.npoints, p2.npoints, p2.points, 0.9),
+      //topologicallySimilar(p1.npoints, p2.npoints, p1.points, p2.points, p1.id, p2.id, 0.95),
+      //realSameButNSliding(p1.npoints, p2.npoints, p1.points, p2.points, 1),
+      realSimilarSliding(p1.npoints, p2.npoints, p1.points, p2.points, 0.8),
       //similar(p1.points, p2.points, 0.8),
       //realSameButN(p1.points, p2.points, 1),
     minPatternOcurrence);
@@ -327,13 +330,6 @@ function realSubset2<T>(s1: T[], s2: T[]) {
   return s1.length < s2.length && subset2(s1, s2);
 }
 
-//calculates similarity between multisets, based on intersection
-function multiSimilar<T>(s1: T[], s2: T[], ratio: number): boolean {
-  //first line optimizes by excluding impossible cases
-  return 2 * Math.min(s1.length, s2.length) / (s1.length+s2.length) >= ratio
-    && 2 * intersection(s1, s2, true).length / (s1.length+s2.length) >= ratio;
-}
-
 //works for sorted T[], multi true returns a multiset intersection
 function intersection<T>(s1: T[], s2: T[], multi: boolean) {
   let i = 0, j = 0;
@@ -351,20 +347,47 @@ function intersection<T>(s1: T[], s2: T[], multi: boolean) {
   return intersection;
 }
 
+//works for sorted T[], multi true returns a multiset union
+function union<T>(s1: T[], s2: T[], multi: boolean) {
+  let i = 0, j = 0;
+  const union = [];
+  while (i < s1.length || j < s2.length) {
+    if (i < s1.length && (j >= s2.length || s1[i] <= s2[j])) {
+      if (multi || s1[i] !== _.last(union)) {
+        union.push(s1[i]);
+      }
+      i++;
+      if (s1[i] === s2[j]) j++;
+    } else if (j < s2.length) {
+      if (multi || s2[j] !== _.last(union)) {
+        union.push(s2[j]);
+      }
+      j++;
+    }
+  }
+  return union;
+}
+
 //sørensen-dice
-function similar<T>(s1: T[], s2: T[], ratio: number): boolean {
+function sorensenDice<T>(s1: T[], s2: T[], ratio: number): boolean {
   //first line optimizes by excluding impossible cases
   return 2 * Math.min(s1.length, s2.length) / (s1.length+s2.length) >= ratio
     && 2 * intersection(s1, s2, true).length / (s1.length+s2.length) >= ratio;
 }
 
+function jaccard<T>(s1: T[], s2: T[], ratio: number): boolean {
+  //first line optimizes by excluding impossible cases
+  return Math.min(s1.length, s2.length) / Math.max(s1.length, s2.length) >= ratio
+    && intersection(s1, s2, true).length / union(s1, s2, true).length >= ratio;
+}
+
 function realSimilar<T>(s1: T[], s2: T[], ratio: number) {
-  return s1 !== s2 && similar(s1, s2, ratio);
+  return s1 !== s2 && jaccard(s1, s2, ratio);
 }
 
 function sameButN<T>(s1: T[], s2: T[], n: number) {
   return Math.abs(s1.length - s2.length) <= n
-    && intersection(s1, s2, true).length >= Math.max(s1.length, s2.length) - n;
+    && intersection(s1, s2, true).length >= Math.min(s1.length, s2.length)// - n;
 }
 
 //same except n differring elements
@@ -377,9 +400,9 @@ function realSimilarCardinality<T>(s1: T[], s2: T[], ratio: number) {
   return s1.length == s2.length && realSimilar(s1, s2, ratio);
 }
 
-function topologicallySimilar(s1: number[][], s2: number[][], s1nf: string, s2nf: string, ratio: number) {
-  const t1 = getTopology(s1, s1nf);
-  const t2 = getTopology(s2, s2nf);
+function topologicallySimilar(s1: number[][], s2: number[][], s1s: string[], s2s: string[], s1nf: string, s2nf: string, ratio: number) {
+  const t1 = getTopology(s1, s1s, s1nf);
+  const t2 = getTopology(s2, s2s, s2nf);
   
   const minIsect = Math.ceil((s1.length+s2.length)/2 * ratio);
   if (Math.min(s1.length, s2.length) >= minIsect) {
@@ -402,10 +425,10 @@ function topologicallySimilar(s1: number[][], s2: number[][], s1nf: string, s2nf
 
 const topologies = new Map<string, string[]>();
 
-function getTopology(s: number[][], snf: string) {
+function getTopology(s: number[][], st: string[], snf: string) {
   if (!topologies.has(snf)) {
     const temp = temporal(s);
-    const atemp = atemporal(s);
+    const atemp = atemporal(s, st);
     const topo = _.sortBy(_.flatten(s.map((_,i) => s.slice(i+1).map((_,j) =>
       atemp[i]+(temp[j]-temp[i])+atemp[j]))));
     topologies.set(snf, topo);
@@ -413,10 +436,10 @@ function getTopology(s: number[][], snf: string) {
   return topologies.get(snf);
 }
 
-function similarSliding(s1: number[][], s2: number[][], s2s: string[], ratio: number) {
+function similarSliding(s1: number[][], s2: number[][], s1s: string[], s2s: string[], ratio: number) {
   //slide s1 along s2 within a range determined by ratio, slower the smaller ratio....
   //check if atemporal material intersects to see if worth sliding
-  if (multiSimilar(atemporal(s1), atemporal(s2), ratio)) {
+  if (jaccard(atemporal(s1, s1s), atemporal(s2, s2s), ratio)) {
     const minsize = Math.ceil(ratio * (s1.length+s2.length)/2);
     const s1max = s1[minsize-1][0];
     const s1min = s1[s1.length-minsize][0];
@@ -427,19 +450,20 @@ function similarSliding(s1: number[][], s2: number[][], s2s: string[], ratio: nu
     const bottom = Math.max(s2max-s1last, -1*s1min);
     const top = Math.min(s2last-s1max, s2min);
     const range = _.range(bottom, top+1);
-    return range.some(i => {
+    const result = range.some(i => {
       const slid = addToElement(s1, 0, i);
       //first line speeds up! looks at temporal intersection...
-      return similar(temporal(slid), temporal(s2), ratio)
-        && similar(slid.map(s => JSON.stringify(s)), s2s, ratio);
+      return jaccard(temporal(slid), temporal(s2), ratio)
+        && jaccard(slid.map(s => JSON.stringify(s)), s2s, ratio);
     });
+    return result;
   }
 }
 
-function realSameButNSliding(s1: number[][], s2: number[][], s2s: string[], n: number, minSize?: number) {
+function realSameButNSliding(s1: number[][], s2: number[][], s1s: string[], s2s: string[], n: number, minSize?: number) {
   //slide s1 along s2 within a range determined by ratio, slower the smaller ratio....
   //check if atemporal material intersects to see if worth sliding
-  if (realSameButN(atemporal(s1), atemporal(s2), n, minSize)) {
+  if (realSameButN(atemporal(s1, s1s), atemporal(s2, s2s), n, minSize)) {
     const minsize = Math.min(s1.length, s2.length) - n;
     const s1max = s1[minsize-1][0];
     const s1min = s1[s1.length-minsize][0];
@@ -463,12 +487,17 @@ function temporal(s: number[][]) {
   return s.map(s => s[0]);
 }
 
-function atemporal(s: number[][]) {
-  return s.map(s => JSON.stringify(s.slice(1)));
+const sortedAtemporals = new Map<string[],string[]>();
+
+function atemporal(s: number[][], st: string[]) {
+  if (!sortedAtemporals.has(st)) {
+    sortedAtemporals.set(st, _.sortBy(s.map(s => JSON.stringify(s.slice(1)))));
+  }
+  return sortedAtemporals.get(st);
 }
 
-function realSimilarSliding(s1: number[][], s2: number[][], s2s: string[], ratio: number) {
-  return s1 !== s2 && similarSliding(s1, s2, s2s, ratio);
+function realSimilarSliding(s1: number[][], s2: number[][], s1s: string[], s2s: string[], ratio: number) {
+  return s1 !== s2 && similarSliding(s1, s2, s1s, s2s, ratio);
 }
 
 function addToElement(array: number[][], index: number, value: number) {
@@ -479,7 +508,7 @@ function addToElement(array: number[][], index: number, value: number) {
 }
 
 function distinct<T>(s1: T[], s2: T[]) {
-  return intersection(s1, s2, false).length < _.union(s1, s2).length;
+  return intersection(s1, s2, false).length < union(s1, s2, false).length;
 }
 
 function toNormalForm(points: number[][]): number[][] {
