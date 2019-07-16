@@ -35,7 +35,7 @@ var songMap: Map<string, GdVersion[]>;
 const SONGS = ["good lovin'", "sugar magnolia", "me and my uncle"];
 const SONG = SONGS[2];
 
-export async function calculateCompressionDistances(versionsPerSong = 3) {
+export async function calculateCompressionDistances(versionsPerSong = 2) {
   const options = getGdCompressionOptions(GD_PATTERNS);
   const versions = _.flatten(getTunedSongs().map(s => {
     GD_AUDIO = '/Volumes/gspeed1/florian/musical-structure/thomas/'+s+'/';
@@ -57,26 +57,26 @@ export async function calculateCompressionDistances(versionsPerSong = 3) {
         +'_X_'+audioPathToDirName(versions[i+j+1])
       return getInducerWithCaching(cachedir, p.concat(q), options).getCosiatec();
   }));
-  
+
   //distances
   let ncds = combined.map((v,i) => v.map((w,j) =>
     normCompDist(individual[i], individual[j], w)));
   //make symmetric
   ncds = versions.map((_,i) => versions.map((_,j) =>
-    i < j ? ncds[i][j-i-1] : i > j ? ncds[j][i-j-1] : 0));
-  console.log(ncds);
-  
+    i < j ? ncds[i][j-i-1] : i > j ? ncds[j][i-j-1] : Infinity));
+
   //evaluate
   const classes = versions.map((_,i) => Math.floor(i / versionsPerSong));
-  const predictions = versions.map((v,i) => ncds[i].indexOf(_.min(ncds[i])));
+  const predictions = versions.map((v,i) =>
+    Math.floor(ncds[i].indexOf(_.min(ncds[i])) / versionsPerSong));
   const result = _.zipWith(classes, predictions, (c,p) => c == p ? 1 : 0);
-  
+
   const totalRate = _.mean(result);
   //const rate = _.reduce(predictions, (s,p,i) => s += classes[i] == p ? 1 : 0, 0)/predictions.length;
   const rateByClass = _.range(versions.length/versionsPerSong).map(c =>
     _.mean(result.slice(c*versionsPerSong, c*versionsPerSong+versionsPerSong)));
-  
-  console.log(rateByClass)
+
+  //console.log(rateByClass)
   console.log(totalRate)
 }
 
