@@ -232,7 +232,7 @@ export function createSimilarityPatternGraph(resultsByVersion: OpsiatecResult[],
     (p1, p2) => p1 !== p2 &&
       //topologicallySimilar(p1.npoints, p2.npoints, p1.points, p2.points, p1.id, p2.id, 0.95),
       //realSameButNSliding(p1.npoints, p2.npoints, p1.points, p2.points, 1),
-      realSimilarSliding(p1.npoints, p2.npoints, p1.points, p2.points, 0.8),
+      realSimilarSliding(p1.npoints, p2.npoints, p1.points, p2.points, 0.6),
       //similar(p1.points, p2.points, 0.8),
       //realSameButN(p1.points, p2.points, 1),
     minPatternOcurrence);
@@ -387,7 +387,7 @@ function realSimilar<T>(s1: T[], s2: T[], ratio: number) {
 
 function sameButN<T>(s1: T[], s2: T[], n: number) {
   return Math.abs(s1.length - s2.length) <= n
-    && intersection(s1, s2, true).length >= Math.min(s1.length, s2.length)// - n;
+    && intersection(s1, s2, true).length >= Math.min(s1.length, s2.length) - n;
 }
 
 //same except n differring elements

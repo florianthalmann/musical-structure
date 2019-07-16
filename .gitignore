@@ -13,6 +13,7 @@ plots/*.html
 plots/graph_visuals.py
 plots/d3/new*
 plots/d3/latest
+plots/d3/graphs*
 
 *.ipynb
 

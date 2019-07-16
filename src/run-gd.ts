@@ -61,8 +61,8 @@ export async function savePatternAndVectorSequences(filebase: string, tryHalftim
   const results = await getCosiatec(song, versions, options);
   results.forEach(r => removeNonParallelOccurrences(r));
 
-  const MIN_OCCURRENCE = 1;
-  const PATTERN_TYPES = 5;
+  const MIN_OCCURRENCE = 2;
+  const PATTERN_TYPES = 10;
 
   if (tryHalftime) {
     const doubleOptions = getBestGdOptions(GD_PATTERNS+song+'/', true);
@@ -87,7 +87,7 @@ export async function savePatternAndVectorSequences(filebase: string, tryHalftim
   const vecsec = _.flatten(await getVectorSequences(versions, points, options, PATTERN_TYPES));
   vecsec.forEach(s => s.version = s.version*2+1);
 
-  const grouping: PatternGroupingOptions = { maxDistance: 1 }//, condition: (n,c) => n.size > 5};
+  const grouping: PatternGroupingOptions = { maxDistance: 3, condition: (n,c) => n.size > 5};
   const patsec = _.flatten(await getPatternSequences(versions, points, results, grouping, PATTERN_TYPES, MIN_OCCURRENCE, graphFile));
   patsec.forEach(s => s.version = s.version*2);
 
@@ -123,7 +123,9 @@ async function getPatternSequences(audio: string[], points: any[][],
   mostCommon.forEach((nfs,nfi) =>
     nfs.forEach(nf => nfMap[nf].forEach(([v, p]: [number, number]) => {
       const pattern = results[v].patterns[p];
-      const indexOccs = pointsToIndices([pattern.occurrences], results[v].points)[0];
+      let indexOccs = pointsToIndices([pattern.occurrences], results[v].points)[0];
+      //fill in gaps
+      indexOccs = indexOccs.map(o => _.range(o[0], _.last(o)+1));
       indexOccs.forEach(o => o.forEach(i => i >= 0 ? sequences[v][i].type = nfi+1 : null));
     })
   ));

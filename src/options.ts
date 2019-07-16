@@ -35,15 +35,16 @@ export function getBestGdOptions(resultsDir: string, doubletime?: boolean) {
   const options = getJohanBarsOptions(resultsDir,
     HEURISTICS.SIZE_AND_1D_COMPACTNESS_AXIS2(0), doubletime);
   options.minPatternLength = 3;
-  //options.optimizationMethods = [OPTIMIZATION.PARTITION];
+  options.optimizationHeuristic = HEURISTICS.SIZE_AND_1D_COMPACTNESS(0);
+  options.optimizationMethods = [OPTIMIZATION.PARTITION];
   options.ignoreNovelty = true;
-  options.minHeuristicValue = 0.00001;
+  options.minHeuristicValue = 1//0.00001;
   return options;
 }
 
 export function getJohanBarsOptions(resultsDir: string,
     heuristic: CosiatecHeuristic = HEURISTICS.SIZE_AND_1D_COMPACTNESS(0), doubletime?: boolean) {
-  return getIdentityOptions([FEATURES.MADMOM_BARS, FEATURES.JOHAN_SEVENTHS],
+  return getIdentityOptions([FEATURES.MADMOM_BARS, FEATURES.JOHAN_CHORDS],
     heuristic, resultsDir, doubletime);
 }
 
