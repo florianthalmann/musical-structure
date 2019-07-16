@@ -2,7 +2,7 @@ import * as fs from 'fs';
 import * as _ from 'lodash';
 import { pointsToIndices, ArrayMap, OpsiatecResult } from 'siafun';
 import { GD_AUDIO as GDA, GD_SONG_MAP, GD_PATTERNS, GD_GRAPHS } from './config';
-import { mapSeries, updateStatus, toIndexSeqMap } from './util';
+import { mapSeries, updateStatus, toIndexSeqMap, audioPathToDirName } from './util';
 import { loadJsonFile, initDirRec, getFoldersInFolder } from './file-manager';
 import { createSimilarityPatternGraph, getPatternGroupNFs, getNormalFormsMap,
   PatternGroupingOptions, getConnectednessByVersion } from './pattern-stats';
@@ -35,25 +35,32 @@ var songMap: Map<string, GdVersion[]>;
 const SONGS = ["good lovin'", "sugar magnolia", "me and my uncle"];
 const SONG = SONGS[2];
 
-export async function calculateCompressionDistances(versionsPerSong = 1) {
+export async function calculateCompressionDistances(versionsPerSong = 3) {
   const options = getGdCompressionOptions(GD_PATTERNS);
-  const versions = _.flatten(getTunedSongs().map(s =>
-    getGdVersions(s, undefined, '.wav').slice(0, versionsPerSong)));
-  
-  const individual = getCosiatec(versions, options);
-  
-  const points = await mapSeries(versions, v => getPointsFromAudio(v, options));
-  
-  const combined = await mapSeries(points, (p,i) =>
-    mapSeries(points.slice(i+1), async (q,j) => {
-      updateStatus('  ' + (i+1) + ',' + (j+1));
-      return getInducerWithCaching(versions[i]+'_X_'+versions[j],
-        p.concat(q), options).getCosiatec();
+  const versions = _.flatten(getTunedSongs().map(s => {
+    GD_AUDIO = '/Volumes/gspeed1/florian/musical-structure/thomas/'+s+'/';
+    return getGdVersions(s.split('_').join(' '), undefined, '.wav').slice(0, versionsPerSong)
   }));
-  
+
+  console.log('\nindividual cosiatec');
+  const individual = await getCosiatec(versions, options);
+
+  const points = await mapSeries(versions, v => getPointsFromAudio(v, options));
+
+  console.log('\n\ncombined cosiatec');
+  const pl = points.length;
+  let current = 0;
+  const combined = points.map((p,i) => points.slice(i+1).map((q,j) => {
+      current++;
+      updateStatus('  ' + current + '/' + pl*(pl-1)/2 +  '  ');
+      const cachedir = audioPathToDirName(versions[i])
+        +'_X_'+audioPathToDirName(versions[i+j+1])
+      return getInducerWithCaching(cachedir, p.concat(q), options).getCosiatec();
+  }));
+
   const ncds = combined.map((v,i) => v.map((w,j) =>
-    normCompDist(individual[i], individual[j], w)));
-  console.log(ncds);
+    normCompDist(individual[i], individual[i+j+1], w)));
+  //console.log(ncds);
 }
 
 function normCompDist(a: OpsiatecResult, b: OpsiatecResult, ab: OpsiatecResult) {
