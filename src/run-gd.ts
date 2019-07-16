@@ -6,7 +6,8 @@ import { mapSeries, updateStatus, toIndexSeqMap } from './util';
 import { loadJsonFile, initDirRec, getFoldersInFolder } from './file-manager';
 import { createSimilarityPatternGraph, getPatternGroupNFs, getNormalFormsMap,
   PatternGroupingOptions, getConnectednessByVersion } from './pattern-stats';
-import { getInducerWithCaching, getBestGdOptions, FullOptions, getOptions } from './options';
+import { getInducerWithCaching, getBestGdOptions, getGdCompressionOptions,
+  FullOptions, getOptions } from './options';
 import { FeatureConfig } from './feature-extractor';
 import { getPointsFromAudio, getQuantizedPoints, quantize } from './feature-parser';
 import { toHistogram, getMostCommonPoints } from './histograms';
@@ -34,6 +35,37 @@ var songMap: Map<string, GdVersion[]>;
 const SONGS = ["good lovin'", "sugar magnolia", "me and my uncle"];
 const SONG = SONGS[2];
 
+export async function calculateCompressionDistances(versionsPerSong = 1) {
+  const options = getGdCompressionOptions(GD_PATTERNS);
+  const versions = _.flatten(getTunedSongs().map(s =>
+    getGdVersions(s, undefined, '.wav').slice(0, versionsPerSong)));
+  
+  const individual = getCosiatec(versions, options);
+  
+  const points = await mapSeries(versions, v => getPointsFromAudio(v, options));
+  
+  const combined = await mapSeries(points, (p,i) =>
+    mapSeries(points.slice(i+1), async (q,j) => {
+      updateStatus('  ' + (i+1) + ',' + (j+1));
+      return getInducerWithCaching(versions[i]+'_X_'+versions[j],
+        p.concat(q), options).getCosiatec();
+  }));
+  
+  const ncds = combined.map((v,i) => v.map((w,j) =>
+    normCompDist(individual[i], individual[j], w)));
+  console.log(ncds);
+}
+
+function normCompDist(a: OpsiatecResult, b: OpsiatecResult, ab: OpsiatecResult) {
+  const al = compLength(a);
+  const bl = compLength(b);
+  return (compLength(ab) - Math.min(al, bl)) / Math.max(al, bl);
+}
+
+function compLength(result: OpsiatecResult) {
+  return _.sum(result.patterns.map(p => p.points.length + p.vectors.length));
+}
+
 export async function saveAllSongSequences(offset = 0, skip = 0, total = 10) {
   let songs: [string, GdVersion[]][] = _.toPairs(getGdSongMap());
   songs = _.reverse(_.sortBy(songs, s => s[1].length));
@@ -42,12 +74,16 @@ export async function saveAllSongSequences(offset = 0, skip = 0, total = 10) {
 }
 
 export async function saveThomasSongSequences() {
-  mapSeries(getFoldersInFolder('thomas/')
-      .filter(f => f !== 'temp' && f !== 'studio_reference').slice(13), folder => {
+  mapSeries(getTunedSongs(), folder => {
     GD_AUDIO = '/Volumes/gspeed1/florian/musical-structure/thomas/'+folder+'/';
     const songname = folder.split('_').join(' ');
     return savePatternAndVectorSequences(GD_GRAPHS+songname, true, songname, '.wav');
   });
+}
+
+function getTunedSongs() {
+  return getFoldersInFolder('thomas/')
+    .filter(f => f !== 'temp' && f !== 'studio_reference')
 }
 
 export async function savePatternAndVectorSequences(filebase: string, tryHalftime = false, song = SONG, extension?: string) {
@@ -58,7 +94,7 @@ export async function savePatternAndVectorSequences(filebase: string, tryHalftim
 
   const options = getBestGdOptions(GD_PATTERNS+song+'/');
   const points = await mapSeries(versions, a => getPointsFromAudio(a, options));
-  const results = await getCosiatec(song, versions, options);
+  const results = await getCosiatec(versions, options);
   results.forEach(r => removeNonParallelOccurrences(r));
 
   const MIN_OCCURRENCE = 2;
@@ -67,7 +103,7 @@ export async function savePatternAndVectorSequences(filebase: string, tryHalftim
   if (tryHalftime) {
     const doubleOptions = getBestGdOptions(GD_PATTERNS+song+'/', true);
     const doublePoints = await mapSeries(versions, a => getPointsFromAudio(a, doubleOptions));
-    const doubleResults = await getCosiatec(song, versions, doubleOptions);
+    const doubleResults = await getCosiatec(versions, doubleOptions);
     doubleResults.forEach(r => removeNonParallelOccurrences(r));
 
     const graph = createSimilarityPatternGraph(results.concat(doubleResults), false, null, MIN_OCCURRENCE);
@@ -101,7 +137,7 @@ export async function savePatternSequences(file: string, hubSize: number, append
   const versions = getGdVersions(SONG)//.slice(0,40);
   const graphFile = GD_GRAPHS+SONG+appendix+'.json';
   const points = await mapSeries(versions, a => getPointsFromAudio(a, options));
-  const results = await getCosiatec(SONG, versions, options);
+  const results = await getCosiatec(versions, options);
   results.forEach(r => removeNonParallelOccurrences(r));
   const sequences = await getPatternSequences(versions, points, results, {maxDistance: 3}, 10);
   fs.writeFileSync(file, JSON.stringify(_.flatten(sequences)));
@@ -181,8 +217,7 @@ export async function saveHybridPatternGraphs(appendix = '', count = 1) {
   );
 }
 
-async function getCosiatec(name: string, audioFiles: string[],
-    options = getBestGdOptions(GD_PATTERNS+name+'/'), maxLength?: number) {
+async function getCosiatec(audioFiles: string[], options: FullOptions, maxLength?: number) {
   return mapSeries(audioFiles, async (a,i) => {
     updateStatus('  ' + (i+1) + '/' + audioFiles.length);
     const points = await getPointsFromAudio(a, options);
