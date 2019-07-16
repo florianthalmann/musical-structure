@@ -33,8 +33,10 @@ export function getVariations(minPatternLengths: number[]): [string, any[]][] {
 
 export function getGdCompressionOptions(resultsDir: string) {
   const options = getJohanBarsOptions(resultsDir, HEURISTICS.SIZE_AND_1D_COMPACTNESS(0));
+  //options.optimizationHeuristic = HEURISTICS.SIZE_AND_1D_COMPACTNESS(0);
+  //options.optimizationMethods = [OPTIMIZATION.PARTITION];
+  options.overlapping = false;
   options.minPatternLength = 1;
-  options.overlapping = true;
   return options;
 }
 
