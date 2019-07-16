@@ -51,9 +51,26 @@ export async function calculateCompressionDistances(versionsPerSong = 1) {
         p.concat(q), options).getCosiatec();
   }));
   
-  const ncds = combined.map((v,i) => v.map((w,j) =>
+  //distances
+  let ncds = combined.map((v,i) => v.map((w,j) =>
     normCompDist(individual[i], individual[j], w)));
+  //make symmetric
+  ncds = versions.map((_,i) => versions.map((_,j) =>
+    i < j ? ncds[i][j-i-1] : i > j ? ncds[j][i-j-1] : 0));
   console.log(ncds);
+  
+  //evaluate
+  const classes = versions.map((_,i) => Math.floor(i / versionsPerSong));
+  const predictions = versions.map((v,i) => ncds[i].indexOf(_.min(ncds[i])));
+  const result = _.zipWith(classes, predictions, (c,p) => c == p ? 1 : 0);
+  
+  const totalRate = _.mean(result);
+  //const rate = _.reduce(predictions, (s,p,i) => s += classes[i] == p ? 1 : 0, 0)/predictions.length;
+  const rateByClass = _.range(versions.length/versionsPerSong).map(c =>
+    _.mean(result.slice(c*versionsPerSong, c*versionsPerSong+versionsPerSong)));
+  
+  console.log(rateByClass)
+  console.log(totalRate)
 }
 
 function normCompDist(a: OpsiatecResult, b: OpsiatecResult, ab: OpsiatecResult) {
