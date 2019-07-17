@@ -7,8 +7,8 @@ const YSIZE = false;
 draw();
 async function draw() {
   const svg = d3.select("svg"),
-  width = +svg.attr("width"),
-  height = +svg.attr("height");
+    width = +svg.attr("width"),
+    height = +svg.attr("height");
   
   const tooltip = d3.select("body")
     .append("div")
@@ -26,10 +26,23 @@ async function draw() {
     .force("charge", d3.forceManyBody().strength(-3).distanceMax(1000))//.theta(1))
     .force("center", d3.forceCenter(width / 2, height / 2));*/
   
-  const graph = await d3.json("latest/box of rain-graph.json");//"graphs_jo4_min3/box of rain-graph.json");
-  graph.edges.forEach(e => { e.source = e.source.id; e.target = e.target.id });
+  const files = [
+    "latest/box of rain-hybrid4-0-graph.json",
+    "latest/box of rain-hybrid4-1-graph.json",
+    "latest/box of rain-hybrid4-2-graph.json"
+  ];
+  let fileIndex = 0;
+  let graph;
+  await loadNextGraph();
+  svg.on("click", nextGraph);
   
-  const link = svg.append("g")
+  async function loadNextGraph() {
+    graph = await d3.json(files[fileIndex]);
+    graph.edges.forEach(e => { e.source = e.source.id; e.target = e.target.id });
+    fileIndex = (fileIndex+1)%files.length;
+  }
+  
+  let link = svg.append("g")
     .attr("class", "links")
     .selectAll("line")
     .data(graph.edges)
@@ -37,7 +50,7 @@ async function draw() {
       .attr("stroke", e => e.linear == true ? "black" : "lightgrey")
       .attr("stroke-width", 1);
 
-  const node = svg.append("g")
+  let node = svg.append("g")
     .attr("class", "nodes")
     .selectAll("circle")
     .data(graph.nodes)
@@ -62,6 +75,43 @@ async function draw() {
 
   simulation.force("link")
     .links(graph.edges);
+    
+  async function nextGraph() {
+    await loadNextGraph();
+    
+    link = svg.selectAll("line")
+      .data(graph.edges);
+
+    link.enter().append("line")
+      .attr("stroke", e => e.linear == true ? "black" : "lightgrey")
+
+    link
+      .attr("stroke", e => e.linear == true ? "black" : "lightgrey")
+      .attr("stroke-width", 1);
+
+    link.exit().remove();
+    
+    node = svg.selectAll("circle")
+      .data(graph.nodes);
+
+    node.enter().append("circle")
+      .attr("r", n => Math.sqrt(n.count)*2)
+
+    node
+      .attr("r", n => Math.sqrt(n.count)*2)
+      .attr("fill", e => e.type != null ? d3.hsl((e.type+400)*40, 0.7, 0.5) : "black")
+
+    node.exit().remove();
+    
+    simulation
+      .nodes(graph.nodes)
+      .on("tick", ticked);
+
+    simulation.force("link")
+      .links(graph.edges);
+    
+    simulation.alpha(1).restart();
+  }
 
   function ticked() {
     link

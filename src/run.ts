@@ -2,7 +2,7 @@ import * as _ from 'lodash';
 //import { saveGdHists } from './histograms';
 import { saveHybridPatternGraphs, savePatternSequences, saveVectorSequences,
   savePatternAndVectorSequences, saveAllSongSequences, saveThomasSongSequences,
-  calculateCompressionDistances } from './run-gd';
+  calculateCompressionDistances, analyzeHybridPatternGraphs, calculatePatternSimilarities} from './run-gd';
 import { analyzePatternGraph } from './pattern-stats';
 import { cleanCaches, renameJohanChordFeatures, moveToFeaturesDir } from './file-manager';
 
@@ -24,9 +24,13 @@ import { cleanCaches, renameJohanChordFeatures, moveToFeaturesDir } from './file
 //savePatternSequences("plots/d3/newest/sequences5m.json", 5, "madmom");
 //savePatternAndVectorSequences("plots/d3/latest/goodlovin-johanflobars-double", false);
 //savePatternAndVectorSequences("plots/d3/latest/box of rain", false, "box of rain", ".m4a");
+//saveHybridPatternGraphs("plots/d3/latest/box of rain", "box of rain", ".m4a", 2, 5);
+//analyzeHybridPatternGraphs("plots/d3/latest/box of rain", 3, 5)
+calculatePatternSimilarities();
+
 //saveAllSongSequences(4, 10, 10);
 //saveThomasSongSequences()
-calculateCompressionDistances();
+//calculateCompressionDistances();
 
 //analyzePatternGraph("results/graphs/good lovin'madbarsdouble.json", 10);
 //analyzePatternGraph("results/graphs/good lovin'-hybrid0.json");

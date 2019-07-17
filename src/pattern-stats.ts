@@ -227,7 +227,7 @@ export function createSubsetPatternGraph(resultsByVersion: OpsiatecResult[],
 }
 
 export function createSimilarityPatternGraph(resultsByVersion: OpsiatecResult[],
-    includeVecs: boolean, path?: string, minPatternOcurrence?: number) {
+    includeVecs: boolean, path?: string, minPatternOcurrence?: number, log = false) {
   let graph = createPatternGraph(resultsByVersion, includeVecs,
     (p1, p2) => p1 !== p2 &&
       //topologicallySimilar(p1.npoints, p2.npoints, p1.points, p2.points, p1.id, p2.id, 0.95),
@@ -235,12 +235,18 @@ export function createSimilarityPatternGraph(resultsByVersion: OpsiatecResult[],
       realSimilarSliding(p1.npoints, p2.npoints, p1.points, p2.points, 0.6),
       //similar(p1.points, p2.points, 0.8),
       //realSameButN(p1.points, p2.points, 1),
-    minPatternOcurrence);
+    minPatternOcurrence, log);
   graph = graph.pruneIsolatedNodes();
-  console.log('pruned nodes:', graph.getNodes().length);
+  if (log) console.log('pruned nodes:', graph.getNodes().length);
   //console.log(graph.getEdges().map(e => e.source.id + " - " + e.target.id))
   if (path) saveGraph(path, graph);
   return graph;
+}
+
+export function getPatternSimilarity(result1: OpsiatecResult, result2: OpsiatecResult) {
+  const graph = createSimilarityPatternGraph([result1, result2], false);
+  console.log("similarity:", graph.getEdges().length / (result1.patterns.length + result2.patterns.length), graph.getEdges().length, (result1.patterns.length + result2.patterns.length))
+  return graph.getEdges().length / (result1.patterns.length + result2.patterns.length);
 }
 
 export function getNormalFormsMap(resultsByVersion: OpsiatecResult[]) {
@@ -250,9 +256,9 @@ export function getNormalFormsMap(resultsByVersion: OpsiatecResult[]) {
 
 function createPatternGraph(resultsByVersion: OpsiatecResult[],
     includeVecs: boolean, edgeFunc: (p1: PatternNode, p2: PatternNode) => boolean,
-    minPatternOcurrence?: number) {
+    minPatternOcurrence?: number, log = false) {
   
-  console.log('versions:', resultsByVersion.length);
+  if (log) console.log('versions:', resultsByVersion.length);
   const normsByVersion = includeVecs ? resultsByVersion.map(v =>
     _.flatten(v.patterns.map(p => toVectorNormalForms(p.points, p.vectors))))
     : resultsByVersion.map(v => v.patterns.map(p => toNormalForm(p.points)));
@@ -268,16 +274,16 @@ function createPatternGraph(resultsByVersion: OpsiatecResult[],
   
   return createGraph(_.flatten(normsByVersion.map((v,i) => 
     v.map(n => ({protoId: n, versions: i}))
-  )), edgeFunc, nodeFilter);
+  )), edgeFunc, nodeFilter, log);
 }
 
 export function createGraph(protoNodes: ProtoNode[],
     edgeFunc: (p1: PatternNode, p2: PatternNode) => boolean,
-    nodeFilter?: (p1: PatternNode) => boolean) {
-  console.log('nodes:', protoNodes.length);
+    nodeFilter?: (p1: PatternNode) => boolean, log = false) {
+  if (log) console.log('nodes:', protoNodes.length);
   const grouped = _.groupBy(protoNodes, n => JSON.stringify(n.protoId));
   const ids = _.keys(grouped);
-  console.log('distinct:', ids.length);
+  if (log) console.log('distinct:', ids.length);
   const points = _.zipObject(ids, ids.map(s => stringToPoints(s)));
   const sizes = _.zipObject(ids, ids.map(i => JSON.parse(i).length));
   const combined = _.mapValues(grouped, g => combineProtoNodes(g));
@@ -292,16 +298,16 @@ export function createGraph(protoNodes: ProtoNode[],
   
   if (nodeFilter) {
     nodes = nodes.filter(n => nodeFilter(n));
-    console.log('filtered:', nodes.length);
+    if (log) console.log('filtered:', nodes.length);
   }
   
   const graph = new DirectedGraph(nodes, []);
-  console.log('adding edges...')
+  if (log) console.log('adding edges...')
   const startTime = Date.now();
   nodes.forEach(n => nodes.forEach(m =>
     edgeFunc(n, m) ? graph.addEdge(n, m) : null));
-  console.log('duration:', (Date.now()-startTime)/1000, 'secs');
-  console.log('edges:', graph.getEdges().length);
+  if (log) console.log('duration:', (Date.now()-startTime)/1000, 'secs');
+  if (log) console.log('edges:', graph.getEdges().length);
   return graph;
 }
 
