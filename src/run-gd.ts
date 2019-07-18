@@ -46,10 +46,10 @@ interface GdSweepResult {
 }
 
 export async function sweep() {
-  const songs = [2,3,4,5,6,7,8,9,10];
-  const versions = [5,10,15];
-  //songs.forEach(s => versions.forEach(v => calculatePatternSimilarities(s,v)));
-  songs.forEach(s => versions.forEach(v => calculateCompressionDistances(s,v)));
+  const songs = [2,3];
+  const versions = [5,10];
+  mapSeries(songs, s => mapSeries(versions, v => calculatePatternSimilarities(s,v)));
+  //songs.forEach(s => versions.forEach(v => calculateCompressionDistances(s,v)));
 }
 
 export async function calculatePatternSimilarities(songs = 4, versionsPerSong = 10) {
@@ -77,13 +77,15 @@ export async function calculatePatternSimilarities(songs = 4, versionsPerSong = 
 
 function saveSweepResult(songs: number, versions: number, method: string, result: PredictionResult) {
   const results: GdSweepResult[] = loadJsonFile(SWEEP_FILE) || [];
-  results.push({
-    songCount: songs,
-    versionsPerSong: versions,
-    method: method,
-    result: result
-  })
-  saveJsonFile(SWEEP_FILE, results);
+  if (results.filter(r => r.method === method && r.songCount === songs && r.versionsPerSong === versions).length === 0) {
+    results.push({
+      songCount: songs,
+      versionsPerSong: versions,
+      method: method,
+      result: result
+    })
+    saveJsonFile(SWEEP_FILE, results);
+  }
 }
 
 export async function calculateCompressionDistances(versionsPerSong = 10, songs = 4) {

@@ -2,7 +2,7 @@ import * as _ from 'lodash';
 //import { saveGdHists } from './histograms';
 import { saveHybridPatternGraphs, savePatternSequences, saveVectorSequences,
   savePatternAndVectorSequences, saveAllSongSequences, saveThomasSongSequences,
-  calculateCompressionDistances, analyzeHybridPatternGraphs, calculatePatternSimilarities} from './run-gd';
+  calculateCompressionDistances, analyzeHybridPatternGraphs, calculatePatternSimilarities, sweep} from './run-gd';
 import { analyzePatternGraph } from './pattern-stats';
 import { cleanCaches, renameJohanChordFeatures, moveToFeaturesDir } from './file-manager';
 
@@ -26,7 +26,8 @@ import { cleanCaches, renameJohanChordFeatures, moveToFeaturesDir } from './file
 //savePatternAndVectorSequences("plots/d3/latest/box of rain", false, "box of rain", ".m4a");
 //saveHybridPatternGraphs("plots/d3/latest/box of rain", "box of rain", ".m4a", 2, 5);
 //analyzeHybridPatternGraphs("plots/d3/latest/box of rain", 3, 5)
-calculatePatternSimilarities();
+//calculatePatternSimilarities();
+sweep();
 
 //saveAllSongSequences(4, 10, 10);
 //saveThomasSongSequences()
