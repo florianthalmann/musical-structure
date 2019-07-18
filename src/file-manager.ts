@@ -49,6 +49,10 @@ export function loadJsonFile(path: string) {
   return fs.existsSync(path) ? JSON.parse(fs.readFileSync(path, 'utf8')) : null;
 }
 
+export function saveJsonFile(path: string, content: {}) {
+  fs.writeFileSync(path, JSON.stringify(content));
+}
+
 function saveOutFile(filePath: string, content: string): Promise<any> {
   return new Promise((resolve, reject) => {
     fs.writeFile(filePath, content, err => {

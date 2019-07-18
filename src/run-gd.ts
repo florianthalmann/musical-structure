@@ -1,9 +1,9 @@
 import * as fs from 'fs';
 import * as _ from 'lodash';
 import { pointsToIndices, ArrayMap, OpsiatecResult } from 'siafun';
-import { GD_AUDIO as GDA, GD_SONG_MAP, GD_PATTERNS, GD_GRAPHS } from './config';
+import { GD_AUDIO as GDA, GD_SONG_MAP, GD_PATTERNS, GD_GRAPHS, GD_RESULTS } from './config';
 import { mapSeries, updateStatus, toIndexSeqMap, audioPathToDirName } from './util';
-import { loadJsonFile, initDirRec, getFoldersInFolder } from './file-manager';
+import { loadJsonFile, saveJsonFile, initDirRec, getFoldersInFolder } from './file-manager';
 import { createSimilarityPatternGraph, getPatternGroupNFs, getNormalFormsMap,
   PatternGroupingOptions, getConnectednessByVersion, getPatternSimilarities } from './pattern-stats';
 import { loadGraph } from './graph-theory';
@@ -36,8 +36,27 @@ var songMap: Map<string, GdVersion[]>;
 const SONGS = ["good_lovin'", "me_and_my_uncle", "box_of_rain"];
 const SONG = SONGS[2];
 
-export async function calculatePatternSimilarities(versionsPerSong = 10, songs = 4, file = GD_GRAPHS+'simgraph.8_10_4.json') {
-  const options = getBestGdOptions(GD_PATTERNS)
+const SWEEP_FILE = GD_RESULTS+'sweeps.json';
+
+interface GdSweepResult {
+  songCount: number,
+  versionsPerSong: number,
+  method: string,
+  result: PredictionResult
+}
+
+export async function sweep() {
+  const songs = [2,3,4,5,6,7,8,9,10];
+  const versions = [5,10,15];
+  //songs.forEach(s => versions.forEach(v => calculatePatternSimilarities(s,v)));
+  songs.forEach(s => versions.forEach(v => calculateCompressionDistances(s,v)));
+}
+
+export async function calculatePatternSimilarities(songs = 4, versionsPerSong = 10) {
+  const options = getBestGdOptions(GD_PATTERNS);
+  const method = 'bestgd_jaccard_.6';
+  
+  const graphFile = GD_GRAPHS+method+'_'+songs+'_'+versionsPerSong+'.json';
   const versions = _.flatten(SONGS.slice(0, songs).map(s => {
     GD_AUDIO = '/Users/flo/Projects/Code/FAST/musical-structure/data/'+s+'/';
     const format = s === SONGS[2] ? '.m4a' : '.mp3';
@@ -50,25 +69,27 @@ export async function calculatePatternSimilarities(versionsPerSong = 10, songs =
 
   console.log('\nsongs', songs, 'versions', versionsPerSong, '\n')
 
-  console.log('\nindividual cosiatec');
-  const results = await getCosiatec(versions, options);
-  
-  //similarities
-  let similarities = getPatternSimilarities(results, file);
-  
+  const cosiatecs = await getCosiatec(versions, options);
+  const similarities = getPatternSimilarities(cosiatecs, graphFile);
   const result = predict(versionsPerSong, similarities, _.max);
+  saveSweepResult(songs, versionsPerSong, method, result);
+}
 
-  const totalRate = _.mean(result);
-  //const rate = _.reduce(predictions, (s,p,i) => s += classes[i] == p ? 1 : 0, 0)/predictions.length;
-  const rateByClass = _.range(versions.length/versionsPerSong).map(c =>
-    _.mean(result.slice(c*versionsPerSong, c*versionsPerSong+versionsPerSong)));
-
-  //console.log(rateByClass)
-  console.log(totalRate)
+function saveSweepResult(songs: number, versions: number, method: string, result: PredictionResult) {
+  const results: GdSweepResult[] = loadJsonFile(SWEEP_FILE) || [];
+  results.push({
+    songCount: songs,
+    versionsPerSong: versions,
+    method: method,
+    result: result
+  })
+  saveJsonFile(SWEEP_FILE, results);
 }
 
 export async function calculateCompressionDistances(versionsPerSong = 10, songs = 4) {
   const options = getGdCompressionOptions(GD_PATTERNS);
+  const method = 'ncd_cosiatec_1dcomp';
+  
   const versions = _.flatten(getTunedSongs().slice(0, songs).map(s => {
     GD_AUDIO = '/Volumes/gspeed1/florian/musical-structure/thomas/'+s+'/';
     return getGdVersions(s.split('_').join(' '), undefined, '.wav').slice(0, versionsPerSong)
@@ -100,33 +121,47 @@ export async function calculateCompressionDistances(versionsPerSong = 10, songs 
 
   //evaluate
   const result = predict(versionsPerSong, ncds, _.min);
+  saveSweepResult(songs, versionsPerSong, method, result);
+}
 
-  const totalRate = _.mean(result);
-  //const rate = _.reduce(predictions, (s,p,i) => s += classes[i] == p ? 1 : 0, 0)/predictions.length;
-  const rateByClass = _.range(versions.length/versionsPerSong).map(c =>
-    _.mean(result.slice(c*versionsPerSong, c*versionsPerSong+versionsPerSong)));
-
-  //console.log(rateByClass)
-  console.log(totalRate)
+interface PredictionResult {
+  classes: number[],
+  predictions: number[],
+  indexOfClosest: number[],
+  rateByClass: number[],
+  totalRate: number
 }
 
 /** one-nearest-neighbor predictor */
-function predict(numPerClass: number, distances: number[][], bestFunc: (n: number[]) => number) {
+function predict(numPerClass: number, distances: number[][], bestFunc: (n: number[]) => number): PredictionResult {
   const classes = distances.map((_,i) => Math.floor(i / numPerClass));
   const best = distances.map(s => bestFunc(s));
   const indexesOfBest = distances.map((s,i) =>
     s.map((v,j) => v === best[i] ? j : -1).filter(ii => ii >= 0));
-  const randomBest = indexesOfBest.map(ii => _.sample(ii));
-  const predictions = randomBest.map(p => Math.floor(p / numPerClass));
+  const indexOfClosest = indexesOfBest.map(ii => _.sample(ii));
+  const predictions = indexOfClosest.map(p => Math.floor(p / numPerClass));
   const result = _.zipWith(classes, predictions, (c,p) => c == p ? 1 : 0);
+  
+  const totalRate = _.mean(result);
+  //const rate = _.reduce(predictions, (s,p,i) => s += classes[i] == p ? 1 : 0, 0)/predictions.length;
+  const rateByClass = _.range(distances.length/numPerClass).map(c =>
+    _.mean(result.slice(c*numPerClass, c*numPerClass+numPerClass)));
   
   console.log('\n')
   console.log(''+classes)
-  console.log(''+randomBest)
+  console.log(''+indexOfClosest)
   console.log(''+predictions)
   console.log(''+result)
+  console.log(rateByClass)
+  console.log(totalRate)
   
-  return result;
+  return {
+    classes: classes,
+    predictions: predictions,
+    indexOfClosest: indexOfClosest,
+    rateByClass: rateByClass,
+    totalRate: totalRate
+  };
 }
 
 function normCompDist(a: OpsiatecResult, b: OpsiatecResult, ab: OpsiatecResult) {
