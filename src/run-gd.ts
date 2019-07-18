@@ -5,7 +5,7 @@ import { GD_AUDIO as GDA, GD_SONG_MAP, GD_PATTERNS, GD_GRAPHS } from './config';
 import { mapSeries, updateStatus, toIndexSeqMap, audioPathToDirName } from './util';
 import { loadJsonFile, initDirRec, getFoldersInFolder } from './file-manager';
 import { createSimilarityPatternGraph, getPatternGroupNFs, getNormalFormsMap,
-  PatternGroupingOptions, getConnectednessByVersion, getPatternSimilarity } from './pattern-stats';
+  PatternGroupingOptions, getConnectednessByVersion, getPatternSimilarities } from './pattern-stats';
 import { loadGraph } from './graph-theory';
 import { getInducerWithCaching, getBestGdOptions, getGdCompressionOptions,
   FullOptions, getOptions } from './options';
@@ -36,7 +36,7 @@ var songMap: Map<string, GdVersion[]>;
 const SONGS = ["good_lovin'", "me_and_my_uncle", "box_of_rain"];
 const SONG = SONGS[2];
 
-export async function calculatePatternSimilarities(versionsPerSong = 10, songs = 4) {
+export async function calculatePatternSimilarities(versionsPerSong = 10, songs = 4, file = GD_GRAPHS+'simgraph.8_10_4.json') {
   const options = getBestGdOptions(GD_PATTERNS)
   const versions = _.flatten(SONGS.slice(0, songs).map(s => {
     GD_AUDIO = '/Users/flo/Projects/Code/FAST/musical-structure/data/'+s+'/';
@@ -54,22 +54,9 @@ export async function calculatePatternSimilarities(versionsPerSong = 10, songs =
   const results = await getCosiatec(versions, options);
   
   //similarities
-  let sims = results.map((v,i) => results.slice(i+1).map(w =>
-    getPatternSimilarity(v, w)));
-  //make symmetric
-  sims = versions.map((_,i) => versions.map((_,j) =>
-    i < j ? sims[i][j-i-1] : i > j ? sims[j][i-j-1] : -Infinity));
+  let similarities = getPatternSimilarities(results, file);
   
-  //evaluate
-  const classes = versions.map((_,i) => Math.floor(i / versionsPerSong));
-  const predictions = versions.map((v,i) =>
-    Math.floor(sims[i].indexOf(_.max(sims[i])) / versionsPerSong));
-  const result = _.zipWith(classes, predictions, (c,p) => c == p ? 1 : 0);
-  console.log('\n')
-  console.log(''+classes)
-  console.log(''+versions.map((v,i) => sims[i].indexOf(_.max(sims[i]))))
-  console.log(''+predictions)
-  console.log(''+result)
+  const result = predict(versionsPerSong, similarities, _.max);
 
   const totalRate = _.mean(result);
   //const rate = _.reduce(predictions, (s,p,i) => s += classes[i] == p ? 1 : 0, 0)/predictions.length;
@@ -112,15 +99,7 @@ export async function calculateCompressionDistances(versionsPerSong = 10, songs 
     i < j ? ncds[i][j-i-1] : i > j ? ncds[j][i-j-1] : Infinity));
 
   //evaluate
-  const classes = versions.map((_,i) => Math.floor(i / versionsPerSong));
-  const predictions = versions.map((v,i) =>
-    Math.floor(ncds[i].indexOf(_.min(ncds[i])) / versionsPerSong));
-  const result = _.zipWith(classes, predictions, (c,p) => c == p ? 1 : 0);
-  console.log('\n')
-  console.log(''+classes)
-  console.log(''+versions.map((v,i) => ncds[i].indexOf(_.min(ncds[i]))))
-  console.log(''+predictions)
-  console.log(''+result)
+  const result = predict(versionsPerSong, ncds, _.min);
 
   const totalRate = _.mean(result);
   //const rate = _.reduce(predictions, (s,p,i) => s += classes[i] == p ? 1 : 0, 0)/predictions.length;
@@ -129,6 +108,25 @@ export async function calculateCompressionDistances(versionsPerSong = 10, songs 
 
   //console.log(rateByClass)
   console.log(totalRate)
+}
+
+/** one-nearest-neighbor predictor */
+function predict(numPerClass: number, distances: number[][], bestFunc: (n: number[]) => number) {
+  const classes = distances.map((_,i) => Math.floor(i / numPerClass));
+  const best = distances.map(s => bestFunc(s));
+  const indexesOfBest = distances.map((s,i) =>
+    s.map((v,j) => v === best[i] ? j : -1).filter(ii => ii >= 0));
+  const randomBest = indexesOfBest.map(ii => _.sample(ii));
+  const predictions = randomBest.map(p => Math.floor(p / numPerClass));
+  const result = _.zipWith(classes, predictions, (c,p) => c == p ? 1 : 0);
+  
+  console.log('\n')
+  console.log(''+classes)
+  console.log(''+randomBest)
+  console.log(''+predictions)
+  console.log(''+result)
+  
+  return result;
 }
 
 function normCompDist(a: OpsiatecResult, b: OpsiatecResult, ab: OpsiatecResult) {

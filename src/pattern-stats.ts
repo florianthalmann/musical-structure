@@ -232,7 +232,7 @@ export function createSimilarityPatternGraph(resultsByVersion: OpsiatecResult[],
     (p1, p2) => p1 !== p2 &&
       //topologicallySimilar(p1.npoints, p2.npoints, p1.points, p2.points, p1.id, p2.id, 0.95),
       //realSameButNSliding(p1.npoints, p2.npoints, p1.points, p2.points, 1),
-      realSimilarSliding(p1.npoints, p2.npoints, p1.points, p2.points, 0.6),
+      realSimilarSliding(p1.npoints, p2.npoints, p1.points, p2.points, 0.9),
       //similar(p1.points, p2.points, 0.8),
       //realSameButN(p1.points, p2.points, 1),
     minPatternOcurrence, log);
@@ -243,10 +243,31 @@ export function createSimilarityPatternGraph(resultsByVersion: OpsiatecResult[],
   return graph;
 }
 
-export function getPatternSimilarity(result1: OpsiatecResult, result2: OpsiatecResult) {
-  const graph = createSimilarityPatternGraph([result1, result2], false);
-  console.log("similarity:", graph.getEdges().length / (result1.patterns.length + result2.patterns.length), graph.getEdges().length, (result1.patterns.length + result2.patterns.length))
-  return graph.getEdges().length / (result1.patterns.length + result2.patterns.length);
+export function getPatternSimilarities(results: OpsiatecResult[], file?: string) {
+  //count nodes with multiple versions like edges, ignore one-version edges...
+  let graph: DirectedGraph;
+  if (file) {
+    graph = loadGraph(file);
+  }
+  if (!graph){
+    graph = createSimilarityPatternGraph(results, false, undefined, undefined, true);
+    saveGraph(file, graph);
+  }
+  
+  let sims = results.map((v,i) => results.slice(i+1).map((w,j) => {
+    const identical = (<PatternNode[]>graph.getNodes()).filter(n =>
+      n.versions.indexOf(i) >= 0 && n.versions.indexOf(j+i+1) >= 0);
+    const similar = graph.getEdges().filter(e =>
+      ((<PatternNode>e.source).versions.indexOf(i) >= 0 && (<PatternNode>e.target).versions.indexOf(j+i+1) >= 0)
+      || ((<PatternNode>e.target).versions.indexOf(i) >= 0 && (<PatternNode>e.source).versions.indexOf(j+i+1) >= 0));
+    return identical.length + similar.length/// / (v.patterns.length + w.patterns.length);
+  }));
+  
+  //make symmetric
+  sims = results.map((_,i) => results.map((_,j) =>
+    i < j ? sims[i][j-i-1] : i > j ? sims[j][i-j-1] : -Infinity));
+  
+  return sims;
 }
 
 export function getNormalFormsMap(resultsByVersion: OpsiatecResult[]) {

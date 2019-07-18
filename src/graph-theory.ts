@@ -216,6 +216,8 @@ export function saveGraph(path: string, graph: DirectedGraph) {
 }
 
 export function loadGraph(path: string): DirectedGraph {
-  const json = JSON.parse(fs.readFileSync(path, 'utf8'));
-  return new DirectedGraph(json.nodes, json.edges);
+  if (fs.existsSync(path)) {
+    const json = JSON.parse(fs.readFileSync(path, 'utf8'));
+    return new DirectedGraph(json.nodes, json.edges);
+  }
 }
