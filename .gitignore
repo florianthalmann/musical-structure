@@ -14,6 +14,8 @@ plots/graph_visuals.py
 plots/d3/new*
 plots/d3/latest
 plots/d3/graphs*
+plots/sweeps.json
+plots/gdplots
 
 *.ipynb
 
