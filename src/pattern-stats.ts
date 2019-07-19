@@ -254,14 +254,18 @@ export function getPatternSimilarities(results: OpsiatecResult[], file?: string,
     saveGraph(file, graph);
   }
 
-  let sims = results.map((v,i) => results.slice(i+1).map((w,j) => {
-    const identical = (<PatternNode[]>graph.getNodes()).filter(n =>
-      n.versions.indexOf(i) >= 0 && n.versions.indexOf(j+i+1) >= 0);
-    const similar = graph.getEdges().filter(e =>
-      ((<PatternNode>e.source).versions.indexOf(i) >= 0 && (<PatternNode>e.target).versions.indexOf(j+i+1) >= 0)
-      || ((<PatternNode>e.target).versions.indexOf(i) >= 0 && (<PatternNode>e.source).versions.indexOf(j+i+1) >= 0));
-    return identical.length + similar.length/// / (v.patterns.length + w.patterns.length);
-  }));
+  let sims = results.map((_,i) => {
+    const iNodes = (<PatternNode[]>graph.getNodes()).filter(n => n.versions.indexOf(i) >= 0);
+    const iEdges = graph.getEdges().filter(e =>
+      (<PatternNode>e.source).versions.indexOf(i) >= 0 || (<PatternNode>e.target).versions.indexOf(i) >= 0);
+    return results.slice(i+1).map((_,j) => {
+      const identical = iNodes.filter(n => n.versions.indexOf(j+i+1) >= 0);
+      const similar = iEdges.filter(e =>
+        ((<PatternNode>e.source).versions.indexOf(i) >= 0 && (<PatternNode>e.target).versions.indexOf(j+i+1) >= 0)
+        || ((<PatternNode>e.target).versions.indexOf(i) >= 0 && (<PatternNode>e.source).versions.indexOf(j+i+1) >= 0));
+      return identical.length + similar.length/// / (v.patterns.length + w.patterns.length);
+    })
+  });
 
   //make symmetric
   sims = results.map((_,i) => results.map((_,j) =>
