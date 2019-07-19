@@ -81,7 +81,7 @@ function getBestPatternGroup(graph: DirectedGraph, options: PatternGroupingOptio
   }
   const adjacents = getAdjacents(graph, options.maxDistance, options.condition);
   adjacents.sort((a,b) => ratingFunc(b)-ratingFunc(a));
-  
+
   console.log(adjacents[0].center.id, adjacents[0].members.length, ratingFunc(adjacents[0]));
   return _.concat([adjacents[0].center], adjacents[0].members);
 }
@@ -91,10 +91,10 @@ function getAdjacents(graph: DirectedGraph, maxDistance?: number,
   const nodes = <PatternNode[]>graph.getNodes();
   let adjacents = <PatternNode[][]>nodes.map(n =>
     maxDistance ? graph.getAdjacents(n, maxDistance) : []);
-  if (condition) adjacents = 
+  if (condition) adjacents =
     adjacents.map((a,i) => a.filter(n => condition(n, nodes[i])));
   return nodes.map((n,i) =>({
-    center: n, 
+    center: n,
     members: adjacents[i],
     totalCount: n.count + _.sum(adjacents[i].map(m => m.count))
   }));
@@ -108,17 +108,17 @@ export function analyzePatternGraph(path: string, top = 5) {
   console.log('edges:', graph.getEdges().length);
   nodes.sort((a,b) => b.count-a.count);
   console.log('most common:', nodes.slice(0,top).map(n => n.count + ': ' + n.id));
-  
+
   const adjacents = getBestPatternGroup(graph, {rating: PATTERN_RATING.COUNT});
   console.log('most adjacent:', adjacents.slice(0,top).map(a => a[2] + ', ' + a[0].count + ': ' + a[0].id));
-  
+
   /*const neighbors = <PatternNode[][]>nodes.map(n => graph.getNeighbors(n));
   counts = neighbors.map(as => _.sum(as.map(n => n.count)));
   counts = _.zipWith(nodes, counts, (n,c) => (n.count + c)/n.size);
   nc = _.zip(nodes, counts);
   nc.sort((a,b) => b[1]-a[1]);
   console.log('most direct neighbors:', nc.slice(0,5));
-  
+
   const recNeighbors = <PatternNode[][]>nodes.map(n =>
     graph.getNeighbors(n, 3));
   counts = recNeighbors.map(as => _.sum(as.map(n => n.count)));
@@ -137,20 +137,20 @@ export function createSimilaritySegmentGraph(path: string,
   const patternGraph = createSimilarityPatternGraph(resultsByVersion, false);
   const normsByVersion = resultsByVersion.map(v =>
     _.zipObject(v.patterns.map(p => JSON.stringify(toNormalForm(p.points))), v.patterns));
-  
+
   //TODO THESE WILL BE GROUPS OF SIMILARS SOON!!!!!! so simulate now...
   const bestPatterns = <PatternNode[]>patternGraph.getNodes();
   bestPatterns.sort((a,b) => b.count-a.count);
-  
-  
+
+
   const nodes: SegmentNode[][] =
     resultsByVersion.map((v,i) =>
       v.points.map(p => ({id: i+", "+p, point: p, version: i})));
   const nodesByVersionByPoint = nodes.map(v =>
     _.zipObject(v.map(n => JSON.stringify(n.point)), v));
-  
+
   let graph = new DirectedGraph(_.flatten(nodes), []);
-  
+
   //TODO NOW ADD REMAINING SUCCESSIVE NODE CONNECTIONS....
   resultsByVersion.forEach((v,vi) => v.points.forEach((p,pi) => {
     if (pi > 0) {
@@ -160,12 +160,12 @@ export function createSimilaritySegmentGraph(path: string,
         graph.addEdge(previous, current)["linear"] = true;
     }
   }));
-  
+
   console.log(bestPatterns.length)
-  
+
   bestPatterns.forEach(pn => {
     //TODO HERE MAKE UNION OF PATTERNS SOON
-    
+
     const pointGroups = pn.points.map(p => _.flatten(pn.versions.map(v => {
       const pattern = normsByVersion[v][pn.id];
       //get pos of norm point in pattern
@@ -175,22 +175,22 @@ export function createSimilaritySegmentGraph(path: string,
       //get points from nodesByVersionByPoint
       return ps.map(p => nodesByVersionByPoint[v][JSON.stringify(p)]);
     })));
-    
+
     //now connect all groups of associated points
     /*pointGroups.forEach(pg => pg.forEach(p => pg.forEach(q =>
       p !== q ? graph.addEdge(p, q) : null
     )));*/
-    
+
     pointGroups.forEach(pg => graph.contract(pg));
   });
-  
+
   //TODO REMOVE AT SOME POINT?
   graph = graph.pruneIsolatedNodes();
-  
+
   const remainingNodes = graph.getNodes();
   const remainingNodesMaps = nodesByVersionByPoint.map(v =>
     _.pickBy(v, n => remainingNodes.indexOf(n) >= 0));
-  
+
   /*//TODO NOW ADD REMAINING SUCCESSIVE NODE CONNECTIONS....
   resultsByVersion.forEach((v,vi) => v.points.forEach((p,pi) => {
     if (pi > 0) {
@@ -200,11 +200,11 @@ export function createSimilaritySegmentGraph(path: string,
         graph.addEdge(previous, current)["linear"] = true;
     }
   }));*/
-  
+
   /*const cliques = _.groupBy(graph.getMaximalCliques(), c => c.length);
   const sizes = _.reverse(_.sortBy(_.keys(cliques), c => parseInt(c)));
   sizes.slice(0,1).forEach(s => cliques[s].forEach(c => graph.contract(c)));*/
-  
+
   saveGraph(path, graph);
 }
 
@@ -231,8 +231,8 @@ export function createSimilarityPatternGraph(resultsByVersion: OpsiatecResult[],
   let graph = createPatternGraph(resultsByVersion, includeVecs,
     (p1, p2) => p1 !== p2 &&
       //topologicallySimilar(p1.npoints, p2.npoints, p1.points, p2.points, p1.id, p2.id, 0.95),
-      //realSameButNSliding(p1.npoints, p2.npoints, p1.points, p2.points, 1),
-      realSimilarSliding(p1.npoints, p2.npoints, p1.points, p2.points, 0.9),
+      realSameButNSliding(p1.npoints, p2.npoints, p1.points, p2.points, 1),
+      //realSimilarSliding(p1.npoints, p2.npoints, p1.points, p2.points, 0.8),
       //similar(p1.points, p2.points, 0.8),
       //realSameButN(p1.points, p2.points, 1),
     minPatternOcurrence, log);
@@ -243,17 +243,17 @@ export function createSimilarityPatternGraph(resultsByVersion: OpsiatecResult[],
   return graph;
 }
 
-export function getPatternSimilarities(results: OpsiatecResult[], file?: string) {
+export function getPatternSimilarities(results: OpsiatecResult[], file?: string, mpo = 1) {
   //count nodes with multiple versions like edges, ignore one-version edges...
   let graph: DirectedGraph;
   if (file) {
     graph = loadGraph(file);
   }
   if (!graph){
-    graph = createSimilarityPatternGraph(results, false, undefined, undefined, true);
+    graph = createSimilarityPatternGraph(results, false, undefined, mpo, true);
     saveGraph(file, graph);
   }
-  
+
   let sims = results.map((v,i) => results.slice(i+1).map((w,j) => {
     const identical = (<PatternNode[]>graph.getNodes()).filter(n =>
       n.versions.indexOf(i) >= 0 && n.versions.indexOf(j+i+1) >= 0);
@@ -262,11 +262,11 @@ export function getPatternSimilarities(results: OpsiatecResult[], file?: string)
       || ((<PatternNode>e.target).versions.indexOf(i) >= 0 && (<PatternNode>e.source).versions.indexOf(j+i+1) >= 0));
     return identical.length + similar.length/// / (v.patterns.length + w.patterns.length);
   }));
-  
+
   //make symmetric
   sims = results.map((_,i) => results.map((_,j) =>
     i < j ? sims[i][j-i-1] : i > j ? sims[j][i-j-1] : -Infinity));
-  
+
   return sims;
 }
 
@@ -278,22 +278,22 @@ export function getNormalFormsMap(resultsByVersion: OpsiatecResult[]) {
 function createPatternGraph(resultsByVersion: OpsiatecResult[],
     includeVecs: boolean, edgeFunc: (p1: PatternNode, p2: PatternNode) => boolean,
     minPatternOcurrence?: number, log = false) {
-  
+
   if (log) console.log('versions:', resultsByVersion.length);
   const normsByVersion = includeVecs ? resultsByVersion.map(v =>
     _.flatten(v.patterns.map(p => toVectorNormalForms(p.points, p.vectors))))
     : resultsByVersion.map(v => v.patterns.map(p => toNormalForm(p.points)));
-  
+
   //just in case... remove later
   /*const cc = normsByVersion.map(n => _.countBy(n.map(n => JSON.stringify(n))));
   cc.forEach((c,i) => //console.log(_.values(c).filter(c => c > 1)))
     _.forEach(c, (v,k) => v > 1 ? console.log(i, v, k) : null));*/
-    
-  
+
+
   const nodeFilter = minPatternOcurrence ?
     (n: PatternNode) => n.count >= minPatternOcurrence : undefined;
-  
-  return createGraph(_.flatten(normsByVersion.map((v,i) => 
+
+  return createGraph(_.flatten(normsByVersion.map((v,i) =>
     v.map(n => ({protoId: n, versions: i}))
   )), edgeFunc, nodeFilter, log);
 }
@@ -316,12 +316,12 @@ export function createGraph(protoNodes: ProtoNode[],
       count: grouped[i].length,
       size: sizes[i]
     }, combined[i]));
-  
+
   if (nodeFilter) {
     nodes = nodes.filter(n => nodeFilter(n));
     if (log) console.log('filtered:', nodes.length);
   }
-  
+
   const graph = new DirectedGraph(nodes, []);
   if (log) console.log('adding edges...')
   const startTime = Date.now();
@@ -430,7 +430,7 @@ function realSimilarCardinality<T>(s1: T[], s2: T[], ratio: number) {
 function topologicallySimilar(s1: number[][], s2: number[][], s1s: string[], s2s: string[], s1nf: string, s2nf: string, ratio: number) {
   const t1 = getTopology(s1, s1s, s1nf);
   const t2 = getTopology(s2, s2s, s2nf);
-  
+
   const minIsect = Math.ceil((s1.length+s2.length)/2 * ratio);
   if (Math.min(s1.length, s2.length) >= minIsect) {
     //not perfect but a good measure (works less well for smaller sets)
@@ -445,7 +445,7 @@ function topologicallySimilar(s1: number[][], s2: number[][], s1s: string[], s2s
 //4, 6 ---- 8/10     3-> 6/10
 
 /*
-1 0 
+1 0
 2 1
 3 3
 4 6*/

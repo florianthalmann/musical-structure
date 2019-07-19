@@ -46,33 +46,51 @@ interface GdSweepResult {
 }
 
 export async function sweep() {
-  const songs = [2,3];
-  const versions = [5,10];
-  mapSeries(songs, s => mapSeries(versions, v => calculatePatternSimilarities(s,v)));
-  //songs.forEach(s => versions.forEach(v => calculateCompressionDistances(s,v)));
+  //compression limits: 2/120, 3/100, 5/50, 10/20, 19/10
+  //!for simgraphs
+  const songs = [5,10,15,19];
+  const versions = [10,20,30,50,60,70,80,90,100];
+  //!for both (first fast jaccard and sbn)
+  /* songs = [11,12,13,14,15,16,17,18,19];
+  const versions = [5,10];*/
+  /* songs = [2,3,4,5,6,7,8,9,10];
+  const versions = [5,10,15,20];*/
+  /*const songs = [2,3,4,5];
+  const versions = [10,20,30,50];*/
+  /* songs = [2,3];
+  const versions = [5,10,15,20];*/
+  //mapSeries(songs, s => mapSeries(versions, v => calculatePatternSimilarities(s,v)));
+  mapSeries(songs, s => mapSeries(versions, v => calculateCompressionDistances(s,v)));
 }
 
 export async function calculatePatternSimilarities(songs = 4, versionsPerSong = 10) {
   const options = getBestGdOptions(GD_PATTERNS);
-  const method = 'bestgd_jaccard_.6';
-  
+  const method = 'bestgd_sbn2'//'bestgd_jaccard2_.8';
+  const minOccs = 2;
+  if (sweepResultExists(songs, versionsPerSong,  method)) return;
+
   const graphFile = GD_GRAPHS+method+'_'+songs+'_'+versionsPerSong+'.json';
-  const versions = _.flatten(SONGS.slice(0, songs).map(s => {
+  /*const versions = _.flatten(SONGS.slice(0, songs).map(s => {
     GD_AUDIO = '/Users/flo/Projects/Code/FAST/musical-structure/data/'+s+'/';
     const format = s === SONGS[2] ? '.m4a' : '.mp3';
     return getGdVersions(s.split('_').join(' '), undefined, format).slice(0, versionsPerSong)
-  }));
-  /*const versions = _.flatten(getTunedSongs().slice(0, songs).map(s => {
+  }));*/
+  const versions = _.flatten(getTunedSongs().slice(0, songs).map(s => {
     GD_AUDIO = '/Volumes/gspeed1/florian/musical-structure/thomas/'+s+'/';
     return getGdVersions(s.split('_').join(' '), undefined, '.wav').slice(0, versionsPerSong)
-  }));*/
+  }));
 
-  console.log('\nsongs', songs, 'versions', versionsPerSong, '\n')
+  console.log('\n', method, 'songs', songs, 'versions', versionsPerSong, '\n')
 
   const cosiatecs = await getCosiatec(versions, options);
-  const similarities = getPatternSimilarities(cosiatecs, graphFile);
+  const similarities = getPatternSimilarities(cosiatecs, graphFile, minOccs);
   const result = predict(versionsPerSong, similarities, _.max);
   saveSweepResult(songs, versionsPerSong, method, result);
+}
+
+function sweepResultExists(songs: number, versions: number, method: string) {
+  const results: GdSweepResult[] = loadJsonFile(SWEEP_FILE) || [];
+  return results.filter(r => r.method === method && r.songCount === songs && r.versionsPerSong === versions).length;
 }
 
 function saveSweepResult(songs: number, versions: number, method: string, result: PredictionResult) {
@@ -88,16 +106,17 @@ function saveSweepResult(songs: number, versions: number, method: string, result
   }
 }
 
-export async function calculateCompressionDistances(versionsPerSong = 10, songs = 4) {
+export async function calculateCompressionDistances(songs = 4, versionsPerSong = 10) {
   const options = getGdCompressionOptions(GD_PATTERNS);
   const method = 'ncd_cosiatec_1dcomp';
-  
+  if (sweepResultExists(songs, versionsPerSong,  method)) return;
+
   const versions = _.flatten(getTunedSongs().slice(0, songs).map(s => {
     GD_AUDIO = '/Volumes/gspeed1/florian/musical-structure/thomas/'+s+'/';
     return getGdVersions(s.split('_').join(' '), undefined, '.wav').slice(0, versionsPerSong)
   }));
 
-  console.log('\nsongs', songs, 'versions', versionsPerSong, '\n')
+  console.log('\n', method, 'songs', songs, 'versions', versionsPerSong, '\n')
 
   console.log('\nindividual cosiatec');
   const individual = await getCosiatec(versions, options);
@@ -143,12 +162,12 @@ function predict(numPerClass: number, distances: number[][], bestFunc: (n: numbe
   const indexOfClosest = indexesOfBest.map(ii => _.sample(ii));
   const predictions = indexOfClosest.map(p => Math.floor(p / numPerClass));
   const result = _.zipWith(classes, predictions, (c,p) => c == p ? 1 : 0);
-  
+
   const totalRate = _.mean(result);
   //const rate = _.reduce(predictions, (s,p,i) => s += classes[i] == p ? 1 : 0, 0)/predictions.length;
   const rateByClass = _.range(distances.length/numPerClass).map(c =>
     _.mean(result.slice(c*numPerClass, c*numPerClass+numPerClass)));
-  
+
   console.log('\n')
   console.log(''+classes)
   console.log(''+indexOfClosest)
@@ -156,7 +175,7 @@ function predict(numPerClass: number, distances: number[][], bestFunc: (n: numbe
   console.log(''+result)
   console.log(rateByClass)
   console.log(totalRate)
-  
+
   return {
     classes: classes,
     predictions: predictions,

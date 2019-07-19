@@ -27,11 +27,12 @@ import { cleanCaches, renameJohanChordFeatures, moveToFeaturesDir } from './file
 //saveHybridPatternGraphs("plots/d3/latest/box of rain", "box of rain", ".m4a", 2, 5);
 //analyzeHybridPatternGraphs("plots/d3/latest/box of rain", 3, 5)
 //calculatePatternSimilarities();
+
 sweep();
 
 //saveAllSongSequences(4, 10, 10);
 //saveThomasSongSequences()
-//calculateCompressionDistances();
+///calculateCompressionDistances(19, 10);
 
 //analyzePatternGraph("results/graphs/good lovin'madbarsdouble.json", 10);
 //analyzePatternGraph("results/graphs/good lovin'-hybrid0.json");
