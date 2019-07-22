@@ -48,25 +48,25 @@ interface GdSweepResult {
 export async function sweep() {
   //compression limits: 2/120, 3/100, 5/50, 10/20, 19/10
   //!for simgraphs
-  const songs = [5,10,15,19];
+  /*const songs = [2,3,5,10,15,19];
   const versions = [10,20,30,50,60,70,80,90,100];
-  //!for both (first fast jaccard and sbn)
-  /* songs = [11,12,13,14,15,16,17,18,19];
-  const versions = [5,10];*/
-  /* songs = [2,3,4,5,6,7,8,9,10];
-  const versions = [5,10,15,20];*/
+  //!for both (first fast jaccard and sbn)*/
+  /*const songs = [2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19];
+  const versions = [10];*/
+  /*const songs = [2,3,4,5,6,7,8,9,10];
+  const versions = [5,10,15,20];
   /*const songs = [2,3,4,5];
   const versions = [10,20,30,50];*/
-  /* songs = [2,3];
-  const versions = [5,10,15,20];*/
+  const songs = [2,3];
+  const versions = [10,20,30,50,60,70,80,90,100];
   //mapSeries(songs, s => mapSeries(versions, v => calculatePatternSimilarities(s,v)));
-  mapSeries(songs, s => mapSeries(versions, v => calculateCompressionDistances(s,v)));
+  mapSeries(versions, v => mapSeries(songs, s => calculateCompressionDistances(s,v)));
 }
 
 export async function calculatePatternSimilarities(songs = 4, versionsPerSong = 10) {
   const options = getBestGdOptions(GD_PATTERNS);
-  const method = 'bestgd_sbn2'//'bestgd_jaccard2_.8';
-  const minOccs = 2;
+  const method = 'bestgd_jaccard_.6';//'bestgd_sbn2'
+  const minOccs = 1;
   if (sweepResultExists(songs, versionsPerSong,  method)) return;
 
   const graphFile = GD_GRAPHS+method+'_'+songs+'_'+versionsPerSong+'.json';
@@ -108,7 +108,7 @@ function saveSweepResult(songs: number, versions: number, method: string, result
 
 export async function calculateCompressionDistances(songs = 4, versionsPerSong = 10) {
   const options = getGdCompressionOptions(GD_PATTERNS);
-  const method = 'ncd_cosiatec_1dcomp';
+  const method = 'ncd_cosiatec_1dcompaxis';
   if (sweepResultExists(songs, versionsPerSong,  method)) return;
 
   const versions = _.flatten(getTunedSongs().slice(0, songs).map(s => {

@@ -32,7 +32,7 @@ export function getVariations(minPatternLengths: number[]): [string, any[]][] {
 }
 
 export function getGdCompressionOptions(resultsDir: string) {
-  const options = getJohanBarsOptions(resultsDir, HEURISTICS.SIZE_AND_1D_COMPACTNESS(0));
+  const options = getJohanBarsOptions(resultsDir, HEURISTICS.SIZE_AND_1D_COMPACTNESS_AXIS2(0));
   //options.optimizationHeuristic = HEURISTICS.SIZE_AND_1D_COMPACTNESS(0);
   //options.optimizationMethods = [OPTIMIZATION.PARTITION];
   options.overlapping = false;
@@ -48,6 +48,11 @@ export function getBestGdOptions(resultsDir: string, doubletime?: boolean) {
   options.optimizationMethods = [OPTIMIZATION.PARTITION];
   options.ignoreNovelty = true;
   options.minHeuristicValue = 1//0.00001;
+  /*options.minPatternLength = 3;
+  options.optimizationHeuristic = HEURISTICS.SIZE_AND_1D_COMPACTNESS(0);
+  options.optimizationMethods = [OPTIMIZATION.PARTITION];
+  options.ignoreNovelty = true;
+  options.minHeuristicValue = 1//0.00001;*/
   return options;
 }
 

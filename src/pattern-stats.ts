@@ -231,8 +231,8 @@ export function createSimilarityPatternGraph(resultsByVersion: OpsiatecResult[],
   let graph = createPatternGraph(resultsByVersion, includeVecs,
     (p1, p2) => p1 !== p2 &&
       //topologicallySimilar(p1.npoints, p2.npoints, p1.points, p2.points, p1.id, p2.id, 0.95),
-      realSameButNSliding(p1.npoints, p2.npoints, p1.points, p2.points, 1),
-      //realSimilarSliding(p1.npoints, p2.npoints, p1.points, p2.points, 0.8),
+      //realSameButNSliding(p1.npoints, p2.npoints, p1.points, p2.points, 1),
+      realSimilarSliding(p1.npoints, p2.npoints, p1.points, p2.points, 0.6),
       //similar(p1.points, p2.points, 0.8),
       //realSameButN(p1.points, p2.points, 1),
     minPatternOcurrence, log);
