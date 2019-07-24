@@ -74,10 +74,15 @@ export async function saveSimilarities(graphFile: string, numVersions: number) {
   saveJsonFile(graphFile.replace('.json', '-dists.json'), distances);
 }
 
-export async function calculatePatternSimilarities(songs = 4, versionsPerSong = 10) {
+export async function sweep2() {
+  console.log(getTunedSongs())
+  await calculatePatternSimilarities(1, 888, 8);
+}
+
+export async function calculatePatternSimilarities(songs = 4, versionsPerSong = 10, offset = 0) {
   const options = getBestGdOptions(GD_PATTERNS);
-  const method = 'bestgd_jaccard_.6';//'bestgd_sbn2'
-  const minOccs = 1;
+  const method = 'bestgd_jaccard2_.8';//'bestgd_sbn2'
+  const minOccs = 2;
   if (sweepResultExists(songs, versionsPerSong,  method)) return;
 
   const graphFile = GD_GRAPHS+method+'_'+songs+'_'+versionsPerSong+'.json';
@@ -86,7 +91,7 @@ export async function calculatePatternSimilarities(songs = 4, versionsPerSong = 
     const format = s === SONGS[2] ? '.m4a' : '.mp3';
     return getGdVersions(s.split('_').join(' '), undefined, format).slice(0, versionsPerSong)
   }));*/
-  const versions = _.flatten(getTunedSongs().slice(0, songs).map(s => {
+  const versions = _.flatten(getTunedSongs().slice(offset, offset+songs).map(s => {
     GD_AUDIO = '/Volumes/gspeed1/florian/musical-structure/thomas/'+s+'/';
     return getGdVersions(s.split('_').join(' '), undefined, '.wav').slice(0, versionsPerSong)
   }));
@@ -94,6 +99,8 @@ export async function calculatePatternSimilarities(songs = 4, versionsPerSong = 
   console.log('\n', method, 'songs', songs, 'versions', versionsPerSong, '\n')
 
   const cosiatecs = await getCosiatec(versions, options);
+  saveJsonFile(GD_RESULTS+'cosiatecs888', cosiatecs)
+
   const similarities = getPatternSimilarities(cosiatecs, graphFile, minOccs);
   const result = predict(versionsPerSong, similarities, _.max);
   saveSweepResult(songs, versionsPerSong, method, result);

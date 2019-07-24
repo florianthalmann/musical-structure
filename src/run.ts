@@ -3,7 +3,7 @@ import * as _ from 'lodash';
 import { saveHybridPatternGraphs, savePatternSequences, saveVectorSequences,
   savePatternAndVectorSequences, saveAllSongSequences, saveThomasSongSequences,
   calculateCompressionDistances, analyzeHybridPatternGraphs, calculatePatternSimilarities,
-  sweep, saveSimilarities, savePS} from './run-gd';
+  sweep, saveSimilarities, savePS, sweep2} from './run-gd';
 import { analyzePatternGraph } from './pattern-stats';
 import { cleanCaches, renameJohanChordFeatures, moveToFeaturesDir } from './file-manager';
 
@@ -32,6 +32,8 @@ savePatternAndVectorSequences("plots/d3/latest/box of rain", false, "box of rain
 //sweep();
 //saveSimilarities('plots/d3/graphs_jo4_min3/bestgd_jaccard_.8_1_555.json', 56)
 //savePS('plots/d3/latest/cosmic charlie 2', 'plots/d3/graphs_jo4_min3/cosiatecs555.json', 'plots/d3/graphs_jo4_min3/bestgd_jaccard_.8_1_555.json')
+
+sweep2();
 
 //saveAllSongSequences(4, 10, 10);
 //saveThomasSongSequences()
