@@ -227,7 +227,7 @@ export function createSubsetPatternGraph(resultsByVersion: OpsiatecResult[],
 }
 
 export function createSimilarityPatternGraph(resultsByVersion: OpsiatecResult[],
-    includeVecs: boolean, path?: string, minPatternOcurrence?: number, log = false) {
+    includeVecs: boolean, path?: string, minPatternOcurrence?: number, log = true) {
   let graph = createPatternGraph(resultsByVersion, includeVecs,
     (p1, p2) => p1 !== p2 &&
       //topologicallySimilar(p1.npoints, p2.npoints, p1.points, p2.points, p1.id, p2.id, 0.95),
@@ -269,7 +269,7 @@ export function getPatternSimilarities(results: OpsiatecResult[], file?: string,
 
   //make symmetric
   sims = results.map((_,i) => results.map((_,j) =>
-    i < j ? sims[i][j-i-1] : i > j ? sims[j][i-j-1] : -Infinity));
+    i < j ? sims[i][j-i-1] : i > j ? sims[j][i-j-1] : 0));
 
   return sims;
 }

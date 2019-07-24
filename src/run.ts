@@ -2,7 +2,8 @@ import * as _ from 'lodash';
 //import { saveGdHists } from './histograms';
 import { saveHybridPatternGraphs, savePatternSequences, saveVectorSequences,
   savePatternAndVectorSequences, saveAllSongSequences, saveThomasSongSequences,
-  calculateCompressionDistances, analyzeHybridPatternGraphs, calculatePatternSimilarities, sweep} from './run-gd';
+  calculateCompressionDistances, analyzeHybridPatternGraphs, calculatePatternSimilarities,
+  sweep, saveSimilarities, savePS} from './run-gd';
 import { analyzePatternGraph } from './pattern-stats';
 import { cleanCaches, renameJohanChordFeatures, moveToFeaturesDir } from './file-manager';
 
@@ -23,12 +24,14 @@ import { cleanCaches, renameJohanChordFeatures, moveToFeaturesDir } from './file
 //saveVectorSequences("plots/d3/newest/qmtrans.json")
 //savePatternSequences("plots/d3/newest/sequences5m.json", 5, "madmom");
 //savePatternAndVectorSequences("plots/d3/latest/goodlovin-johanflobars-double", false);
-//savePatternAndVectorSequences("plots/d3/latest/box of rain", false, "box of rain", ".m4a");
+savePatternAndVectorSequences("plots/d3/latest/box of rain", false, "box of rain", ".m4a");
 //saveHybridPatternGraphs("plots/d3/latest/box of rain", "box of rain", ".m4a", 2, 5);
 //analyzeHybridPatternGraphs("plots/d3/latest/box of rain", 3, 5)
 //calculatePatternSimilarities();
 
-sweep();
+//sweep();
+//saveSimilarities('plots/d3/graphs_jo4_min3/bestgd_jaccard_.8_1_555.json', 56)
+//savePS('plots/d3/latest/cosmic charlie 2', 'plots/d3/graphs_jo4_min3/cosiatecs555.json', 'plots/d3/graphs_jo4_min3/bestgd_jaccard_.8_1_555.json')
 
 //saveAllSongSequences(4, 10, 10);
 //saveThomasSongSequences()

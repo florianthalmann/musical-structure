@@ -63,6 +63,17 @@ export async function sweep() {
   mapSeries(versions, v => mapSeries(songs, s => calculateCompressionDistances(s,v)));
 }
 
+export async function saveSimilarities(graphFile: string, numVersions: number) {
+  const similarities = getPatternSimilarities(_.times(numVersions, _.constant(null)), graphFile);
+  const max = _.max(_.flatten(similarities));
+  const distances = similarities.map(s => s.map(v => v != null ? 1-(v/max) : 0));
+  const sums = distances.map(d => _.sum(d));
+  const normal = sums.indexOf(_.min(sums));
+  const weird = sums.indexOf(_.max(sums));
+  console.log(normal, weird);
+  saveJsonFile(graphFile.replace('.json', '-dists.json'), distances);
+}
+
 export async function calculatePatternSimilarities(songs = 4, versionsPerSong = 10) {
   const options = getBestGdOptions(GD_PATTERNS);
   const method = 'bestgd_jaccard_.6';//'bestgd_sbn2'
@@ -232,6 +243,22 @@ export async function analyzeHybridPatternGraphs(filebase: string, size = 2, cou
   graphs.forEach(g => {getPatternGroupNFs(g, grouping, 5); console.log()});
 }
 
+export async function savePS(filebase: string, cosiatecFile: string, graphFile: string) {
+  const file = filebase+"-seqs.json";
+  const results: OpsiatecResult[] = loadJsonFile(cosiatecFile);
+  const points = results.map(r => r.points);
+  
+  const MIN_OCCURRENCE = 2;
+  const PATTERN_TYPES = 10;
+
+  const grouping: PatternGroupingOptions = { maxDistance: 5, condition: (n,c) => n.size > 5};
+  const patsec = _.flatten(await getPatternSequences([], points, results, grouping, PATTERN_TYPES, MIN_OCCURRENCE, graphFile));
+  
+  //TODO TAKE MOST CONNECTED ONES :)
+
+  fs.writeFileSync(file, JSON.stringify(patsec));
+}
+
 export async function savePatternAndVectorSequences(filebase: string, tryHalftime = false, song = SONG, extension?: string) {
   const file = filebase+"-seqs.json";
   const graphFile = filebase+"-graph.json";
@@ -244,7 +271,7 @@ export async function savePatternAndVectorSequences(filebase: string, tryHalftim
   results.forEach(r => removeNonParallelOccurrences(r));
 
   const MIN_OCCURRENCE = 2;
-  const PATTERN_TYPES = 10;
+  const PATTERN_TYPES = 20;
 
   if (tryHalftime) {
     const doubleOptions = getBestGdOptions(GD_PATTERNS, true);
@@ -266,16 +293,16 @@ export async function savePatternAndVectorSequences(filebase: string, tryHalftim
     })
   }
 
-  const vecsec = _.flatten(await getVectorSequences(versions, points, options, PATTERN_TYPES));
-  vecsec.forEach(s => s.version = s.version*2+1);
+  /*const vecsec = _.flatten(await getVectorSequences(versions, points, options, PATTERN_TYPES));
+  vecsec.forEach(s => s.version = s.version*2+1);*/
 
-  const grouping: PatternGroupingOptions = { maxDistance: 3, condition: (n,c) => n.size > 5};
+  const grouping: PatternGroupingOptions = { maxDistance: 4, condition: (n,c) => n.size > 6};
   const patsec = _.flatten(await getPatternSequences(versions, points, results, grouping, PATTERN_TYPES, MIN_OCCURRENCE, graphFile));
-  patsec.forEach(s => s.version = s.version*2);
+  //patsec.forEach(s => s.version = s.version*2);
 
   //TODO TAKE MOST CONNECTED ONES :)
 
-  fs.writeFileSync(file, JSON.stringify(_.union(vecsec, patsec)));
+  fs.writeFileSync(file, JSON.stringify(patsec))//_.union(vecsec, patsec)));
 }
 
 export async function savePatternSequences(file: string, hubSize: number, appendix = '') {

@@ -16,6 +16,7 @@ plots/d3/latest
 plots/d3/graphs*
 plots/sweeps.json
 plots/gdplots
+plots/sweeps*
 
 *.ipynb
 
