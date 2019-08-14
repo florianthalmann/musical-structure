@@ -2,8 +2,10 @@ import * as _ from 'lodash';
 //import { saveGdHists } from './histograms';
 import { saveHybridPatternGraphs, savePatternSequences, saveVectorSequences,
   savePatternAndVectorSequences, saveAllSongSequences, saveThomasSongSequences,
-  calculateCompressionDistances, analyzeHybridPatternGraphs, calculatePatternSimilarities,
-  sweep, saveSimilarities, savePS, sweep2} from './run-gd';
+  analyzeHybridPatternGraphs, savePS} from './run-gd';
+import { calculateCompressionDistances, calculatePatternSimilarities,
+  sweep, saveSimilarities, sweep2} from './run-gd-dists';
+
 import { analyzePatternGraph } from './pattern-stats';
 import { cleanCaches, renameJohanChordFeatures, moveToFeaturesDir } from './file-manager';
 
