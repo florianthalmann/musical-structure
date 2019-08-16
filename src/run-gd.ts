@@ -8,7 +8,7 @@ import { createSimilarityPatternGraph, getPatternGroupNFs, getNormalFormsMap,
   PatternGroupingOptions, getConnectednessByVersion } from './pattern-stats';
 import { loadGraph } from './graph-theory';
 import { getOptionsWithCaching, getBestGdOptions, getGdSwOptions,
-  FullOptions, FullSWOptions, getOptions } from './options';
+  FullSIAOptions, FullSWOptions, getOptions } from './options';
 import { FeatureConfig } from './feature-extractor';
 import { getPointsFromAudio, getQuantizedPoints, quantize } from './feature-parser';
 import { toHistogram, getMostCommonPoints } from './histograms';
@@ -102,7 +102,7 @@ export async function saveSWPatternAndVectorSequences(filebase: string, tryHalft
   const versions = getGdVersions(song, undefined, extension)//.slice(0,40);
   console.log("\n"+song+" "+versions.length+"\n")
 
-  const options = getGdSwOptions();
+  const options = getGdSwOptions(GD_PATTERNS);
   const points = await mapSeries(versions, a => getPointsFromAudio(a, options));
   const results = await getSmithWatermanFromAudio(versions, options);
 
@@ -238,7 +238,7 @@ export async function saveVectorSequences(file: string, typeCount?: number) {
   fs.writeFileSync(file, JSON.stringify(_.flatten(sequences)));
 }
 
-async function getVectorSequences(audio: string[], points: any[][], options: FullOptions, typeCount = 3): Promise<VisualsPoint[][]> {
+async function getVectorSequences(audio: string[], points: any[][], options: FullSIAOptions, typeCount = 3): Promise<VisualsPoint[][]> {
   const quantPoints = points.map(p => quantize(p, options));
   const atemporalPoints = quantPoints.map(v => v.map(p => p.slice(1)));
   const pointMap = toIndexSeqMap(atemporalPoints, JSON.stringify);
@@ -265,13 +265,12 @@ export async function getSmithWatermanFromAudio(audioFiles: string[], options: F
     updateStatus('  ' + (i+1) + '/' + audioFiles.length);
     const points = await getPointsFromAudio(a, options);
     if (!maxLength || points.length < maxLength) {
-      options.cacheFile = 'plots/gdplots/sw/gd-matrix'+i+'.json';
-      return getSmithWaterman(points, options);
+      return getSmithWaterman(points, getOptionsWithCaching(a, options));
     }
   });
 }
 
-export async function getCosiatecFromAudio(audioFiles: string[], options: FullOptions, maxLength?: number) {
+export async function getCosiatecFromAudio(audioFiles: string[], options: FullSIAOptions, maxLength?: number) {
   return mapSeries(audioFiles, async (a,i) => {
     updateStatus('  ' + (i+1) + '/' + audioFiles.length);
     const points = await getPointsFromAudio(a, options);
@@ -349,11 +348,11 @@ function getRandomTuples<T>(array: T[], size = 2): T[][] {
   })
 }*/
 
-function getGdQuantizedPoints(song: string, options: FullOptions) {
+function getGdQuantizedPoints(song: string, options: FullSIAOptions) {
   return mapSeries(getGdVersions(song), a => getQuantizedPoints(a, options));
 }
 
-function getGdPoints(song: string, options: FullOptions) {
+function getGdPoints(song: string, options: FullSIAOptions) {
   return mapSeries(getGdVersions(song), a => getPointsFromAudio(a, options));
 }
 

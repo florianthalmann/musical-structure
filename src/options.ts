@@ -1,24 +1,22 @@
 import * as fs from 'fs';
 import * as _ from 'lodash';
-import { StructureOptions, StructureSWOptions, ArrayMap, CosiatecHeuristic,
-  QUANT_FUNCS as QF, HEURISTICS, OPTIMIZATION } from 'siafun';
+import { OpsiatecOptions, SmithWatermanOptions, ArrayMap, CosiatecHeuristic,
+  CacheableStructureOptions, QUANT_FUNCS as QF, HEURISTICS, OPTIMIZATION } from 'siafun';
 import { audioPathToDirName } from './util';
 import { initDirRec } from './file-manager';
 import { FeatureConfig, FEATURES } from './feature-extractor';
 
-export interface FullOptions extends StructureOptions {
+interface FeatureOptions {
   selectedFeatures: FeatureConfig[],
   seventhChords?: boolean,
   doubletime?: boolean
 }
 
-export interface FullSWOptions extends StructureSWOptions {
-  selectedFeatures: FeatureConfig[],
-  seventhChords?: boolean,
-  doubletime?: boolean
-}
+export interface FullSIAOptions extends OpsiatecOptions, FeatureOptions {}
 
-const STANDARD_OPTIONS: FullOptions = {
+export interface FullSWOptions extends SmithWatermanOptions, FeatureOptions {}
+
+const STANDARD_OPTIONS: FullSIAOptions = {
   selectedFeatures: [],
   overlapping: true,
   optimizationDimension: 0,
@@ -57,11 +55,12 @@ export function getGdCompressionOptions(resultsDir: string) {
   return options;
 }
 
-export function getGdSwOptions(doubletime?: boolean) {
+export function getGdSwOptions(resultsDir: string, doubletime?: boolean) {
   const options = _.clone(SW_OPTIONS);
   options.selectedFeatures = [FEATURES.MADMOM_BARS, FEATURES.JOHAN_CHORDS];
   options.quantizerFunctions = [QF.ORDER(), QF.IDENTITY()];
   options.doubletime = doubletime;
+  addCacheDir(options, resultsDir, options.selectedFeatures, '', doubletime);
   return options;
 }
 
@@ -117,19 +116,24 @@ export function getSummaryOptions(features: FeatureConfig[], dims: number,
 }
 
 export function getOptions(features: FeatureConfig[], quantizerFuncs: ArrayMap[],
-  doubletime?: boolean, heuristic?: CosiatecHeuristic, cacheDir?: string, dims = ''): FullOptions {
+  doubletime?: boolean, heuristic?: CosiatecHeuristic, resultsDir?: string, dims = ''): FullSIAOptions {
   const options = _.clone(STANDARD_OPTIONS);
   options.selectedFeatures = features;
   options.quantizerFunctions = quantizerFuncs;
   options.selectionHeuristic = heuristic;
   options.optimizationHeuristic = heuristic;
   options.doubletime = doubletime;
-  if (cacheDir) {
+  addCacheDir(options, resultsDir, features, dims, doubletime);
+  return options;
+}
+
+function addCacheDir(options: CacheableStructureOptions, baseDir: string,
+    features: FeatureConfig[], dims = '', doubletime?: boolean) {
+  if (baseDir) {
     //!!folder name should contain features and quantfuncs. everything else cached
-    options.cacheDir = generateCacheDir(cacheDir, features, dims, doubletime);
+    options.cacheDir = generateCacheDir(baseDir, features, dims, doubletime);
     fs.existsSync(options.cacheDir) || initDirRec(options.cacheDir);
   }
-  return options;
 }
 
 function generateCacheDir(baseDir: string, features: FeatureConfig[], dims = '', doubletime?: boolean) {
@@ -138,7 +142,7 @@ function generateCacheDir(baseDir: string, features: FeatureConfig[], dims = '',
   return baseDir + features[1].name + dims + features[0].name + addition+'/' //e.g. chroma4beatsdouble
 }
 
-export function getOptionsWithCaching(audio: string, options: FullOptions) {
+export function getOptionsWithCaching<T extends CacheableStructureOptions>(audio: string, options: T) {
   options = _.clone(options);
   options.cacheDir = options.cacheDir+audioPathToDirName(audio)+'/';
   fs.existsSync(options.cacheDir) || fs.mkdirSync(options.cacheDir);
