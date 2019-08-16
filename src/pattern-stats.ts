@@ -1,5 +1,5 @@
 import * as _ from 'lodash';
-import { OpsiatecResult } from 'siafun';
+import { StructureResult } from 'siafun';
 import { compareArrays } from 'arrayutils';
 import { DirectedGraph, Node, saveGraph, loadGraph } from './graph-theory';
 import { toIndexSeqMap } from './util';
@@ -131,7 +131,7 @@ export function analyzePatternGraph(path: string, top = 5) {
 
 
 export function createSimilaritySegmentGraph(path: string,
-    resultsByVersion: OpsiatecResult[]) {
+    resultsByVersion: StructureResult[]) {
   //first strings of segments with seq edge type
   //then connections based on pattern graph
   const patternGraph = createSimilarityPatternGraph(resultsByVersion, false);
@@ -216,7 +216,7 @@ export function createHistogramGraph(histograms: number[][][][], path?: string) 
   if (path) saveGraph(path, graph);
 }
 
-export function createSubsetPatternGraph(resultsByVersion: OpsiatecResult[],
+export function createSubsetPatternGraph(resultsByVersion: StructureResult[],
     includeVecs: boolean, path?: string) {
   let graph = createPatternGraph(resultsByVersion, includeVecs,
     (p1, p2) => realSubset2(p1.points, p2.points));
@@ -226,7 +226,7 @@ export function createSubsetPatternGraph(resultsByVersion: OpsiatecResult[],
   return graph;
 }
 
-export function createSimilarityPatternGraph(resultsByVersion: OpsiatecResult[],
+export function createSimilarityPatternGraph(resultsByVersion: StructureResult[],
     includeVecs: boolean, path?: string, minPatternOcurrence?: number, log = true) {
   let graph = createPatternGraph(resultsByVersion, includeVecs,
     (p1, p2) => p1 !== p2 &&
@@ -243,7 +243,7 @@ export function createSimilarityPatternGraph(resultsByVersion: OpsiatecResult[],
   return graph;
 }
 
-export function getPatternSimilarities(results: OpsiatecResult[], file?: string, mpo = 1) {
+export function getPatternSimilarities(results: StructureResult[], file?: string, mpo = 1) {
   //count nodes with multiple versions like edges, ignore one-version edges...
   let graph: DirectedGraph;
   if (file) {
@@ -274,12 +274,12 @@ export function getPatternSimilarities(results: OpsiatecResult[], file?: string,
   return sims;
 }
 
-export function getNormalFormsMap(resultsByVersion: OpsiatecResult[]) {
+export function getNormalFormsMap(resultsByVersion: StructureResult[]) {
   const points = resultsByVersion.map(v => v.patterns.map(p => p.points));
   return toIndexSeqMap(points, p => JSON.stringify(toNormalForm(p)));
 }
 
-function createPatternGraph(resultsByVersion: OpsiatecResult[],
+function createPatternGraph(resultsByVersion: StructureResult[],
     includeVecs: boolean, edgeFunc: (p1: PatternNode, p2: PatternNode) => boolean,
     minPatternOcurrence?: number, log = false) {
 

@@ -1,13 +1,13 @@
 import * as fs from 'fs';
 import * as _ from 'lodash';
-import { getCosiatecOptionsString, HEURISTICS } from 'siafun';
+import { getCosiatecOptionsString, getCosiatecIndexOccurrences, HEURISTICS } from 'siafun';
 import { SALAMI_AUDIO, SALAMI_ANNOTATIONS, SALAMI_RESULTS } from './config';
 import { getFeatures } from './feature-extractor';
 import { getVampValues, getPoints } from './feature-parser';
 import { Annotation, getAnnotations } from './salami-parser';
 import { mapSeries, printPatterns, cartesianProduct, updateStatus } from './util';
 import { mapToTimegrid, normalize } from './pattern-stats';
-import { FullOptions, getInducerWithCaching, getJohanBarsOptions,
+import { FullOptions, getOptionsWithCaching, getJohanBarsOptions,
   getChromaBeatsOptions, getVariations } from './options';
 import { evaluate } from './eval';
 
@@ -82,8 +82,7 @@ async function evaluateSalamiFile(filename: number, groundtruth: Annotation[], o
   const points = getPoints(features, options);
   
   if (!maxLength || points.length < maxLength) {
-    const result = await getInducerWithCaching(audio, points, options)
-      .getCosiatecIndexOccurrences();
+    const result = getCosiatecIndexOccurrences(points, getOptionsWithCaching(audio, options));
     const occurrences = result.occurrences;
     
     if (options.loggingLevel >= 0) console.log('    evaluating', filename);

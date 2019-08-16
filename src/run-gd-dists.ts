@@ -1,12 +1,12 @@
 import * as _ from 'lodash';
-import { OpsiatecResult } from 'siafun';
+import { OpsiatecResult, getCosiatec } from 'siafun';
 import { GD_PATTERNS, GD_GRAPHS, GD_RESULTS } from './config';
 import { mapSeries, updateStatus } from './util';
 import { loadJsonFile, saveJsonFile } from './file-manager';
 import { getPatternSimilarities } from './pattern-stats';
-import { getInducerWithCaching, getBestGdOptions, getGdCompressionOptions } from './options';
+import { getOptionsWithCaching, getBestGdOptions, getGdCompressionOptions } from './options';
 import { getPointsFromAudio } from './feature-parser';
-import { getSelectedTunedSongs, getHybridCacheDir, getCosiatec } from './run-gd';
+import { getSelectedTunedSongs, getHybridCacheDir, getCosiatecFromAudio } from './run-gd';
 
 const SWEEP_FILE = GD_RESULTS+'sweeps.json';
 
@@ -66,7 +66,7 @@ export async function calculatePatternSimilarities(songs = 4, versionsPerSong = 
 
   console.log('\n', method, 'songs', songs, 'versions', versionsPerSong, '\n')
 
-  const cosiatecs = await getCosiatec(versions, options);
+  const cosiatecs = await getCosiatecFromAudio(versions, options);
   saveJsonFile(GD_RESULTS+'cosiatecs888', cosiatecs)
 
   const similarities = getPatternSimilarities(cosiatecs, graphFile, minOccs);
@@ -102,7 +102,7 @@ export async function calculateCompressionDistances(songs = 4, versionsPerSong =
   console.log('\n', method, 'songs', songs, 'versions', versionsPerSong, '\n')
 
   console.log('\nindividual cosiatec');
-  const individual = await getCosiatec(versions, options);
+  const individual = await getCosiatecFromAudio(versions, options);
 
   const points = await mapSeries(versions, v => getPointsFromAudio(v, options));
 
@@ -113,7 +113,7 @@ export async function calculateCompressionDistances(songs = 4, versionsPerSong =
       current++;
       updateStatus('  ' + current + '/' + pl*(pl-1)/2 +  '  ');
       const cachedir = getHybridCacheDir(versions[i], versions[i+j+1]);
-      return getInducerWithCaching(cachedir, p.concat(q), options).getCosiatec();
+      return getCosiatec(p.concat(q), getOptionsWithCaching(cachedir, options));
   }));
 
   //distances

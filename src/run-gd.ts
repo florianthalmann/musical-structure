@@ -1,14 +1,14 @@
 import * as fs from 'fs';
 import * as _ from 'lodash';
-import { pointsToIndices, ArrayMap, OpsiatecResult } from 'siafun';
+import { pointsToIndices, ArrayMap, StructureResult, getCosiatec, getSmithWaterman } from 'siafun';
 import { GD_AUDIO as GDA, GD_SONG_MAP, GD_PATTERNS, GD_GRAPHS } from './config';
 import { mapSeries, updateStatus, toIndexSeqMap, audioPathToDirName } from './util';
 import { loadJsonFile, initDirRec, getFoldersInFolder } from './file-manager';
 import { createSimilarityPatternGraph, getPatternGroupNFs, getNormalFormsMap,
   PatternGroupingOptions, getConnectednessByVersion } from './pattern-stats';
 import { loadGraph } from './graph-theory';
-import { getInducerWithCaching, getBestGdOptions,
-  FullOptions, getOptions } from './options';
+import { getOptionsWithCaching, getBestGdOptions, getGdSwOptions,
+  FullOptions, FullSWOptions, getOptions } from './options';
 import { FeatureConfig } from './feature-extractor';
 import { getPointsFromAudio, getQuantizedPoints, quantize } from './feature-parser';
 import { toHistogram, getMostCommonPoints } from './histograms';
@@ -82,7 +82,7 @@ export async function analyzeHybridPatternGraphs(filebase: string, size = 2, cou
 
 export async function savePS(filebase: string, cosiatecFile: string, graphFile: string) {
   const file = filebase+"-seqs.json";
-  const results: OpsiatecResult[] = loadJsonFile(cosiatecFile);
+  const results: StructureResult[] = loadJsonFile(cosiatecFile);
   const points = results.map(r => r.points);
   
   const MIN_OCCURRENCE = 2;
@@ -96,6 +96,50 @@ export async function savePS(filebase: string, cosiatecFile: string, graphFile: 
   fs.writeFileSync(file, JSON.stringify(patsec));
 }
 
+export async function saveSWPatternAndVectorSequences(filebase: string, tryHalftime = false, song = SONG, extension?: string) {
+  const file = filebase+"-seqs.json";
+  const graphFile = filebase+"-graph.json";
+  const versions = getGdVersions(song, undefined, extension)//.slice(0,40);
+  console.log("\n"+song+" "+versions.length+"\n")
+
+  const options = getGdSwOptions();
+  const points = await mapSeries(versions, a => getPointsFromAudio(a, options));
+  const results = await getSmithWatermanFromAudio(versions, options);
+
+  const MIN_OCCURRENCE = 2;
+  const PATTERN_TYPES = 20;
+
+  /*if (tryHalftime) {
+    const doubleOptions = getGdSwOptions(true);
+    const doublePoints = await mapSeries(versions, a => getPointsFromAudio(a, doubleOptions));
+    const doubleResults = await getSmithWatermanFromAudio(versions, doubleOptions);
+    
+    const graph = createSimilarityPatternGraph(results.concat(doubleResults), false, null, MIN_OCCURRENCE);
+    let conn = getConnectednessByVersion(graph);
+    //console.log(conn)
+    //conn = conn.map((c,v) => c / points.concat(doublePoints)[v].length);
+    //console.log(conn)
+    versions.forEach((_,i) => {
+      if (conn[i+versions.length] > conn[i]) {
+        console.log("version", i, "is better analyzed doubletime");
+        points[i] = doublePoints[i];
+        results[i] = doubleResults[i];
+      }
+    })
+  }*/
+
+  /*const vecsec = _.flatten(await getVectorSequences(versions, points, options, PATTERN_TYPES));
+  vecsec.forEach(s => s.version = s.version*2+1);*/
+
+  const grouping: PatternGroupingOptions = { maxDistance: 4, condition: (n,c) => n.size > 6};
+  const patsec = _.flatten(await getPatternSequences(versions, points, results, grouping, PATTERN_TYPES, MIN_OCCURRENCE, graphFile));
+  //patsec.forEach(s => s.version = s.version*2);
+
+  //TODO TAKE MOST CONNECTED ONES :)
+
+  fs.writeFileSync(file, JSON.stringify(patsec))//_.union(vecsec, patsec)));
+}
+
 export async function savePatternAndVectorSequences(filebase: string, tryHalftime = false, song = SONG, extension?: string) {
   const file = filebase+"-seqs.json";
   const graphFile = filebase+"-graph.json";
@@ -104,7 +148,7 @@ export async function savePatternAndVectorSequences(filebase: string, tryHalftim
 
   const options = getBestGdOptions(GD_PATTERNS);
   const points = await mapSeries(versions, a => getPointsFromAudio(a, options));
-  const results = await getCosiatec(versions, options);
+  const results = await getCosiatecFromAudio(versions, options);
   results.forEach(r => removeNonParallelOccurrences(r));
 
   const MIN_OCCURRENCE = 2;
@@ -113,7 +157,7 @@ export async function savePatternAndVectorSequences(filebase: string, tryHalftim
   if (tryHalftime) {
     const doubleOptions = getBestGdOptions(GD_PATTERNS, true);
     const doublePoints = await mapSeries(versions, a => getPointsFromAudio(a, doubleOptions));
-    const doubleResults = await getCosiatec(versions, doubleOptions);
+    const doubleResults = await getCosiatecFromAudio(versions, doubleOptions);
     doubleResults.forEach(r => removeNonParallelOccurrences(r));
 
     const graph = createSimilarityPatternGraph(results.concat(doubleResults), false, null, MIN_OCCURRENCE);
@@ -147,7 +191,7 @@ export async function savePatternSequences(file: string, hubSize: number, append
   const versions = getGdVersions(SONG)//.slice(0,40);
   const graphFile = GD_GRAPHS+SONG+appendix+'.json';
   const points = await mapSeries(versions, a => getPointsFromAudio(a, options));
-  const results = await getCosiatec(versions, options);
+  const results = await getCosiatecFromAudio(versions, options);
   results.forEach(r => removeNonParallelOccurrences(r));
   const sequences = await getPatternSequences(versions, points, results, {maxDistance: 3}, 10);
   fs.writeFileSync(file, JSON.stringify(_.flatten(sequences)));
@@ -155,7 +199,7 @@ export async function savePatternSequences(file: string, hubSize: number, append
 }
 
 async function getPatternSequences(audio: string[], points: any[][],
-    results: OpsiatecResult[], groupingOptions: PatternGroupingOptions,
+    results: StructureResult[], groupingOptions: PatternGroupingOptions,
     typeCount = 10, minCount = 2, path?: string): Promise<VisualsPoint[][]> {
   const sequences = results.map((v,i) => v.points.map((p,j) =>
     ({version:i, index:j, type:0, point:p, path: audio[i],
@@ -178,7 +222,7 @@ async function getPatternSequences(audio: string[], points: any[][],
   return sequences;
 }
 
-function removeNonParallelOccurrences(results: OpsiatecResult, dimIndex = 0) {
+function removeNonParallelOccurrences(results: StructureResult, dimIndex = 0) {
   results.patterns.forEach(p => {
     const parallel = p.vectors.map(v => v.every((d,i) => i == dimIndex || d == 0));
     p.vectors = p.vectors.filter((_,i) => parallel[i]);
@@ -216,12 +260,23 @@ export async function saveGdHists(features: FeatureConfig[], quantFuncs: ArrayMa
   fs.writeFileSync(filename, JSON.stringify(hists));
 }
 
-export async function getCosiatec(audioFiles: string[], options: FullOptions, maxLength?: number) {
+export async function getSmithWatermanFromAudio(audioFiles: string[], options: FullSWOptions, maxLength?: number) {
   return mapSeries(audioFiles, async (a,i) => {
     updateStatus('  ' + (i+1) + '/' + audioFiles.length);
     const points = await getPointsFromAudio(a, options);
     if (!maxLength || points.length < maxLength) {
-      return getInducerWithCaching(a, points, options).getCosiatec();
+      options.cacheFile = 'plots/gdplots/sw/gd-matrix'+i+'.json';
+      return getSmithWaterman(points, options);
+    }
+  });
+}
+
+export async function getCosiatecFromAudio(audioFiles: string[], options: FullOptions, maxLength?: number) {
+  return mapSeries(audioFiles, async (a,i) => {
+    updateStatus('  ' + (i+1) + '/' + audioFiles.length);
+    const points = await getPointsFromAudio(a, options);
+    if (!maxLength || points.length < maxLength) {
+      return getCosiatec(points, getOptionsWithCaching(a, options));
     }
   });
 }
@@ -232,8 +287,8 @@ async function getHybridCosiatec(name: string, size: number, index: number, audi
   return mapSeries(tuples, async (tuple,i) => {
     updateStatus('  ' + (i+1) + '/' + tuples.length);
     const points = await Promise.all(tuple.map(p => getPointsFromAudio(p, options)));
-    return getInducerWithCaching(getHybridCacheDir(...tuple),
-      _.flatten(points), options).getCosiatec()
+    return getCosiatec(_.flatten(points),
+      getOptionsWithCaching(getHybridCacheDir(...tuple), options));
   })
 }
 

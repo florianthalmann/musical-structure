@@ -1,12 +1,18 @@
 import * as fs from 'fs';
 import * as _ from 'lodash';
-import { StructureInducer, StructureOptions, ArrayMap, CosiatecHeuristic,
+import { StructureOptions, StructureSWOptions, ArrayMap, CosiatecHeuristic,
   QUANT_FUNCS as QF, HEURISTICS, OPTIMIZATION } from 'siafun';
 import { audioPathToDirName } from './util';
 import { initDirRec } from './file-manager';
 import { FeatureConfig, FEATURES } from './feature-extractor';
 
 export interface FullOptions extends StructureOptions {
+  selectedFeatures: FeatureConfig[],
+  seventhChords?: boolean,
+  doubletime?: boolean
+}
+
+export interface FullSWOptions extends StructureSWOptions {
   selectedFeatures: FeatureConfig[],
   seventhChords?: boolean,
   doubletime?: boolean
@@ -23,6 +29,17 @@ const STANDARD_OPTIONS: FullOptions = {
   //minHeuristicValue: .1,
 }
 
+const SW_OPTIONS: FullSWOptions = {
+  selectedFeatures: null,
+  quantizerFunctions: null,
+  iterative: false,//true,
+  //similarityThreshold: .99,
+  minSegmentLength: 5, //stop when segment length below this
+  maxThreshold: 10, //stop when max value below this
+  endThreshold: 0,
+  onlyDiagonals: true
+}
+
 export function getVariations(minPatternLengths: number[]): [string, any[]][] {
   return [
     ["optimizationMethods", [[], [OPTIMIZATION.PARTITION], [OPTIMIZATION.DIVIDE], [OPTIMIZATION.MINIMIZE]]],
@@ -37,6 +54,14 @@ export function getGdCompressionOptions(resultsDir: string) {
   //options.optimizationMethods = [OPTIMIZATION.PARTITION];
   options.overlapping = false;
   options.minPatternLength = 1;
+  return options;
+}
+
+export function getGdSwOptions(doubletime?: boolean) {
+  const options = _.clone(SW_OPTIONS);
+  options.selectedFeatures = [FEATURES.MADMOM_BARS, FEATURES.JOHAN_CHORDS];
+  options.quantizerFunctions = [QF.ORDER(), QF.IDENTITY()];
+  options.doubletime = doubletime;
   return options;
 }
 
@@ -113,9 +138,9 @@ function generateCacheDir(baseDir: string, features: FeatureConfig[], dims = '',
   return baseDir + features[1].name + dims + features[0].name + addition+'/' //e.g. chroma4beatsdouble
 }
 
-export function getInducerWithCaching(audio: string, points: number[][], options: FullOptions) {
+export function getOptionsWithCaching(audio: string, options: FullOptions) {
   options = _.clone(options);
   options.cacheDir = options.cacheDir+audioPathToDirName(audio)+'/';
   fs.existsSync(options.cacheDir) || fs.mkdirSync(options.cacheDir);
-  return new StructureInducer(points, options);
+  return options;
 }

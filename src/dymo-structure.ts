@@ -1,7 +1,8 @@
 import * as math from 'mathjs';
 import * as _ from 'lodash';
 import { SuperDymoStore, uris } from 'dymo-core';
-import { StructureInducer, IterativeSmithWatermanResult, Similarity, Quantizer, SmithWaterman, Hierarchizer, Segmentation } from 'siafun'
+import { getSmithWaterman, getStructure, getCosiatecIndexOccurrences,
+  IterativeSmithWatermanResult, Similarity, Quantizer, SmithWaterman, Hierarchizer } from 'siafun'
 import { mapSeries, printPatterns, printPatternSegments } from './util';
 
 export class DymoStructureInducer {
@@ -29,7 +30,7 @@ export class DymoStructureInducer {
   async addStructureToDymo(dymoUri, options) {
     var surfaceDymos = await this.getAllParts([dymoUri]);
     var points = await this.toVectors(surfaceDymos, false, true);
-    var patterns = new StructureInducer(points, options).getCosiatecIndexOccurrences().occurrences;
+    var patterns = getCosiatecIndexOccurrences(points, options).occurrences;
     patterns = patterns.filter(p => p[0].length > 1);
     printPatterns(_.cloneDeep(patterns));
     printPatternSegments(_.cloneDeep(patterns));
@@ -64,7 +65,7 @@ export class DymoStructureInducer {
   async addStructureToDymo2(dymoUri, options) {
     var surfaceDymos = await this.getAllParts([dymoUri]);
     var points = await this.toVectors(surfaceDymos, false, true);
-    var structure = new StructureInducer(points, options).getStructure();
+    var structure = getStructure(points, options);
 
     await this.store.removeParts(dymoUri);
     var features = await this.store.findAllObjects(surfaceDymos[0], uris.HAS_FEATURE)
@@ -81,7 +82,7 @@ export class DymoStructureInducer {
     zipped.sort((a,b) => a[1][2]-b[1][2]);
     [surfaceDymos, points] = <[string[], number[][]]>_.unzip(zipped);
     //console.log(JSON.stringify(new StructureInducer(points, options).getSmithWaterman()));
-    let result = new StructureInducer(points, options).getSmithWatermanOccurrences(options);
+    let result = getSmithWaterman(points, options);
     await this.createStructure(result.segments, dymoUri, surfaceDymos);
     return result;
   }
