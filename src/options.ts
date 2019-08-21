@@ -30,10 +30,11 @@ const STANDARD_OPTIONS: FullSIAOptions = {
 const SW_OPTIONS: FullSWOptions = {
   selectedFeatures: null,
   quantizerFunctions: null,
-  iterative: false,//true,
+  iterative: true,//true,
+  fillGaps: true,
   //similarityThreshold: .99,
   minSegmentLength: 5, //stop when segment length below this
-  maxThreshold: 10, //stop when max value below this
+  maxThreshold: 50, //stop when max value below this
   endThreshold: 0,
   onlyDiagonals: true
 }

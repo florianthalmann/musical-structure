@@ -1,11 +1,13 @@
 import * as fs from 'fs';
 import * as _ from 'lodash';
-import { pointsToIndices, ArrayMap, StructureResult, getCosiatec, getSmithWaterman } from 'siafun';
+import { pointsToIndices, ArrayMap, StructureResult, getCosiatec,
+  getSmithWaterman, getDualSmithWaterman } from 'siafun';
 import { GD_AUDIO as GDA, GD_SONG_MAP, GD_PATTERNS, GD_GRAPHS } from './config';
 import { mapSeries, updateStatus, toIndexSeqMap, audioPathToDirName } from './util';
 import { loadJsonFile, initDirRec, getFoldersInFolder } from './file-manager';
 import { createSimilarityPatternGraph, getPatternGroupNFs, getNormalFormsMap,
-  PatternGroupingOptions, getConnectednessByVersion } from './pattern-stats';
+  PatternGroupingOptions, getConnectednessByVersion,
+  createSegmentGraphFromHybrids } from './pattern-stats';
 import { loadGraph } from './graph-theory';
 import { getOptionsWithCaching, getBestGdOptions, getGdSwOptions,
   FullSIAOptions, FullSWOptions, getOptions } from './options';
@@ -61,6 +63,31 @@ export function getSelectedTunedSongs(numSongs: number, versionsPerSong: number,
 export function getTunedSongs() {
   return getFoldersInFolder('thomas/')
     .filter(f => f !== 'temp' && f !== 'studio_reference')
+}
+
+export async function saveHybridSWSegmentGraph(filebase: string, song = SONG, extension?: string, count = 2) {
+  const options = getGdSwOptions(initDirRec(GD_PATTERNS));
+  const versions = getGdVersions(song, undefined, extension);
+  const tuples = <[number,number][]>_.flatten(_.range(count).map(c =>
+    getHybridConfig(song, 2, c, versions).map(pair => pair.map(s => versions.indexOf(s)))));
+  const hybrids = _.flatten(await getHybridSWs(song, extension, count, options));
+  createSegmentGraphFromHybrids(tuples, hybrids, filebase+'-hybrid-all-graph.json');
+}
+
+export async function saveHybridSWPatternGraph(filebase: string, song = SONG, extension?: string, count = 1) {
+  const MIN_OCCURRENCE = 1;
+  const options = getGdSwOptions(initDirRec(GD_PATTERNS));
+  const hybrids = await getHybridSWs(song, extension, count, options);
+  hybrids.map((h,i) =>
+    createSimilarityPatternGraph(h, false, filebase+'-hybrid'+i+'-graph.json', MIN_OCCURRENCE));
+}
+
+function getHybridSWs(song = SONG, extension: string, count: number, options: FullSWOptions) {
+  const versions = getGdVersions(song, undefined, extension);
+  return mapSeries(_.range(count), async i => {
+    console.log('working on ' + song + ' - hybrid ' + i);
+    return getHybridSW(song, i, versions, options);
+  })
 }
 
 export async function saveHybridPatternGraphs(filebase: string, song = SONG, extension?: string, size = 2, count = 1) {
@@ -277,6 +304,16 @@ export async function getCosiatecFromAudio(audioFiles: string[], options: FullSI
     if (!maxLength || points.length < maxLength) {
       return getCosiatec(points, getOptionsWithCaching(a, options));
     }
+  });
+}
+
+async function getHybridSW(name: string, index: number, audioFiles: string[], options: FullSWOptions) {
+  const tuples = getHybridConfig(name, 2, index, audioFiles);
+  return mapSeries(tuples, async (tuple,i) => {
+    updateStatus('  ' + (i+1) + '/' + tuples.length);
+    const points = await Promise.all(tuple.map(p => getPointsFromAudio(p, options)));
+    return getDualSmithWaterman(points[0], points[1],
+      getOptionsWithCaching(getHybridCacheDir(...tuple), options));
   });
 }
 

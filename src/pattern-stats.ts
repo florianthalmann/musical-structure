@@ -1,5 +1,5 @@
 import * as _ from 'lodash';
-import { StructureResult } from 'siafun';
+import { StructureResult, IterativeSmithWatermanResult } from 'siafun';
 import { compareArrays } from 'arrayutils';
 import { DirectedGraph, Node, saveGraph, loadGraph } from './graph-theory';
 import { toIndexSeqMap } from './util';
@@ -128,7 +128,42 @@ export function analyzePatternGraph(path: string, top = 5) {
   console.log('most recursive neighbors:', nc.slice(0,5));*/
 }
 
-
+export function createSegmentGraphFromHybrids(versionPairs: [number,number][],
+    results: StructureResult[], path?: string) {
+  //recover points for all versions from results
+  const vIndexes: [number,number][] = [];
+  versionPairs.forEach((vs,i) => vs.forEach((v,j) => vIndexes[v] = [i,j]));
+  const versionsPoints = vIndexes.map(ij =>
+    ij[1] == 0 ? results[ij[0]].points : (<IterativeSmithWatermanResult[]>results)[ij[0]].points2)
+  //create nodes and a map to find them quickly
+  const nodes: SegmentNode[][] = versionsPoints.map((ps,i) =>
+    ps.map(p => ({id: i+", "+p, point: p, version: i})));
+  const nodesByVersionByPoint = nodes.map(v =>
+    _.zipObject(v.map(n => JSON.stringify(n.point)), v));
+  //initialize graph
+  let graph = new DirectedGraph(_.flatten(nodes), []);
+  
+  //add linear connections
+  results.forEach((v,vi) => v.points.forEach((p,pi) => {
+    if (pi > 0) {
+      const previous = nodesByVersionByPoint[vi][JSON.stringify(v.points[pi-1])];
+      const current = nodesByVersionByPoint[vi][JSON.stringify(p)];
+      if (previous && current)
+        graph.addEdge(previous, current)["linear"] = true;
+    }
+  }));
+  
+  //add alignment connections
+  _.zip(versionPairs, results).forEach(([vs,r]) => {
+    r.patterns.forEach(pn => pn.points.map((_,i) => {
+      const nodes = vs.map((v,j) =>
+        nodesByVersionByPoint[v][JSON.stringify(pn.occurrences[j][i])]);
+      graph.addEdge(nodes[0], nodes[1]);
+    }));
+  });
+  
+  if (path) saveGraph(path, graph);
+}
 
 export function createSimilaritySegmentGraph(path: string,
     resultsByVersion: StructureResult[]) {
