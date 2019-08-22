@@ -5,29 +5,29 @@ export interface Node {
   id?: string
 }
 
-export interface Edge {
-  source: Node,
-  target: Node,
+export interface Edge<NodeType extends Node> {
+  source: NodeType,
+  target: NodeType,
   id?: string
 }
 
-function edge(source: Node, target: Node, id?: string): Edge {
+function edge<NodeType extends Node>(source: NodeType, target: NodeType, id?: string): Edge<NodeType> {
   const edge = {source: source, target: target};
   return id ? Object.assign(edge, {id: id}): edge;
 }
 
-export class DirectedGraph {
+export class DirectedGraph<NodeType extends Node> {
 
-  private nodes = new Map<string, Node>();
-  private edges = new Map<Node, Map<Node, Edge[]>>();
-  private inverseEdges = new Map<Node, Map<Node, Edge[]>>();
+  private nodes = new Map<string, NodeType>();
+  private edges = new Map<NodeType, Map<NodeType, Edge<NodeType>[]>>();
+  private inverseEdges = new Map<NodeType, Map<NodeType, Edge<NodeType>[]>>();
 
-  constructor(nodes: Node[] = [], edges: Edge[] = []) {
+  constructor(nodes: NodeType[] = [], edges: Edge<NodeType>[] = []) {
     nodes.forEach(n => this.nodes.set(n.id, n));
     edges.forEach(e => this.addLoadedEdge(e));
   }
 
-  clone(ignoredNodes = [], ignoredEdges = []): DirectedGraph {
+  clone(ignoredNodes = [], ignoredEdges = []): DirectedGraph<NodeType> {
     const nodes = _.difference(this.getNodes(), ignoredNodes);
     const edges = _.difference(this.getEdges(), ignoredEdges);
     return new DirectedGraph(nodes, edges);
@@ -37,22 +37,22 @@ export class DirectedGraph {
     return this.nodes.size;
   }
 
-  getNodes(): Node[] {
+  getNodes(): NodeType[] {
     return [...this.nodes.values()];
   }
 
-  getEdges(): Edge[] {
+  getEdges(): Edge<NodeType>[] {
     return _.flatten(
       ([...this.edges.values()]).map(t => _.flatten([...t.values()])));
   }
   
-  getSubgraph(nodes: Node[]): DirectedGraph {
+  getSubgraph(nodes: NodeType[]): DirectedGraph<NodeType> {
     const edges = this.getEdges().filter(e =>
       nodes.indexOf(e.source) >= 0 && nodes.indexOf(e.target));
     return new DirectedGraph(nodes, edges);
   }
 
-  transitiveReduction(): DirectedGraph {
+  transitiveReduction(): DirectedGraph<NodeType> {
     const reduced = this.clone();
     reduced.getNodes().forEach(n => reduced.getDirectSuccessors(n).forEach(m =>
       reduced.getSuccessors(m).forEach(s => reduced.removeEdges(n, s))
@@ -60,16 +60,16 @@ export class DirectedGraph {
     return reduced;
   }
 
-  pruneIsolatedNodes(): DirectedGraph {
+  pruneIsolatedNodes(): DirectedGraph<NodeType> {
     const nodes = _.uniq(_.flatten(this.getEdges().map(e => [e.source, e.target])));
     return new DirectedGraph(nodes, this.getEdges());
   }
 
-  getMaximalCliques(): Node[][] {
+  getMaximalCliques(): NodeType[][] {
     return this.bronKerbosch([], this.getNodes(), []);
   }
 
-  private bronKerbosch(R: Node[], P: Node[], X: Node[]): Node[][] {
+  private bronKerbosch(R: NodeType[], P: NodeType[], X: NodeType[]): NodeType[][] {
     if (P.length == 0 && X.length == 0) {
       return [R];
     }
@@ -85,7 +85,7 @@ export class DirectedGraph {
     return result;
   }
 
-  contract(nodes: Node[]) {
+  contract(nodes: NodeType[]) {
     //nodes[0].id = nodes.map(n => n.id).join('U');
     //console.log(nodes[0])
     _.flatten(nodes.slice(1).map(n => this.findEdges(n))).map(e =>
@@ -94,10 +94,10 @@ export class DirectedGraph {
     nodes.slice(1).forEach(n => this.removeNode(n));
   }
   
-  getShortestDistance(node1: Node, node2: Node, ignoredEdges?: Edge[]) {
+  getShortestDistance(node1: NodeType, node2: NodeType, ignoredEdges?: Edge<NodeType>[]) {
     const graph = ignoredEdges ? this.clone([], ignoredEdges) : this;
     let unvisited = graph.getNodes();
-    const distMap = new Map<Node,number>();
+    const distMap = new Map<NodeType,number>();
     distMap.set(node1, 0);
     let currentNode = node1;
     while (!distMap.get(node2) && unvisited.length > 0) {
@@ -114,7 +114,7 @@ export class DirectedGraph {
   }
   
   getConnectedComponents() {
-    const components: Node[][] = [];
+    const components: NodeType[][] = [];
     let remainingNodes = _.clone([...this.nodes.values()]);
     while (remainingNodes.length > 0) {
       components.push(this.getConnectedComponent(remainingNodes[0]));
@@ -123,12 +123,12 @@ export class DirectedGraph {
     return _.reverse(_.sortBy(components, c => c.length));
   }
   
-  getConnectedComponent(node: Node) {
+  getConnectedComponent(node: NodeType) {
     return this.getAdjacents(node, 0);
   }
 
   //maxDegreesRemoved 0 returns entire connected component
-  getAdjacents(node: Node, maxDegreesRemoved = 1): Node[] {
+  getAdjacents(node: NodeType, maxDegreesRemoved = 1): NodeType[] {
     let adjacents = this.getDirectAdjacents(node);
     let latest = adjacents;
     let checked = [node];
@@ -144,12 +144,12 @@ export class DirectedGraph {
     return adjacents;
   }
 
-  getDirectAdjacents(node: Node) {
+  getDirectAdjacents(node: NodeType) {
     return this.getDirectSuccessors(node).concat(this.getDirectPredecessors(node));
   }
 
   /** children of same parents, parents of same children */
-  getNeighbors(node: Node, degreesRemoved = 1): Node[] {
+  getNeighbors(node: NodeType, degreesRemoved = 1): NodeType[] {
     let neighbors = this.getDirectNeighbors(node);
     while (degreesRemoved > 1) {
       neighbors = _.uniq(_.flatten(neighbors.map(n => this.getDirectNeighbors(n))));
@@ -158,51 +158,51 @@ export class DirectedGraph {
     return neighbors;
   }
 
-  private getDirectNeighbors(node: Node): Node[] {
+  private getDirectNeighbors(node: NodeType): NodeType[] {
     return _.uniq(_.flatten(_.concat(
       this.getDirectSuccessors(node).map(n => this.getDirectPredecessors(n)),
       this.getDirectPredecessors(node).map(n => this.getDirectSuccessors(n)),
     )));
   }
 
-  getDirectSuccessors(node: Node): Node[] {
+  getDirectSuccessors(node: NodeType): NodeType[] {
     return this.findEdges(node).map(e => e.target);
   }
 
-  getSuccessors(node: Node): Node[] {
+  getSuccessors(node: NodeType): NodeType[] {
     const direct = this.getDirectSuccessors(node);
     const indirect = _.flatMap(direct, n => this.getSuccessors(n));
     return _.concat(direct, indirect);
   }
 
-  getDirectPredecessors(node: Node): Node[] {
+  getDirectPredecessors(node: NodeType): NodeType[] {
     return this.findEdges(null, node).map(e => e.source);
   }
 
-  getPredecessors(node: Node): Node[] {
+  getPredecessors(node: NodeType): NodeType[] {
     const direct = this.getDirectPredecessors(node);
     return direct.concat(_.flatMap(direct, n => this.getPredecessors(n)));
   }
 
-  addEdge(source: Node, target: Node): Edge {
+  addEdge(source: NodeType, target: NodeType): Edge<NodeType> {
     if (this.nodes.has(source.id) && this.nodes.has(target.id)) {
       return this.pushEdge(edge(source, target));
     }
   }
 
-  private addLoadedEdge(edge: Edge) {
+  private addLoadedEdge(edge: Edge<NodeType>) {
     edge.source = this.nodes.get(edge.source.id);
     edge.target = this.nodes.get(edge.target.id);
     this.pushEdge(edge);
   }
 
-  private pushEdge(e: Edge): Edge {
+  private pushEdge(e: Edge<NodeType>): Edge<NodeType> {
     this.pushToDoubleMap(this.edges, e.source, e.target, e);
     this.pushToDoubleMap(this.inverseEdges, e.target, e.source, e);
     return e;
   }
 
-  private findEdges(source?: Node, target?: Node): Edge[] {
+  private findEdges(source?: NodeType, target?: NodeType): Edge<NodeType>[] {
     if (source) {
       const edges = this.edges.get(source);
       if (edges) {
@@ -221,7 +221,7 @@ export class DirectedGraph {
     return [];
   }
 
-  private removeEdges(source: Node, target: Node) {
+  private removeEdges(source: NodeType, target: NodeType) {
     this.findEdges(source, target).forEach(e => {
       const edges = this.edges.get(source).get(target);
       edges.splice(edges.indexOf(e), 1);
@@ -230,7 +230,7 @@ export class DirectedGraph {
     });
   }
 
-  removeNode(node: Node) {
+  removeNode(node: NodeType) {
     this.nodes.delete(node.id);
     this.edges.delete(node);
     this.edges.forEach(e => e.delete(node));
@@ -252,7 +252,7 @@ export class DirectedGraph {
 
 }
 
-export function saveGraph(path: string, graph: DirectedGraph) {
+export function saveGraph<NodeType extends Node>(path: string, graph: DirectedGraph<NodeType>) {
   try {
     fs.writeFileSync(path,
       JSON.stringify({nodes: graph.getNodes(), edges: graph.getEdges()}))
@@ -261,7 +261,7 @@ export function saveGraph(path: string, graph: DirectedGraph) {
   }
 }
 
-export function loadGraph(path: string): DirectedGraph {
+export function loadGraph<NodeType extends Node>(path: string): DirectedGraph<NodeType> {
   if (fs.existsSync(path)) {
     const json = JSON.parse(fs.readFileSync(path, 'utf8'));
     return new DirectedGraph(json.nodes, json.edges);
