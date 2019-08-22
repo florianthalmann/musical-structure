@@ -27,8 +27,10 @@ export class DirectedGraph {
     edges.forEach(e => this.addLoadedEdge(e));
   }
 
-  clone(): DirectedGraph {
-    return new DirectedGraph(this.getNodes(), this.getEdges());
+  clone(ignoredNodes = [], ignoredEdges = []): DirectedGraph {
+    const nodes = _.difference(this.getNodes(), ignoredNodes);
+    const edges = _.difference(this.getEdges(), ignoredEdges);
+    return new DirectedGraph(nodes, edges);
   }
 
   getSize(): number {
@@ -42,6 +44,12 @@ export class DirectedGraph {
   getEdges(): Edge[] {
     return _.flatten(
       ([...this.edges.values()]).map(t => _.flatten([...t.values()])));
+  }
+  
+  getSubgraph(nodes: Node[]): DirectedGraph {
+    const edges = this.getEdges().filter(e =>
+      nodes.indexOf(e.source) >= 0 && nodes.indexOf(e.target));
+    return new DirectedGraph(nodes, edges);
   }
 
   transitiveReduction(): DirectedGraph {
@@ -85,7 +93,41 @@ export class DirectedGraph {
         this.addEdge(nodes[0], e.target) : null);
     nodes.slice(1).forEach(n => this.removeNode(n));
   }
+  
+  getShortestDistance(node1: Node, node2: Node, ignoredEdges?: Edge[]) {
+    const graph = ignoredEdges ? this.clone([], ignoredEdges) : this;
+    let unvisited = graph.getNodes();
+    const distMap = new Map<Node,number>();
+    distMap.set(node1, 0);
+    let currentNode = node1;
+    while (!distMap.get(node2) && unvisited.length > 0) {
+      _.remove(unvisited, n => n === currentNode);
+      const neighbors = graph.getDirectAdjacents(currentNode);
+      const unvisitedNs = _.intersection(neighbors, unvisited);
+      const currentDist = distMap.get(currentNode);
+      unvisitedNs.forEach(n => distMap.set(n, currentDist+1));
+      const unvisitedDists = unvisited.map(u => distMap.get(u));
+      const minIndex = unvisitedDists.indexOf(_.min(unvisitedDists));
+      currentNode = unvisited[minIndex !== null && minIndex >= 0 ? minIndex : 0];
+    }
+    return distMap.get(node2);
+  }
+  
+  getConnectedComponents() {
+    const components: Node[][] = [];
+    let remainingNodes = _.clone([...this.nodes.values()]);
+    while (remainingNodes.length > 0) {
+      components.push(this.getConnectedComponent(remainingNodes[0]));
+      remainingNodes = _.difference(remainingNodes, _.last(components));
+    }
+    return _.reverse(_.sortBy(components, c => c.length));
+  }
+  
+  getConnectedComponent(node: Node) {
+    return this.getAdjacents(node, 0);
+  }
 
+  //maxDegreesRemoved 0 returns entire connected component
   getAdjacents(node: Node, maxDegreesRemoved = 1): Node[] {
     let adjacents = this.getDirectAdjacents(node);
     let latest = adjacents;
@@ -102,7 +144,7 @@ export class DirectedGraph {
     return adjacents;
   }
 
-  private getDirectAdjacents(node: Node) {
+  getDirectAdjacents(node: Node) {
     return this.getDirectSuccessors(node).concat(this.getDirectPredecessors(node));
   }
 
