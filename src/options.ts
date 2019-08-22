@@ -31,7 +31,7 @@ const SW_OPTIONS: FullSWOptions = {
   selectedFeatures: null,
   quantizerFunctions: null,
   iterative: true,//true,
-  fillGaps: true,
+  fillGaps: true, //turn off for similarity graphs!!
   //similarityThreshold: .99,
   minSegmentLength: 5, //stop when segment length below this
   maxThreshold: 50, //stop when max value below this

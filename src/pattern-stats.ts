@@ -8,7 +8,7 @@ interface ProtoNode {
   protoId: any
 }
 
-interface PatternNode extends Node {
+export interface PatternNode extends Node {
   points: string[],
   npoints: number[][],
   size: number,
@@ -18,7 +18,8 @@ interface PatternNode extends Node {
 
 interface SegmentNode extends Node {
   point: number[],
-  version: number
+  version: number,
+  index: number
 }
 
 export enum PATTERN_RATING {
@@ -43,8 +44,8 @@ interface PatternGroup {
   totalCount: number
 }
 
-export function getConnectednessByVersion(graph: DirectedGraph) {
-  const nodes = <PatternNode[]>graph.getNodes();
+export function getConnectednessByVersion(graph: DirectedGraph<PatternNode>) {
+  const nodes = graph.getNodes();
   const allVersions = _.uniq(_.flatten(nodes.map(n => n.versions)));
   const grouped = allVersions.map(v => nodes.filter(n => n.versions.indexOf(v) >= 0));
   const conns: number[] = [];
@@ -54,13 +55,13 @@ export function getConnectednessByVersion(graph: DirectedGraph) {
 }
 
 export function getMostCommonPatternNFs(path: string) {
-  const graph = loadGraph(path);
-  const nodes = <PatternNode[]>graph.getNodes();
+  const graph = loadGraph<PatternNode>(path);
+  const nodes = graph.getNodes();
   nodes.sort((a,b) => b.count-a.count);
   return nodes.map(n => n.id);
 }
 
-export function getPatternGroupNFs(graph: DirectedGraph, options: PatternGroupingOptions, count = Infinity): string[][] {
+export function getPatternGroupNFs(graph: DirectedGraph<PatternNode>, options: PatternGroupingOptions, count = Infinity): string[][] {
   let normalForms: string[][] = [];
   while (graph.getSize() > 0 && count > 0) {
     const best = getBestPatternGroup(graph, options);
@@ -72,7 +73,7 @@ export function getPatternGroupNFs(graph: DirectedGraph, options: PatternGroupin
   return normalForms;
 }
 
-function getBestPatternGroup(graph: DirectedGraph, options: PatternGroupingOptions) {
+function getBestPatternGroup(graph: DirectedGraph<PatternNode>, options: PatternGroupingOptions) {
   let ratingFunc: (a: PatternGroup) => number;
   if (!options.rating || options.rating === PATTERN_RATING.COUNT) {
     ratingFunc = g => g.totalCount;
@@ -86,10 +87,10 @@ function getBestPatternGroup(graph: DirectedGraph, options: PatternGroupingOptio
   return _.concat([adjacents[0].center], adjacents[0].members);
 }
 
-function getAdjacents(graph: DirectedGraph, maxDistance?: number,
+function getAdjacents(graph: DirectedGraph<PatternNode>, maxDistance?: number,
     condition?: GroupingCondition): PatternGroup[] {
-  const nodes = <PatternNode[]>graph.getNodes();
-  let adjacents = <PatternNode[][]>nodes.map(n =>
+  const nodes = graph.getNodes();
+  let adjacents = nodes.map(n =>
     maxDistance ? graph.getAdjacents(n, maxDistance) : []);
   if (condition) adjacents =
     adjacents.map((a,i) => a.filter(n => condition(n, nodes[i])));
@@ -102,8 +103,8 @@ function getAdjacents(graph: DirectedGraph, maxDistance?: number,
 
 
 export function analyzePatternGraph(path: string, top = 5) {
-  const graph = loadGraph(path);
-  const nodes = <PatternNode[]>graph.getNodes();
+  const graph = loadGraph<PatternNode>(path);
+  const nodes = graph.getNodes();
   console.log('nodes:', nodes.length);
   console.log('edges:', graph.getEdges().length);
   nodes.sort((a,b) => b.count-a.count);
@@ -112,14 +113,14 @@ export function analyzePatternGraph(path: string, top = 5) {
   const adjacents = getBestPatternGroup(graph, {rating: PATTERN_RATING.COUNT});
   console.log('most adjacent:', adjacents.slice(0,top).map(a => a[2] + ', ' + a[0].count + ': ' + a[0].id));
 
-  /*const neighbors = <PatternNode[][]>nodes.map(n => graph.getNeighbors(n));
+  /*const neighbors = nodes.map(n => graph.getNeighbors(n));
   counts = neighbors.map(as => _.sum(as.map(n => n.count)));
   counts = _.zipWith(nodes, counts, (n,c) => (n.count + c)/n.size);
   nc = _.zip(nodes, counts);
   nc.sort((a,b) => b[1]-a[1]);
   console.log('most direct neighbors:', nc.slice(0,5));
 
-  const recNeighbors = <PatternNode[][]>nodes.map(n =>
+  const recNeighbors = nodes.map(n =>
     graph.getNeighbors(n, 3));
   counts = recNeighbors.map(as => _.sum(as.map(n => n.count)));
   counts = _.zipWith(nodes, counts, (n,c) => n.count + c);
@@ -128,8 +129,48 @@ export function analyzePatternGraph(path: string, top = 5) {
   console.log('most recursive neighbors:', nc.slice(0,5));*/
 }
 
+function getIndex(nodes: SegmentNode[], version: number) {
+  const node = nodes.filter(n => n.version === version)[0]
+  if (node) return node.index;
+}
+
+export function constructTimelineFromHybrids(versionPairs: [number,number][],
+    results: StructureResult[]) {
+  const compThreshold = versionPairs.length/2;
+  const graph = createSegmentGraphFromHybrids(versionPairs, results, [0]);
+  let components = graph.getConnectedComponents()
+    .filter(c => c.length > compThreshold);
+  
+  const timeline = [];
+  const maxVersion = _.max(versionPairs.map(_.max));
+  
+  
+  components.sort((a,b) => _.range(0, maxVersion).some(v =>
+    getIndex(a, v) < getIndex(b, v)) ? -1 : 1);
+  
+  /*console.log()
+  _.range(0, 1).forEach(v =>
+    components = _.sortBy(components, c => {
+      const currentV = c.filter(n => n.version == v)[0];
+      //console.log()
+      //console.log(currentV)
+      return currentV ? currentV.index : undefined
+    }))*/
+  console.log(components[0][0].index, _.last(components)[0].index)
+  
+  //let currentVersion = 0;
+  /*while (components.length > 0) {
+    let currentComps = components.filter(c => c.some(n => n.version == currentVersion));
+    currentComps = _.sortBy(currentComps, c => c.filter(n => n.version == currentVersion)[0].index);
+    currentComps.forEach()
+    
+    currentVersion++;
+  }*/
+  
+}
+
 export function createSegmentGraphFromHybrids(versionPairs: [number,number][],
-    results: StructureResult[], path?: string) {
+    results: StructureResult[], patternIndexes: number[], path?: string) {
   //recover points for all versions from results
   const vIndexes: [number,number][] = [];
   versionPairs.forEach((vs,i) => vs.forEach((v,j) => vIndexes[v] = [i,j]));
@@ -137,13 +178,13 @@ export function createSegmentGraphFromHybrids(versionPairs: [number,number][],
     ij[1] == 0 ? results[ij[0]].points : (<IterativeSmithWatermanResult[]>results)[ij[0]].points2)
   //create nodes and a map to find them quickly
   const nodes: SegmentNode[][] = versionsPoints.map((ps,i) =>
-    ps.map(p => ({id: i+", "+p, point: p, version: i})));
+    ps.map((p,j) => ({id: i+", "+p, point: p, version: i, index: j})));
   const nodesByVersionByPoint = nodes.map(v =>
     _.zipObject(v.map(n => JSON.stringify(n.point)), v));
   //initialize graph
   let graph = new DirectedGraph(_.flatten(nodes), []);
   
-  //add linear connections
+  /*//add linear connections
   results.forEach((v,vi) => v.points.forEach((p,pi) => {
     if (pi > 0) {
       const previous = nodesByVersionByPoint[vi][JSON.stringify(v.points[pi-1])];
@@ -151,18 +192,48 @@ export function createSegmentGraphFromHybrids(versionPairs: [number,number][],
       if (previous && current)
         graph.addEdge(previous, current)["linear"] = true;
     }
-  }));
+  }));*/
   
   //add alignment connections
-  _.zip(versionPairs, results).forEach(([vs,r]) => {
-    r.patterns.forEach(pn => pn.points.map((_,i) => {
+  _.zip(versionPairs, results).forEach(([vs,r]) =>
+    r.patterns.filter((_,i) => patternIndexes.indexOf(i) >= 0)
+        .forEach(pn => pn.points.map((_,i) => {
       const nodes = vs.map((v,j) =>
         nodesByVersionByPoint[v][JSON.stringify(pn.occurrences[j][i])]);
+      //if (i < 20)
       graph.addEdge(nodes[0], nodes[1]);
-    }));
-  });
+    })));
+  
+  graph = graph.pruneIsolatedNodes();
+  
+  /*const v0nodes = versionsPoints[0].map(p => nodesByVersionByPoint[0][JSON.stringify(p)]);
+  const v0conn = v0nodes.map(n =>
+    graph.getConnectedComponent(n).filter((m:SegmentNode) => m.version != n.version).length);
+  
+  console.log(graph.getSize(), JSON.stringify(v0conn))
+  
+  /*const components = graph.getConnectedComponents().slice(0,10);
+  
+  console.log(components.map(c => c.length));
+  
+  console.log(_.reverse(_.sortBy(graph.getConnectedComponents()[0].map(n =>
+    graph.getDirectAdjacents(n).length))).slice(0,10))
+  
+  graph = graph.getSubgraph(components[0])
+  console.log(graph.getSize(), graph.getEdges().length);
+  
+  const edges = graph.getEdges();
+  const dists = edges.map(e => graph.getShortestDistance(e.source, e.target, [e]));
+  console.log("prune")
+  const pruned = new DirectedGraph(graph.getNodes(), edges.filter((_,i) => dists[i] < 3)).pruneIsolatedNodes();
+  console.log(pruned.getSize());
+  //const randomEdges = _.sampleSize(graph.getEdges(), 5);
+  //console.log(randomEdges)
+  //console.log(randomEdges.map(e => graph.getShortestDistance(e.source, e.target, [e])));*/
   
   if (path) saveGraph(path, graph);
+  
+  return graph;
 }
 
 export function createSimilaritySegmentGraph(path: string,
@@ -174,13 +245,13 @@ export function createSimilaritySegmentGraph(path: string,
     _.zipObject(v.patterns.map(p => JSON.stringify(toNormalForm(p.points))), v.patterns));
 
   //TODO THESE WILL BE GROUPS OF SIMILARS SOON!!!!!! so simulate now...
-  const bestPatterns = <PatternNode[]>patternGraph.getNodes();
+  const bestPatterns = patternGraph.getNodes();
   bestPatterns.sort((a,b) => b.count-a.count);
 
 
   const nodes: SegmentNode[][] =
     resultsByVersion.map((v,i) =>
-      v.points.map(p => ({id: i+", "+p, point: p, version: i})));
+      v.points.map((p,j) => ({id: i+", "+p, point: p, version: i, index: j})));
   const nodesByVersionByPoint = nodes.map(v =>
     _.zipObject(v.map(n => JSON.stringify(n.point)), v));
 
@@ -280,7 +351,7 @@ export function createSimilarityPatternGraph(resultsByVersion: StructureResult[]
 
 export function getPatternSimilarities(results: StructureResult[], file?: string, mpo = 1) {
   //count nodes with multiple versions like edges, ignore one-version edges...
-  let graph: DirectedGraph;
+  let graph: DirectedGraph<PatternNode>;
   if (file) {
     graph = loadGraph(file);
   }
@@ -290,14 +361,14 @@ export function getPatternSimilarities(results: StructureResult[], file?: string
   }
 
   let sims = results.map((_,i) => {
-    const iNodes = (<PatternNode[]>graph.getNodes()).filter(n => n.versions.indexOf(i) >= 0);
+    const iNodes = (graph.getNodes()).filter(n => n.versions.indexOf(i) >= 0);
     const iEdges = graph.getEdges().filter(e =>
-      (<PatternNode>e.source).versions.indexOf(i) >= 0 || (<PatternNode>e.target).versions.indexOf(i) >= 0);
+      e.source.versions.indexOf(i) >= 0 || e.target.versions.indexOf(i) >= 0);
     return results.slice(i+1).map((_,j) => {
       const identical = iNodes.filter(n => n.versions.indexOf(j+i+1) >= 0);
       const similar = iEdges.filter(e =>
-        ((<PatternNode>e.source).versions.indexOf(i) >= 0 && (<PatternNode>e.target).versions.indexOf(j+i+1) >= 0)
-        || ((<PatternNode>e.target).versions.indexOf(i) >= 0 && (<PatternNode>e.source).versions.indexOf(j+i+1) >= 0));
+        (e.source.versions.indexOf(i) >= 0 && e.target.versions.indexOf(j+i+1) >= 0)
+        || (e.target.versions.indexOf(i) >= 0 && e.source.versions.indexOf(j+i+1) >= 0));
       return identical.length + similar.length/// / (v.patterns.length + w.patterns.length);
     })
   });

@@ -7,7 +7,7 @@ import { mapSeries, updateStatus, toIndexSeqMap, audioPathToDirName } from './ut
 import { loadJsonFile, initDirRec, getFoldersInFolder } from './file-manager';
 import { createSimilarityPatternGraph, getPatternGroupNFs, getNormalFormsMap,
   PatternGroupingOptions, getConnectednessByVersion,
-  createSegmentGraphFromHybrids } from './pattern-stats';
+  constructTimelineFromHybrids, PatternNode } from './pattern-stats';
 import { loadGraph } from './graph-theory';
 import { getOptionsWithCaching, getBestGdOptions, getGdSwOptions,
   FullSIAOptions, FullSWOptions, getOptions } from './options';
@@ -71,7 +71,8 @@ export async function saveHybridSWSegmentGraph(filebase: string, song = SONG, ex
   const tuples = <[number,number][]>_.flatten(_.range(count).map(c =>
     getHybridConfig(song, 2, c, versions).map(pair => pair.map(s => versions.indexOf(s)))));
   const hybrids = _.flatten(await getHybridSWs(song, extension, count, options));
-  createSegmentGraphFromHybrids(tuples, hybrids, filebase+'-hybrid-all-graph.json');
+  //createSegmentGraphFromHybrids(tuples, hybrids, [0], filebase+'-hybrid-all-graph.json');
+  constructTimelineFromHybrids(tuples, hybrids);
 }
 
 export async function saveHybridSWPatternGraph(filebase: string, song = SONG, extension?: string, count = 1) {
@@ -102,7 +103,7 @@ export async function saveHybridPatternGraphs(filebase: string, song = SONG, ext
 
 export async function analyzeHybridPatternGraphs(filebase: string, size = 2, count = 1) {
   const graphs = _.range(count)
-    .map(i =>loadGraph(filebase+'-hybrid'+size+'-'+i+'-graph.json'));
+    .map(i =>loadGraph<PatternNode>(filebase+'-hybrid'+size+'-'+i+'-graph.json'));
   const grouping: PatternGroupingOptions = { maxDistance: 3, condition: n => n.size > 5 };
   graphs.forEach(g => {getPatternGroupNFs(g, grouping, 5); console.log()});
 }
