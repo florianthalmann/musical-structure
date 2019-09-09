@@ -1,8 +1,9 @@
 import * as _ from 'lodash';
 import { StructureResult, IterativeSmithWatermanResult } from 'siafun';
 import { compareArrays } from 'arrayutils';
+const SimpleLinearRegression = require('ml-regression-simple-linear');
 import { DirectedGraph, Node, saveGraph, loadGraph } from './graph-theory';
-import { toIndexSeqMap } from './util';
+import { toIndexSeqMap, powerset } from './util';
 
 interface ProtoNode {
   protoId: any
@@ -136,37 +137,41 @@ function getIndex(nodes: SegmentNode[], version: number) {
 
 export function constructTimelineFromHybrids(versionPairs: [number,number][],
     results: StructureResult[]) {
-  const compThreshold = versionPairs.length/2;
-  const graph = createSegmentGraphFromHybrids(versionPairs, results, [0]);
-  let components = graph.getConnectedComponents()
-    .filter(c => c.length > compThreshold);
-  
-  const timeline = [];
+  const COMPONENT_SIZE_THRESHOLD = versionPairs.length/4;
   const maxVersion = _.max(versionPairs.map(_.max));
+  const timeline: SegmentNode[][] = [];
   
+  const graph = createSegmentGraphFromHybrids(versionPairs, results, [0,1]);
+  let components = graph.getConnectedComponents()
+    .filter(c => c.length > COMPONENT_SIZE_THRESHOLD);
   
+  console.log("total", JSON.stringify(components.map(c => c.map(n => n.version).length)))
+  console.log("redundant", JSON.stringify(components.map(c => c.map(n => n.version).length - _.uniq(c.map(n => n.version)).length)))
+  
+  //filter out 
+  //components = components.map()
+  
+  //sort components temporally
   components.sort((a,b) => _.range(0, maxVersion).some(v =>
     getIndex(a, v) < getIndex(b, v)) ? -1 : 1);
-  
-  /*console.log()
-  _.range(0, 1).forEach(v =>
-    components = _.sortBy(components, c => {
-      const currentV = c.filter(n => n.version == v)[0];
-      //console.log()
-      //console.log(currentV)
-      return currentV ? currentV.index : undefined
-    }))*/
   console.log(components[0][0].index, _.last(components)[0].index)
   
-  //let currentVersion = 0;
-  /*while (components.length > 0) {
-    let currentComps = components.filter(c => c.some(n => n.version == currentVersion));
-    currentComps = _.sortBy(currentComps, c => c.filter(n => n.version == currentVersion)[0].index);
-    currentComps.forEach()
-    
-    currentVersion++;
-  }*/
+  //now gradually add to timeline (disjunct at same time!)
+  components.forEach((c,i) =>
+    i > 0 && differentVersions(c, components[i-1]) ?
+      c.forEach(s => _.last(timeline).push(s))
+      : timeline.push(c));
+  console.log(components.length, timeline.length);
   
+  const print = _.zip(...timeline.map(t => _.range(0, maxVersion).map(i =>
+    t.filter(s => s.version === i).length > 0 ? '.' : ' ')));
+  //print.forEach(p => console.log(p.join('')))
+}
+
+function differentVersions(nodes1: SegmentNode[], nodes2: SegmentNode[]) {
+  const versions = (nodes: SegmentNode[]) => nodes.map(n => n.version);
+  //console.log(nodes1.length, nodes2.length, _.intersection(versions(nodes1), versions(nodes2)).length)
+  return _.intersection(versions(nodes1), versions(nodes2)).length == 0;
 }
 
 export function createSegmentGraphFromHybrids(versionPairs: [number,number][],
@@ -184,29 +189,45 @@ export function createSegmentGraphFromHybrids(versionPairs: [number,number][],
   //initialize graph
   let graph = new DirectedGraph(_.flatten(nodes), []);
   
-  /*//add linear connections
-  results.forEach((v,vi) => v.points.forEach((p,pi) => {
-    if (pi > 0) {
-      const previous = nodesByVersionByPoint[vi][JSON.stringify(v.points[pi-1])];
-      const current = nodesByVersionByPoint[vi][JSON.stringify(p)];
-      if (previous && current)
-        graph.addEdge(previous, current)["linear"] = true;
-    }
-  }));*/
+  //reduce results using linear regression
+  const versionStringPoints = versionsPoints.map(v => v.map(p => JSON.stringify(p)));
+  /*const bestPatterns = results.map((r,i) =>
+    findMostCoherentAlignments(r, versionPairs[i], versionStringPoints));
+  console.log(results.slice(0,10).map(r => r.patterns.length), " => ",
+    bestPatterns.slice(0,10).map(p => p.length))*/
+  const bestPatterns = results.map(r => r.patterns);
+  
+  //TODO NOW REMOVE ALL OVERLAPS!!!!!!
   
   //add alignment connections
-  _.zip(versionPairs, results).forEach(([vs,r]) =>
-    r.patterns.filter((_,i) => patternIndexes.indexOf(i) >= 0)
-        .forEach(pn => pn.points.map((_,i) => {
+  _.zip(versionPairs, bestPatterns).forEach(([vs,ps]) =>
+    ps.filter((_,i) => patternIndexes.indexOf(i) >= 0).forEach(pn => pn.points.map((_,i) => {
       const nodes = vs.map((v,j) =>
         nodesByVersionByPoint[v][JSON.stringify(pn.occurrences[j][i])]);
       //if (i < 20)
       graph.addEdge(nodes[0], nodes[1]);
     })));
   
+  console.log(graph.getSize())
+  
   graph = graph.pruneIsolatedNodes();
   
-  /*const v0nodes = versionsPoints[0].map(p => nodesByVersionByPoint[0][JSON.stringify(p)]);
+  console.log("pruned", graph.getSize(), graph.getEdges().length)
+  
+  //REMOVE ALL NODES WITH SMALL DEGREES
+  /*graph = graph.getSubgraph(graph.getNodes().filter(n => graph.getDegree(n) > 2));
+  console.log("degrees", graph.getSize(), graph.getEdges().length)*/
+    
+  //KEEP ONLY BIDIRECTIONAL EDGES (BAD IDEA IF NOT ALL POSSIBLE PAIRS ALIGNED...)
+  /*graph = graph.getBidirectionalSubgraph();
+  console.log("bidirectional", graph.getSize(), graph.getEdges().length)*/
+  
+  //REMOVE ALL EDGES THAT DON'T HAVE A THIRD!!
+  
+  graph = graph.pruneIsolatedNodes();
+  console.log("pruned", graph.getSize(), graph.getEdges().length)
+  
+  const v0nodes = versionsPoints[0].map(p => nodesByVersionByPoint[0][JSON.stringify(p)]);
   const v0conn = v0nodes.map(n =>
     graph.getConnectedComponent(n).filter((m:SegmentNode) => m.version != n.version).length);
   
@@ -234,6 +255,25 @@ export function createSegmentGraphFromHybrids(versionPairs: [number,number][],
   if (path) saveGraph(path, graph);
   
   return graph;
+}
+
+function findMostCoherentAlignments(result: StructureResult,
+    versions: [number, number], versionsPoints: string[][]) {
+  const occurrenceIndexes = toIndexes(result, versions, versionsPoints);
+  //return longest most coherent set of aligment segments
+  return _.maxBy(powerset(result.patterns), ps => {
+    if (ps.length == 0) return 0;
+    const indexes = ps.map(p => occurrenceIndexes[result.patterns.indexOf(p)]);
+    const xy = _.zip(...indexes).map(_.flatten);
+    const r = new SimpleLinearRegression(xy[0], xy[1]).score(xy[0], xy[1]).r;
+    return Math.pow(xy[0].length, 1) * r; //heuristic based on length and r
+  });
+}
+
+function toIndexes(result: StructureResult, versions: [number, number],
+    versionsPoints: string[][]) {
+  return result.patterns.map(p => p.occurrences.map((os,i) => os.map(o =>
+    versionsPoints[versions[i]].indexOf(JSON.stringify(o)))));
 }
 
 export function createSimilaritySegmentGraph(path: string,

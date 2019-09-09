@@ -48,8 +48,17 @@ export class DirectedGraph<NodeType extends Node> {
   
   getSubgraph(nodes: NodeType[]): DirectedGraph<NodeType> {
     const edges = this.getEdges().filter(e =>
-      nodes.indexOf(e.source) >= 0 && nodes.indexOf(e.target));
+      nodes.indexOf(e.source) >= 0 && nodes.indexOf(e.target) >= 0);
     return new DirectedGraph(nodes, edges);
+  }
+  
+  getBidirectionalSubgraph(): DirectedGraph<NodeType> {
+    return this.getEdgeSubgraph(this.getEdges()
+      .filter(e => this.findEdges(e.target, e.source).length > 0));
+  }
+  
+  getEdgeSubgraph(edges: Edge<NodeType>[]) {
+    return new DirectedGraph(this.getNodesFromEdges(edges), edges);
   }
 
   transitiveReduction(): DirectedGraph<NodeType> {
@@ -61,8 +70,12 @@ export class DirectedGraph<NodeType extends Node> {
   }
 
   pruneIsolatedNodes(): DirectedGraph<NodeType> {
-    const nodes = _.uniq(_.flatten(this.getEdges().map(e => [e.source, e.target])));
-    return new DirectedGraph(nodes, this.getEdges());
+    const edges = this.getEdges();
+    return new DirectedGraph(this.getNodesFromEdges(edges), edges);
+  }
+  
+  private getNodesFromEdges(edges: Edge<NodeType>[]) {
+    return _.uniq(_.flatten(edges.map(e => [e.source, e.target])));
   }
 
   getMaximalCliques(): NodeType[][] {
@@ -173,6 +186,10 @@ export class DirectedGraph<NodeType extends Node> {
     const direct = this.getDirectSuccessors(node);
     const indirect = _.flatMap(direct, n => this.getSuccessors(n));
     return _.concat(direct, indirect);
+  }
+  
+  getDegree(node: NodeType): number {
+    return this.findEdges(node).length + this.findEdges(null, node).length;
   }
 
   getDirectPredecessors(node: NodeType): NodeType[] {

@@ -130,6 +130,12 @@ export function cartesianProduct(arr: any[][]): any[] {
       .reduce((a, b) => a.concat(b), []), [[]]);
 }
 
+export function powerset<T>(set: T[]): T[][] {
+  return set.reduce(
+    (subsets, value) => subsets.concat(subsets.map(s => [value, ...s])),
+    [[]]);
+}
+
 /*export function printSegments(segs: Segmentation[]) {
   segs.forEach(s => {
     const pstring = _.times((_.max(_.flatten(p)))+1, _.constant(' '));
