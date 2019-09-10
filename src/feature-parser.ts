@@ -3,7 +3,7 @@ import * as _ from 'lodash';
 import { indexOfMax } from 'arrayutils';
 import { Quantizer } from 'siafun';
 import { FEATURES, Features, getFeatures } from './feature-extractor';
-import { FullOptions } from './options';
+import { FeatureOptions } from './options';
 
 interface VampValue {
   time: number,
@@ -17,26 +17,26 @@ interface JohanChord {
   label: string
 }
 
-export function quantize(points: any[][], options: FullOptions) {
+export function quantize(points: any[][], options: FeatureOptions) {
   return new Quantizer(options.quantizerFunctions).getQuantizedPoints(points);
 }
 
-export async function getQuantizedPoints(audioFile: string, options: FullOptions) {
+export async function getQuantizedPoints(audioFile: string, options: FeatureOptions) {
   const points = await getPointsFromAudio(audioFile, options);
   return new Quantizer(options.quantizerFunctions).getQuantizedPoints(points);
 }
 
-export async function getPointsFromAudio(audioFile: string, options: FullOptions) {
+export async function getPointsFromAudio(audioFile: string, options: FeatureOptions) {
   return getPoints(await getFeatures(audioFile, options.selectedFeatures), options);
 }
 
-export function getPoints(features: Features, options: FullOptions) {
+export function getPoints(features: Features, options: FeatureOptions) {
   return generatePoints(options,
     [features.segmentations[0]].concat(...features.otherFeatures),
     features.segConditions[0]);
 }
 
-function generatePoints(options: FullOptions, featureFiles: string[], condition?: any) {
+function generatePoints(options: FeatureOptions, featureFiles: string[], condition?: any) {
   if (featureFiles.every(fs.existsSync)) {
     let points: any[][] = initPoints(featureFiles[0], condition);
     if (options.doubletime) points = points.filter((_,i) => i % 2 == 0);

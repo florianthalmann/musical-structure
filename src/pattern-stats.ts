@@ -1,9 +1,10 @@
 import * as _ from 'lodash';
-import { StructureResult, IterativeSmithWatermanResult } from 'siafun';
+import { StructureResult, IterativeSmithWatermanResult, Pattern } from 'siafun';
 import { compareArrays } from 'arrayutils';
 const SimpleLinearRegression = require('ml-regression-simple-linear');
 import { DirectedGraph, Node, saveGraph, loadGraph } from './graph-theory';
 import { toIndexSeqMap, powerset } from './util';
+import { saveJsonFile } from './file-manager';
 
 interface ProtoNode {
   protoId: any
@@ -20,7 +21,7 @@ export interface PatternNode extends Node {
 interface SegmentNode extends Node {
   point: number[],
   version: number,
-  index: number
+  time: number
 }
 
 export enum PATTERN_RATING {
@@ -132,7 +133,7 @@ export function analyzePatternGraph(path: string, top = 5) {
 
 function getIndex(nodes: SegmentNode[], version: number) {
   const node = nodes.filter(n => n.version === version)[0]
-  if (node) return node.index;
+  if (node) return node.time;
 }
 
 export function constructTimelineFromHybrids(versionPairs: [number,number][],
@@ -145,6 +146,17 @@ export function constructTimelineFromHybrids(versionPairs: [number,number][],
   let components = graph.getConnectedComponents()
     .filter(c => c.length > COMPONENT_SIZE_THRESHOLD);
   
+  const firsts = _.uniqBy(_.sortBy(components[0], n => n.time), c => c.version);
+  console.log(JSON.stringify(firsts.map(n => n.time)))
+  
+  const seconds = _.uniqBy(_.sortBy(_.difference(components[0], firsts), n => n.time), c => c.version);
+  console.log(JSON.stringify(seconds.map(n => n.time)))
+  
+  console.log(JSON.stringify(firsts.slice(0,10)))
+  saveGraph('plots/d3/latest/slice.json', graph.getSubgraph(firsts));
+  console.log(JSON.stringify(graph.getSubgraph(firsts).getNodes().slice(0,10)))
+  //saveGraph('plots/d3/latest/slice2.json', graph.getSubgraph(seconds));
+  
   console.log("total", JSON.stringify(components.map(c => c.map(n => n.version).length)))
   console.log("redundant", JSON.stringify(components.map(c => c.map(n => n.version).length - _.uniq(c.map(n => n.version)).length)))
   
@@ -154,7 +166,7 @@ export function constructTimelineFromHybrids(versionPairs: [number,number][],
   //sort components temporally
   components.sort((a,b) => _.range(0, maxVersion).some(v =>
     getIndex(a, v) < getIndex(b, v)) ? -1 : 1);
-  console.log(components[0][0].index, _.last(components)[0].index)
+  console.log(components[0][0].time, _.last(components)[0].time)
   
   //now gradually add to timeline (disjunct at same time!)
   components.forEach((c,i) =>
@@ -183,25 +195,31 @@ export function createSegmentGraphFromHybrids(versionPairs: [number,number][],
     ij[1] == 0 ? results[ij[0]].points : (<IterativeSmithWatermanResult[]>results)[ij[0]].points2)
   //create nodes and a map to find them quickly
   const nodes: SegmentNode[][] = versionsPoints.map((ps,i) =>
-    ps.map((p,j) => ({id: i+", "+p, point: p, version: i, index: j})));
+    ps.map((p,j) => ({id: i+", "+p, point: p, version: i, time: j})));
   const nodesByVersionByPoint = nodes.map(v =>
     _.zipObject(v.map(n => JSON.stringify(n.point)), v));
   //initialize graph
   let graph = new DirectedGraph(_.flatten(nodes), []);
   
-  //reduce results using linear regression
+  //reduce patterns using linear regression
   const versionStringPoints = versionsPoints.map(v => v.map(p => JSON.stringify(p)));
-  /*const bestPatterns = results.map((r,i) =>
-    findMostCoherentAlignments(r, versionPairs[i], versionStringPoints));
-  console.log(results.slice(0,10).map(r => r.patterns.length), " => ",
+  let patterns = results.map(r => r.patterns);
+  patterns = patterns.map((ps,i) =>
+    findMostCoherentAlignments(ps, versionPairs[i], versionStringPoints));
+  //remove overlaps
+  patterns = patterns.map((ps,i) =>
+    removePatternOverlaps(ps, versionPairs[i], versionStringPoints));
+  patterns.forEach((ps,i) =>
+    saveJsonFile('results/sw-post/sw_'+i+'o.json',
+      {'segmentMatrix': toMatrix(ps, versionPairs[i], versionStringPoints)}));
+  /*console.log(results.slice(0,10).map(r => r.patterns.length), " => ",
     bestPatterns.slice(0,10).map(p => p.length))*/
-  const bestPatterns = results.map(r => r.patterns);
   
   //TODO NOW REMOVE ALL OVERLAPS!!!!!!
   
   //add alignment connections
-  _.zip(versionPairs, bestPatterns).forEach(([vs,ps]) =>
-    ps.filter((_,i) => patternIndexes.indexOf(i) >= 0).forEach(pn => pn.points.map((_,i) => {
+  _.zip(versionPairs, results).forEach(([vs,r]) =>
+    r.patterns.filter((_,i) => patternIndexes.indexOf(i) >= 0).forEach(pn => pn.points.map((_,i) => {
       const nodes = vs.map((v,j) =>
         nodesByVersionByPoint[v][JSON.stringify(pn.occurrences[j][i])]);
       //if (i < 20)
@@ -257,23 +275,57 @@ export function createSegmentGraphFromHybrids(versionPairs: [number,number][],
   return graph;
 }
 
-function findMostCoherentAlignments(result: StructureResult,
+function findMostCoherentAlignments(patterns: Pattern[],
     versions: [number, number], versionsPoints: string[][]) {
-  const occurrenceIndexes = toIndexes(result, versions, versionsPoints);
+  const occurrenceIndexes = toOccurrenceIndexes(patterns, versions, versionsPoints);
   //return longest most coherent set of aligment segments
-  return _.maxBy(powerset(result.patterns), ps => {
+  return _.maxBy(powerset(patterns), ps => {
     if (ps.length == 0) return 0;
-    const indexes = ps.map(p => occurrenceIndexes[result.patterns.indexOf(p)]);
+    const indexes = ps.map(p => occurrenceIndexes[patterns.indexOf(p)]);
     const xy = _.zip(...indexes).map(_.flatten);
     const r = new SimpleLinearRegression(xy[0], xy[1]).score(xy[0], xy[1]).r;
-    return Math.pow(xy[0].length, 1) * r; //heuristic based on length and r
+    //all unique indexes on both x and y axes
+    const minUniqs = Math.min(_.uniq(xy[0]).length, _.uniq(xy[1]).length);
+    return Math.pow(minUniqs, 1) * r; //heuristic based on indexes and r
   });
 }
 
-function toIndexes(result: StructureResult, versions: [number, number],
+function removePatternOverlaps(patterns: Pattern[],
+    versions: [number, number], versionsPoints: string[][]) {
+  let occurrenceIndexes = toOccurrenceIndexes(patterns, versions, versionsPoints);
+  occurrenceIndexes = _.reverse(_.sortBy(occurrenceIndexes, o => o[0].length));
+  patterns = _.reverse(_.sortBy(patterns, p => p.points.length));
+  const xy = [[],[]];
+  const toRemove = occurrenceIndexes.map(occs => {
+    const existing = _.range(0, occs[0].length).filter(i =>
+      occs.some((o,oi) => xy[oi].indexOf(o[i]) >= 0));
+    occs.forEach((o,oi) => xy[oi].push(..._.flatten(o)));
+    return existing;
+  });
+  return patterns.map((p,i) => removePointsAt(p, toRemove[i]));
+}
+
+function removePointsAt(pattern: Pattern, indexes: number[]) {
+  pattern.points = pattern.points.filter((_,i) => indexes.indexOf(i) < 0);
+  pattern.occurrences = pattern.occurrences.map(o =>
+    o.filter((_,i) => indexes.indexOf(i) < 0));
+  return pattern;
+}
+
+function toOccurrenceIndexes(patterns: Pattern[], versions: [number, number],
     versionsPoints: string[][]) {
-  return result.patterns.map(p => p.occurrences.map((os,i) => os.map(o =>
+  return patterns.map(p => p.occurrences.map((os,i) => os.map(o =>
     versionsPoints[versions[i]].indexOf(JSON.stringify(o)))));
+}
+
+function toMatrix(patterns: Pattern[], versions: [number, number],
+    versionsPoints: string[][]) {
+  const row = _.fill(new Array(versionsPoints[versions[0]].length), 0);
+  const matrix = row.map(m => _.fill(new Array(versionsPoints[versions[1]].length), 0));
+  const occIndexes = toOccurrenceIndexes(patterns, versions, versionsPoints);
+  occIndexes.forEach(os =>
+    _.range(0, os[0].length).forEach(i => matrix[os[0][i]][os[1][i]] = 1));
+  return matrix;
 }
 
 export function createSimilaritySegmentGraph(path: string,
@@ -291,7 +343,7 @@ export function createSimilaritySegmentGraph(path: string,
 
   const nodes: SegmentNode[][] =
     resultsByVersion.map((v,i) =>
-      v.points.map((p,j) => ({id: i+", "+p, point: p, version: i, index: j})));
+      v.points.map((p,j) => ({id: i+", "+p, point: p, version: i, time: j})));
   const nodesByVersionByPoint = nodes.map(v =>
     _.zipObject(v.map(n => JSON.stringify(n.point)), v));
 

@@ -6,7 +6,8 @@ import { audioPathToDirName } from './util';
 import { initDirRec } from './file-manager';
 import { FeatureConfig, FEATURES } from './feature-extractor';
 
-interface FeatureOptions {
+export interface FeatureOptions {
+  quantizerFunctions: ArrayMap[],
   selectedFeatures: FeatureConfig[],
   seventhChords?: boolean,
   doubletime?: boolean
@@ -17,19 +18,19 @@ export interface FullSIAOptions extends OpsiatecOptions, FeatureOptions {}
 export interface FullSWOptions extends SmithWatermanOptions, FeatureOptions {}
 
 const STANDARD_OPTIONS: FullSIAOptions = {
+  quantizerFunctions: null,
   selectedFeatures: [],
   overlapping: true,
   optimizationDimension: 0,
   loggingLevel: -1,
-  quantizerFunctions: null,
   selectionHeuristic: null,
   optimizationHeuristic: null
   //minHeuristicValue: .1,
 }
 
 const SW_OPTIONS: FullSWOptions = {
-  selectedFeatures: null,
   quantizerFunctions: null,
+  selectedFeatures: null,
   iterative: true,//true,
   fillGaps: true, //turn off for similarity graphs!!
   //similarityThreshold: .99,
