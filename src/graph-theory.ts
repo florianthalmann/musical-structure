@@ -142,12 +142,12 @@ export class DirectedGraph<NodeType extends Node> {
 
   //maxDegreesRemoved 0 returns entire connected component
   getAdjacents(node: NodeType, maxDegreesRemoved = 1): NodeType[] {
-    let adjacents = this.getDirectAdjacents(node);
+    let adjacents = _.difference(this.getDirectAdjacents(node), [node]);
     let latest = adjacents;
     let checked = [node];
     while (maxDegreesRemoved > 1 || maxDegreesRemoved <= 0) {
-      const checking = _.difference(latest, checked);
-      latest = _.uniq(_.flatten(checking.map(n => this.getDirectAdjacents(n))));
+      const checking = latest;
+      latest = _.difference(_.uniq(_.flatten(checking.map(n => this.getDirectAdjacents(n)))), checked);
       const previousSize = adjacents.length;
       adjacents = _.union(adjacents, latest);
       if (adjacents.length <= previousSize) return adjacents; //entire connected component reached
