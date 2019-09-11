@@ -137,7 +137,7 @@ export class DirectedGraph<NodeType extends Node> {
   }
   
   getConnectedComponent(node: NodeType) {
-    return this.getAdjacents(node, 0);
+    return [node].concat(this.getAdjacents(node, 0));
   }
 
   //maxDegreesRemoved 0 returns entire connected component
