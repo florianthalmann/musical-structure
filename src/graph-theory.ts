@@ -23,8 +23,8 @@ export class DirectedGraph<NodeType extends Node> {
   private inverseEdges = new Map<NodeType, Map<NodeType, Edge<NodeType>[]>>();
 
   constructor(nodes: NodeType[] = [], edges: Edge<NodeType>[] = []) {
-    nodes.forEach(n => this.nodes.set(n.id, n));
-    edges.forEach(e => this.addLoadedEdge(e));
+    nodes.forEach(n => this.addNode(n));
+    edges.forEach(e => this.addEdgeClone(e));
   }
 
   clone(ignoredNodes = [], ignoredEdges = []): DirectedGraph<NodeType> {
@@ -44,6 +44,11 @@ export class DirectedGraph<NodeType extends Node> {
   getEdges(): Edge<NodeType>[] {
     return _.flatten(
       ([...this.edges.values()]).map(t => _.flatten([...t.values()])));
+  }
+  
+  addGraph(graph: DirectedGraph<NodeType>) {
+    graph.getNodes().forEach(n => this.addNode(n));
+    graph.getEdges().forEach(e => this.addEdgeClone(e));
   }
   
   getSubgraph(nodes: NodeType[]): DirectedGraph<NodeType> {
@@ -76,6 +81,68 @@ export class DirectedGraph<NodeType extends Node> {
   
   private getNodesFromEdges(edges: Edge<NodeType>[]) {
     return _.uniq(_.flatten(edges.map(e => [e.source, e.target])));
+  }
+  
+  pruneEdgesNotInCycles(): DirectedGraph<NodeType> {
+    const decompEdges = _.flatten(this.getChainDecomposition());
+    return new DirectedGraph(this.getNodes(), decompEdges);
+  }
+  
+  getBridges(): Edge<NodeType>[] {
+    const decompEdges = _.flatten(this.getChainDecomposition());
+    return _.difference(this.getEdges(), decompEdges);
+  }
+  
+  private getChainDecomposition() {
+    const spanningForest = this.getSpanningForest();
+    const spanningEdges = spanningForest.getEdges();
+    const preorder = spanningForest.getNodesInPreorder();
+    //different from schmidt's algorithm: no need to keep track of visited nodes.
+    //visited edges (already in chains) is a lot easier!
+    const chains: Edge<NodeType>[][] = [];
+    preorder.forEach(n => {
+      let backEdges = this.getIncidentEdges(n).filter(e =>
+        !spanningEdges.some(f => this.parallel([e, f])));
+      backEdges = _.difference(backEdges, _.flatten(chains));
+      backEdges.forEach(e => {
+        const backNode = e.source === n ? e.target : e.source;
+        const back = [backNode].concat(spanningForest.getPredecessors(backNode));
+        const front = _.reverse([n].concat(spanningForest.getPredecessors(n)));
+        const cycle = _.uniq(back.concat(front));
+        let path = [e];
+        cycle.forEach((u,i) =>
+          i === 0 || path.push(...this.findUndirectedEdges(u, cycle[i-1])));
+        path = _.difference(path, _.flatten(chains));
+        chains.push(path);
+      });
+    });
+    return chains;
+  }
+  
+  private parallel(edges: Edge<NodeType>[]) {
+    return _.uniq(_.flatten(edges.map(e => [e.source, e.target]))).length === 2;
+  }
+  
+  //zettai dame: make undirected graph class anyway...
+  private findUndirectedEdges(n1: NodeType, n2: NodeType) {
+    return this.findEdges(n1, n2).concat(this.findEdges(n2, n1));
+  }
+  
+  private getNodesInPreorder() {
+    const nodes = this.getNodes();
+    const roots = this.getRoots();
+    const preorder = _.flatten(roots.map(r => this.recursiveGetPreorder(r)));
+    //only return if this is actually a directed forest! (no node reached from two roots...)
+    if (preorder.length === nodes.length) return preorder;
+  }
+  
+  private recursiveGetPreorder(node: NodeType): NodeType[] {
+    return [node].concat(_.flatten(
+      this.getDirectSuccessors(node).map(s => this.recursiveGetPreorder(s))));
+  }
+  
+  private getRoots() {
+    return this.getNodes().filter(n => this.findEdges(null, n).length === 0);
   }
 
   getMaximalCliques(): NodeType[][] {
@@ -126,9 +193,36 @@ export class DirectedGraph<NodeType extends Node> {
     return distMap.get(node2);
   }
   
+  getSpanningForest() {
+    const spanningForest = new DirectedGraph<NodeType>();
+    let remainingNodes = this.getNodes();
+    while (remainingNodes.length > 0) {
+      const currentTree = this.getSpanningTree(_.first(remainingNodes));
+      remainingNodes = _.difference(remainingNodes, currentTree.getNodes());
+      spanningForest.addGraph(currentTree);
+    }
+    return spanningForest;
+  }
+  
+  getSpanningTree(node: NodeType): DirectedGraph<NodeType> {
+    const spanningTree = new DirectedGraph<NodeType>();
+    spanningTree.addNode(node);
+    let queue = [node];
+    let index = 0;
+    while (index < queue.length) {
+      const current = queue[index];
+      const next = _.difference(this.getDirectAdjacents(current), queue);
+      next.forEach(u => spanningTree.addNode(u));
+      next.forEach(u => spanningTree.addEdge(current, u));
+      queue = queue.concat(next);
+      index++;
+    }
+    return spanningTree;
+  }
+  
   getConnectedComponents() {
     const components: NodeType[][] = [];
-    let remainingNodes = _.clone([...this.nodes.values()]);
+    let remainingNodes = this.getNodes();
     while (remainingNodes.length > 0) {
       components.push(this.getConnectedComponent(remainingNodes[0]));
       remainingNodes = _.difference(remainingNodes, _.last(components));
@@ -142,9 +236,9 @@ export class DirectedGraph<NodeType extends Node> {
 
   //maxDegreesRemoved 0 returns entire connected component
   getAdjacents(node: NodeType, maxDegreesRemoved = 1): NodeType[] {
-    let adjacents = _.difference(this.getDirectAdjacents(node), [node]);
-    let latest = adjacents;
     let checked = [node];
+    let adjacents = _.difference(this.getDirectAdjacents(node), checked);
+    let latest = adjacents;
     while (maxDegreesRemoved > 1 || maxDegreesRemoved <= 0) {
       const checking = latest;
       latest = _.difference(_.uniq(_.flatten(checking.map(n => this.getDirectAdjacents(n)))), checked);
@@ -158,7 +252,8 @@ export class DirectedGraph<NodeType extends Node> {
   }
 
   getDirectAdjacents(node: NodeType) {
-    return this.getDirectSuccessors(node).concat(this.getDirectPredecessors(node));
+    return _.uniq(this.getDirectSuccessors(node)
+      .concat(this.getDirectPredecessors(node)));
   }
 
   /** children of same parents, parents of same children */
@@ -189,7 +284,7 @@ export class DirectedGraph<NodeType extends Node> {
   }
   
   getDegree(node: NodeType): number {
-    return this.findEdges(node).length + this.findEdges(null, node).length;
+    return this.getIncidentEdges(node).length;
   }
 
   getDirectPredecessors(node: NodeType): NodeType[] {
@@ -202,21 +297,30 @@ export class DirectedGraph<NodeType extends Node> {
   }
 
   addEdge(source: NodeType, target: NodeType): Edge<NodeType> {
-    if (this.nodes.has(source.id) && this.nodes.has(target.id)) {
-      return this.pushEdge(edge(source, target));
-    }
+    return this.pushEdge(edge(source, target));
+  }
+  
+  private addNode(node: NodeType) {
+    if (!this.nodes.has(node.id)) this.nodes.set(node.id, node);
   }
 
-  private addLoadedEdge(edge: Edge<NodeType>) {
-    edge.source = this.nodes.get(edge.source.id);
-    edge.target = this.nodes.get(edge.target.id);
+  private addEdgeClone(edge: Edge<NodeType>) {
+    const clone = _.clone(edge);
+    clone.source = this.nodes.get(edge.source.id);
+    clone.target = this.nodes.get(edge.target.id);
     this.pushEdge(edge);
   }
 
   private pushEdge(e: Edge<NodeType>): Edge<NodeType> {
-    this.pushToDoubleMap(this.edges, e.source, e.target, e);
-    this.pushToDoubleMap(this.inverseEdges, e.target, e.source, e);
-    return e;
+    if (this.nodes.has(e.source.id) && this.nodes.has(e.target.id)) {
+      this.pushToDoubleMap(this.edges, e.source, e.target, e);
+      this.pushToDoubleMap(this.inverseEdges, e.target, e.source, e);
+      return e;
+    }
+  }
+  
+  private getIncidentEdges(node: NodeType) {
+    return this.findEdges(node).concat(this.findEdges(null, node));
   }
 
   private findEdges(source?: NodeType, target?: NodeType): Edge<NodeType>[] {
