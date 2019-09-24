@@ -136,6 +136,86 @@ function getIndex(nodes: SegmentNode[], version: number) {
   if (node) return node.time;
 }
 
+function getFirstPositions(nodes: SegmentNode[], count = 1) {
+  const result: SegmentNode[] = [];
+  let remaining = nodes;
+  _.range(0,count).forEach(i => {
+    result.push(..._.uniqBy(_.sortBy(remaining, n => n.time), c => c.version));
+    remaining = _.difference(remaining, result);
+  })
+  return result;
+}
+
+function getLastPositions(nodes: SegmentNode[]) {
+  return _.uniqBy(_.reverse(_.sortBy(nodes, n => n.time)), c => c.version);
+}
+
+function groupByPositions(graph: DirectedGraph<SegmentNode>, posPerGroup = 1) {
+  const grouped: SegmentNode[][] = [];
+  let remainingNodes = graph.getNodes();
+  while (remainingNodes.length > 0) {
+    const currentFirsts = getFirstPositions(remainingNodes, posPerGroup);
+    grouped.push(currentFirsts);
+    remainingNodes = _.difference(remainingNodes, currentFirsts);
+  }
+  return grouped;
+}
+
+function groupByPositionAndCycles(graph: DirectedGraph<SegmentNode>) {
+  let byPosition = groupByPositions(graph);
+  console.log("positions", JSON.stringify(byPosition.map(c => c.length)), byPosition.length);
+  const byCycle: SegmentNode[][] = [];
+  let remaining: SegmentNode[] = [];
+  byPosition.forEach(nodes => {
+    remaining.push(...nodes);
+    const currentCycles = graph.getSubgraph(getFirstPositions(remaining))
+      .pruneEdgesNotInCycles().pruneIsolatedNodes().getNodes();
+    byCycle.push(currentCycles);
+    remaining = _.difference(remaining, currentCycles);
+  });
+  console.log("cycles", JSON.stringify(byCycle.map(c => c.length)), remaining.length)
+  /*console.log("more last", JSON.stringify(_.range(0,20).map(i => {
+    const last = getLastPositions(remaining);
+    const size = graph.getSubgraph(last).pruneEdgesNotInCycles().pruneIsolatedNodes().getSize()
+    remaining = _.difference(remaining, last);
+    return size;
+  })))
+  console.log("more first", JSON.stringify(_.range(0,10).map(i => {
+    const first = getFirstPositions(remaining);
+    const size = graph.getSubgraph(first).pruneEdgesNotInCycles().pruneIsolatedNodes().getSize()
+    remaining = _.difference(remaining, first);
+    return size;
+  })))*/
+  /*remaining.slice(0,5).map(r => console.log(JSON.stringify(byCycle.map(nodes =>
+    graph.getSubgraph(_.concat(nodes, [r])).getIncidentEdges(r).length))));*/
+  
+  //POSTPROCESS
+  /*const last = getLastPositions(remaining);
+  byCycle.map((c,i) => {
+    const concat = _.concat(c,last);
+    const first = getFirstPositions(concat);
+    const order = first.filter(f => 
+      _.concat(_.flatten(byCycle.slice(0, i)).filter(c => c.time > f.time),
+      _.flatten(byCycle.slice(i+1)).filter(c => f.time > c.time)).length === 0);
+    const addition = graph.getSubgraph(order).pruneEdgesNotInCycles().pruneIsolatedNodes().getSize()-c.length
+    console.log(concat.length, first.length, order.length, addition);
+  })*/
+  /*const first = getFirstPositions(remaining);
+  byCycle.map((c,i) => {
+    const concat = _.concat(c,first);
+    const first2 = getFirstPositions(concat);
+    const order = first2.filter(f => 
+      _.concat(_.flatten(byCycle.slice(0, i)).filter(c => c.time > f.time),
+      _.flatten(byCycle.slice(i+1)).filter(c => f.time > c.time)).length === 0);
+    const addition = graph.getSubgraph(order).pruneEdgesNotInCycles().pruneIsolatedNodes().getSize()-c.length
+    console.log(c.length, concat.length, first2.length, order.length, addition);
+  })*/
+  /*const first = getFirstPositions(remaining);
+  additions = byCycle.map(c => graph.getSubgraph(_.concat(first,c)).pruneEdgesNotInCycles().pruneIsolatedNodes().getSize()-c.length)
+  console.log("first additions", JSON.stringify(additions))*/
+  return byCycle;
+}
+
 export function constructTimelineFromHybrids(versionPairs: [number,number][],
     results: StructureResult[]) {
   const COMPONENT_SIZE_THRESHOLD = versionPairs.length/4;
@@ -143,22 +223,28 @@ export function constructTimelineFromHybrids(versionPairs: [number,number][],
   const timeline: SegmentNode[][] = [];
   
   const graph = createSegmentGraphFromHybrids(versionPairs, results, [0,1]);
-  let components = graph.getConnectedComponents()
-    .filter(c => c.length > COMPONENT_SIZE_THRESHOLD);
+  const components = graph.getConnectedComponents()
+    .filter(c => c.length > COMPONENT_SIZE_THRESHOLD)
+    //.map(c => graph.getSubgraph(c).pruneEdgesNotInCycles());
+  console.log("components", JSON.stringify(components.slice(0,20).map(c => c.length)), "...");
+  //console.log(JSON.stringify(_.sortBy(components[0].map(n => n.version+"."+n.time))));
   
-  const firsts = _.uniqBy(_.sortBy(components[0], n => n.time), c => c.version);
-  console.log(JSON.stringify(firsts.map(n => n.time)))
   
-  const seconds = _.uniqBy(_.sortBy(_.difference(components[0], firsts), n => n.time), c => c.version);
-  console.log(JSON.stringify(seconds.map(n => n.time)))
   
-  console.log(JSON.stringify(firsts.slice(0,10)))
-  saveGraph('plots/d3/latest/slice.json', graph.getSubgraph(firsts));
-  console.log(JSON.stringify(graph.getSubgraph(firsts).getNodes().slice(0,10)))
+  saveGraph('plots/d3/latest/slice2.json', graph.getSubgraph(components[0]));
+  
+  //let grouped = components.map(c => groupByPositionAndCycles(graph.getSubgraph(c)));
+  /*let grouped = groupByPositionAndCycles(graph.getSubgraph(components[0]));
+  
+  const firstThree = graph.getSubgraph(_.flatten(grouped[0].slice(0,3)))
+    .pruneEdgesNotInCycles().pruneIsolatedNodes();
+  
+  saveGraph('plots/d3/latest/slice2.json', firstThree);
   //saveGraph('plots/d3/latest/slice2.json', graph.getSubgraph(seconds));
   
-  console.log("total", JSON.stringify(components.map(c => c.map(n => n.version).length)))
+  /*console.log("total", JSON.stringify(components.map(c => c.map(n => n.version).length)))
   console.log("redundant", JSON.stringify(components.map(c => c.map(n => n.version).length - _.uniq(c.map(n => n.version)).length)))
+  console.log("max", JSON.stringify(components.map(c => _.max(_.values(_.countBy(c.map(n => n.version)))))));*/
   
   //filter out 
   //components = components.map()
@@ -195,7 +281,7 @@ export function createSegmentGraphFromHybrids(versionPairs: [number,number][],
     ij[1] == 0 ? results[ij[0]].points : (<IterativeSmithWatermanResult[]>results)[ij[0]].points2)
   //create nodes and a map to find them quickly
   const nodes: SegmentNode[][] = versionsPoints.map((ps,i) =>
-    ps.map((p,j) => ({id: i+", "+p, point: p, version: i, time: j})));
+    ps.map((p,j) => ({id: i+"."+j, point: p, version: i, time: j})));
   const nodesByVersionByPoint = nodes.map(v =>
     _.zipObject(v.map(n => JSON.stringify(n.point)), v));
   //initialize graph
@@ -206,6 +292,7 @@ export function createSegmentGraphFromHybrids(versionPairs: [number,number][],
   let patterns = results.map(r => r.patterns);
   patterns = patterns.map((ps,i) =>
     findMostCoherentAlignments(ps, versionPairs[i], versionStringPoints));
+  
   //remove overlaps
   patterns = patterns.map((ps,i) =>
     removePatternOverlaps(ps, versionPairs[i], versionStringPoints));
@@ -215,21 +302,18 @@ export function createSegmentGraphFromHybrids(versionPairs: [number,number][],
   /*console.log(results.slice(0,10).map(r => r.patterns.length), " => ",
     bestPatterns.slice(0,10).map(p => p.length))*/
   
-  //TODO NOW REMOVE ALL OVERLAPS!!!!!!
-  
   //add alignment connections
-  _.zip(versionPairs, results).forEach(([vs,r]) =>
-    r.patterns.filter((_,i) => patternIndexes.indexOf(i) >= 0).forEach(pn => pn.points.map((_,i) => {
+  _.zip(versionPairs, patterns).forEach(([vs,ps]) =>
+    ps.filter((_,i) => patternIndexes.indexOf(i) >= 0).forEach(pn => pn.points.map((_,i) => {
       const nodes = vs.map((v,j) =>
         nodesByVersionByPoint[v][JSON.stringify(pn.occurrences[j][i])]);
       //if (i < 20)
       graph.addEdge(nodes[0], nodes[1]);
     })));
   
-  console.log(graph.getSize())
+  console.log("\nfull", graph.getSize(), graph.getEdges().length)
   
   graph = graph.pruneIsolatedNodes();
-  
   console.log("pruned", graph.getSize(), graph.getEdges().length)
   
   //REMOVE ALL NODES WITH SMALL DEGREES
@@ -242,8 +326,8 @@ export function createSegmentGraphFromHybrids(versionPairs: [number,number][],
   
   //REMOVE ALL EDGES THAT DON'T HAVE A THIRD!!
   
-  graph = graph.pruneIsolatedNodes();
-  console.log("pruned", graph.getSize(), graph.getEdges().length)
+  /*graph = graph.pruneEdgesNotInCycles();
+  console.log("pruned2", graph.getSize(), graph.getEdges().length)*/
   
   const v0nodes = versionsPoints[0].map(p => nodesByVersionByPoint[0][JSON.stringify(p)]);
   const v0conn = v0nodes.map(n =>

@@ -28,12 +28,13 @@ async function draw() {
   
   const files = [
     //"graphs_jo4_min3/bestgd_jaccard_.8_1_555.json"
-    "latest/box of rain-sw-hybrid-all-graph.json"
+    //"latest/box of rain-sw-hybrid-all-graph.json"
+    "latest/slice2.json"
   ];
   let fileIndex = 0;
   let graph;
   await loadNextGraph();
-  svg.on("click", nextGraph);
+  //svg.on("click", nextGraph);
   
   async function loadNextGraph() {
     graph = await d3.json(files[fileIndex]);
@@ -54,12 +55,12 @@ async function draw() {
     .selectAll("circle")
     .data(graph.nodes)
     .enter().append("circle")
-      .attr("r", n => Math.sqrt(n.count)*2)
+      .attr("r", n => 2)//Math.sqrt(n.count)*2)
       .attr("fill", e => e.type != null ? d3.hsl((e.type+400)*40, 0.7, 0.5) : "black")
       /*.attr("r", n => n.count)
       .attr("fill", e => "black")*/
       //.attr("opacity", n => n.size/20)
-      .on("mouseover", n => {tooltip.style("visibility", "visible"); tooltip.text(n.id + " " + n.count)})
+      .on("mouseover", n => {tooltip.style("visibility", "visible"); tooltip.text(n.version + " " + n.time)})//tooltip.text(n.id + " " + n.count)})
       .on("mousemove", () => tooltip.style("top", (event.pageY-10)+"px").style("left",(event.pageX+10)+"px"))
       .on("mouseout", () => tooltip.style("visibility", "hidden"))
       .call(d3.drag()

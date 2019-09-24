@@ -1,5 +1,6 @@
 import * as fs from 'fs';
 import * as _ from 'lodash';
+import { updateStatus } from './util';
 
 export interface Node {
   id?: string
@@ -94,13 +95,17 @@ export class DirectedGraph<NodeType extends Node> {
   }
   
   private getChainDecomposition() {
+    //console.log("this", this.getSize(), this.getEdges().length);
     const spanningForest = this.getSpanningForest();
+    //console.log("forest", spanningForest.getSize(), spanningForest.getEdges().length);
     const spanningEdges = spanningForest.getEdges();
     const preorder = spanningForest.getNodesInPreorder();
+    //console.log("preorder", preorder.length);
+    
     //different from schmidt's algorithm: no need to keep track of visited nodes.
     //visited edges (already in chains) is a lot easier!
     const chains: Edge<NodeType>[][] = [];
-    preorder.forEach(n => {
+    preorder.forEach((n,i) => {
       let backEdges = this.getIncidentEdges(n).filter(e =>
         !spanningEdges.some(f => this.parallel([e, f])));
       backEdges = _.difference(backEdges, _.flatten(chains));
@@ -116,6 +121,7 @@ export class DirectedGraph<NodeType extends Node> {
         chains.push(path);
       });
     });
+    //console.log("decomp", _.flatten(chains).length)
     return chains;
   }
   
@@ -319,7 +325,7 @@ export class DirectedGraph<NodeType extends Node> {
     }
   }
   
-  private getIncidentEdges(node: NodeType) {
+  getIncidentEdges(node: NodeType) {
     return this.findEdges(node).concat(this.findEdges(null, node));
   }
 
