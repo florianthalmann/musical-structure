@@ -48,7 +48,7 @@ export function getPatternGroupNFs(graph: DirectedGraph<PatternNode>,
   options.valueFunction = nodes => _.sum(nodes.map(n => n.count));
   let normalForms: string[][] = [];
   while (graph.getSize() > 0 && count > 0) {
-    const best = getBestGroup(graph, options);
+    const best = getBestGroup(graph, options).members;
     normalForms.push(best.map(n => n.id));
     best.forEach(n => graph.removeNode(n));
     graph = graph.pruneIsolatedNodes();
@@ -68,7 +68,7 @@ export function analyzePatternGraph(path: string, top = 5) {
   const adjacents = getBestGroup(graph, {
     ratingMethod: GROUP_RATING.VALUE,
     valueFunction: nodes => _.sum(nodes.map(n => n.count))
-  });
+  }).members;
   console.log('most adjacent:', adjacents.slice(0,top).map(a => a[2] + ', ' + a[0].count + ': ' + a[0].id));
 
   /*const neighbors = nodes.map(n => graph.getNeighbors(n));
@@ -185,9 +185,15 @@ export function constructTimelineFromHybrids(versionPairs: [number,number][],
   console.log("components", JSON.stringify(components.slice(0,20).map(c => c.length)), "...");
   //console.log(JSON.stringify(_.sortBy(components[0].map(n => n.version+"."+n.time))));
   
+  const group = getBestGroup(graph.getSubgraph(components[0]), {
+    condition: (n, os) => os.map(o => o.version).indexOf(n.version) < 0,
+    ratingMethod: GROUP_RATING.INTERNAL,
+    maxDistance: 0
+  });
+  //console.log(group.center, group.members.length, group.value)
+  console.log(JSON.stringify(_.sortBy(group.members.map(n => n.version+"."+n.time))))
   
-  
-  saveGraph('plots/d3/latest/slice2.json', graph.getSubgraph(components[0]));
+  saveGraph('plots/d3/latest/slice2.json', graph.getSubgraph(group.members));
   
   //let grouped = components.map(c => groupByPositionAndCycles(graph.getSubgraph(c)));
   /*let grouped = groupByPositionAndCycles(graph.getSubgraph(components[0]));
