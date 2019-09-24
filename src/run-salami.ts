@@ -7,7 +7,7 @@ import { getVampValues, getPoints } from './feature-parser';
 import { Annotation, getAnnotations } from './salami-parser';
 import { mapSeries, printPatterns, cartesianProduct, updateStatus } from './util';
 import { mapToTimegrid, normalize } from './pattern-stats';
-import { FullOptions, getOptionsWithCaching, getJohanBarsOptions,
+import { FullSIAOptions, getOptionsWithCaching, getJohanBarsOptions,
   getChromaBeatsOptions, getVariations } from './options';
 import { evaluate } from './eval';
 
@@ -28,7 +28,7 @@ export function nightJob() {
   runBatchSalami(options, variations, [], 700);
 }
 
-export async function runBatchSalami(basis: FullOptions, variations: [string, any[]][], exclude: number[], maxLength?: number) {
+export async function runBatchSalami(basis: FullSIAOptions, variations: [string, any[]][], exclude: number[], maxLength?: number) {
   await mapSeries(cartesianProduct(variations.map(v => v[1])), async combo => {
     const currentOptions = Object.assign({}, basis);
     combo.forEach((c: any, i: number) => currentOptions[variations[i][0]] = c);
@@ -43,7 +43,7 @@ export async function runBatchSalami(basis: FullOptions, variations: [string, an
 
 }
 
-async function runSalami(options: FullOptions, evalFile: string, exclude: number[], maxLength?: number) {
+async function runSalami(options: FullSIAOptions, evalFile: string, exclude: number[], maxLength?: number) {
   console.log('gathering files and parsing annotations');
   //gather available files and annotations
   let files = fs.readdirSync(SALAMI_AUDIO).filter(f => f.indexOf(".mp3") > 0)
@@ -63,7 +63,7 @@ async function runSalami(options: FullOptions, evalFile: string, exclude: number
   fs.writeFileSync(evalFile, JSON.stringify(result));
 }
 
-async function evaluateSalamiFile(filename: number, groundtruth: Annotation[], options: FullOptions, maxLength = 0) {
+async function evaluateSalamiFile(filename: number, groundtruth: Annotation[], options: FullSIAOptions, maxLength = 0) {
   updateStatus('  working on SALAMI file ' + filename);
   
   if (options.loggingLevel >= 0) console.log('    extracting and parsing features', filename);

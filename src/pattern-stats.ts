@@ -3,6 +3,7 @@ import { StructureResult, IterativeSmithWatermanResult, Pattern } from 'siafun';
 import { compareArrays } from 'arrayutils';
 const SimpleLinearRegression = require('ml-regression-simple-linear');
 import { DirectedGraph, Node, saveGraph, loadGraph } from './graph-theory';
+import { NodeGroupingOptions, getBestGroup, GROUP_RATING } from './graph-analysis';
 import { toIndexSeqMap, powerset } from './util';
 import { saveJsonFile } from './file-manager';
 
@@ -24,28 +25,6 @@ interface SegmentNode extends Node {
   time: number
 }
 
-export enum PATTERN_RATING {
-  CONNECTIONS, //most connections to anywhere (largest hubs)
-  CONNECTIONS_AVG, //most connections to anywhere per pattern
-  INTERNAL, //most internal connections within group
-  COUNT, //highest pattern count
-  COUNT_AVG, //highest pattern count per pattern
-}
-
-type GroupingCondition = (n: PatternNode, c?: PatternNode) => boolean
-
-export interface PatternGroupingOptions {
-  maxDistance?: number,
-  rating?: PATTERN_RATING,
-  condition?: GroupingCondition
-}
-
-interface PatternGroup {
-  center: PatternNode,
-  members: PatternNode[], //members don't include center
-  totalCount: number
-}
-
 export function getConnectednessByVersion(graph: DirectedGraph<PatternNode>) {
   const nodes = graph.getNodes();
   const allVersions = _.uniq(_.flatten(nodes.map(n => n.versions)));
@@ -63,10 +42,13 @@ export function getMostCommonPatternNFs(path: string) {
   return nodes.map(n => n.id);
 }
 
-export function getPatternGroupNFs(graph: DirectedGraph<PatternNode>, options: PatternGroupingOptions, count = Infinity): string[][] {
+export function getPatternGroupNFs(graph: DirectedGraph<PatternNode>,
+    options?: NodeGroupingOptions<PatternNode>, count = Infinity): string[][] {
+  options.ratingMethod = GROUP_RATING.VALUE;
+  options.valueFunction = nodes => _.sum(nodes.map(n => n.count));
   let normalForms: string[][] = [];
   while (graph.getSize() > 0 && count > 0) {
-    const best = getBestPatternGroup(graph, options);
+    const best = getBestGroup(graph, options);
     normalForms.push(best.map(n => n.id));
     best.forEach(n => graph.removeNode(n));
     graph = graph.pruneIsolatedNodes();
@@ -74,35 +56,6 @@ export function getPatternGroupNFs(graph: DirectedGraph<PatternNode>, options: P
   }
   return normalForms;
 }
-
-function getBestPatternGroup(graph: DirectedGraph<PatternNode>, options: PatternGroupingOptions) {
-  let ratingFunc: (a: PatternGroup) => number;
-  if (!options.rating || options.rating === PATTERN_RATING.COUNT) {
-    ratingFunc = g => g.totalCount;
-  } else if (options.rating === PATTERN_RATING.COUNT_AVG) {
-    ratingFunc = g => Math.pow(g.totalCount, 1)/g.members.length;
-  }
-  const adjacents = getAdjacents(graph, options.maxDistance, options.condition);
-  adjacents.sort((a,b) => ratingFunc(b)-ratingFunc(a));
-
-  console.log(adjacents[0].center.id, adjacents[0].members.length, ratingFunc(adjacents[0]));
-  return _.concat([adjacents[0].center], adjacents[0].members);
-}
-
-function getAdjacents(graph: DirectedGraph<PatternNode>, maxDistance?: number,
-    condition?: GroupingCondition): PatternGroup[] {
-  const nodes = graph.getNodes();
-  let adjacents = nodes.map(n =>
-    maxDistance ? graph.getAdjacents(n, maxDistance) : []);
-  if (condition) adjacents =
-    adjacents.map((a,i) => a.filter(n => condition(n, nodes[i])));
-  return nodes.map((n,i) =>({
-    center: n,
-    members: adjacents[i],
-    totalCount: n.count + _.sum(adjacents[i].map(m => m.count))
-  }));
-}
-
 
 export function analyzePatternGraph(path: string, top = 5) {
   const graph = loadGraph<PatternNode>(path);
@@ -112,7 +65,10 @@ export function analyzePatternGraph(path: string, top = 5) {
   nodes.sort((a,b) => b.count-a.count);
   console.log('most common:', nodes.slice(0,top).map(n => n.count + ': ' + n.id));
 
-  const adjacents = getBestPatternGroup(graph, {rating: PATTERN_RATING.COUNT});
+  const adjacents = getBestGroup(graph, {
+    ratingMethod: GROUP_RATING.VALUE,
+    valueFunction: nodes => _.sum(nodes.map(n => n.count))
+  });
   console.log('most adjacent:', adjacents.slice(0,top).map(a => a[2] + ', ' + a[0].count + ': ' + a[0].id));
 
   /*const neighbors = nodes.map(n => graph.getNeighbors(n));

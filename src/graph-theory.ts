@@ -1,6 +1,5 @@
 import * as fs from 'fs';
 import * as _ from 'lodash';
-import { updateStatus } from './util';
 
 export interface Node {
   id?: string

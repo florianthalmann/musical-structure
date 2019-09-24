@@ -6,8 +6,8 @@ import { GD_AUDIO as GDA, GD_SONG_MAP, GD_PATTERNS, GD_GRAPHS } from './config';
 import { mapSeries, updateStatus, toIndexSeqMap, audioPathToDirName } from './util';
 import { loadJsonFile, initDirRec, getFoldersInFolder } from './file-manager';
 import { createSimilarityPatternGraph, getPatternGroupNFs, getNormalFormsMap,
-  PatternGroupingOptions, getConnectednessByVersion,
-  constructTimelineFromHybrids, PatternNode } from './pattern-stats';
+  getConnectednessByVersion, constructTimelineFromHybrids, PatternNode } from './pattern-stats';
+import { NodeGroupingOptions } from './graph-analysis';
 import { loadGraph } from './graph-theory';
 import { getOptionsWithCaching, getBestGdOptions, getGdSwOptions,
   FullSIAOptions, FullSWOptions, getOptions } from './options';
@@ -104,7 +104,7 @@ export async function saveHybridPatternGraphs(filebase: string, song = SONG, ext
 export async function analyzeHybridPatternGraphs(filebase: string, size = 2, count = 1) {
   const graphs = _.range(count)
     .map(i =>loadGraph<PatternNode>(filebase+'-hybrid'+size+'-'+i+'-graph.json'));
-  const grouping: PatternGroupingOptions = { maxDistance: 3, condition: n => n.size > 5 };
+  const grouping: NodeGroupingOptions<PatternNode> = { maxDistance: 3, condition: n => n.size > 5 };
   graphs.forEach(g => {getPatternGroupNFs(g, grouping, 5); console.log()});
 }
 
@@ -116,7 +116,7 @@ export async function savePS(filebase: string, cosiatecFile: string, graphFile: 
   const MIN_OCCURRENCE = 2;
   const PATTERN_TYPES = 10;
 
-  const grouping: PatternGroupingOptions = { maxDistance: 5, condition: (n,c) => n.size > 5};
+  const grouping: NodeGroupingOptions<PatternNode> = { maxDistance: 5, condition: (n,c) => n.size > 5};
   const patsec = _.flatten(await getPatternSequences([], points, results, grouping, PATTERN_TYPES, MIN_OCCURRENCE, graphFile));
   
   //TODO TAKE MOST CONNECTED ONES :)
@@ -159,7 +159,7 @@ export async function saveSWPatternAndVectorSequences(filebase: string, tryHalft
   /*const vecsec = _.flatten(await getVectorSequences(versions, points, options, PATTERN_TYPES));
   vecsec.forEach(s => s.version = s.version*2+1);*/
 
-  const grouping: PatternGroupingOptions = { maxDistance: 4, condition: (n,c) => n.size > 6};
+  const grouping: NodeGroupingOptions<PatternNode> = { maxDistance: 4, condition: (n,c) => n.size > 6};
   const patsec = _.flatten(await getPatternSequences(versions, points, results, grouping, PATTERN_TYPES, MIN_OCCURRENCE, graphFile));
   //patsec.forEach(s => s.version = s.version*2);
 
@@ -205,7 +205,7 @@ export async function savePatternAndVectorSequences(filebase: string, tryHalftim
   /*const vecsec = _.flatten(await getVectorSequences(versions, points, options, PATTERN_TYPES));
   vecsec.forEach(s => s.version = s.version*2+1);*/
 
-  const grouping: PatternGroupingOptions = { maxDistance: 4, condition: (n,c) => n.size > 6};
+  const grouping: NodeGroupingOptions<PatternNode> = { maxDistance: 4, condition: (n,c) => n.size > 6};
   const patsec = _.flatten(await getPatternSequences(versions, points, results, grouping, PATTERN_TYPES, MIN_OCCURRENCE, graphFile));
   //patsec.forEach(s => s.version = s.version*2);
 
@@ -227,7 +227,7 @@ export async function savePatternSequences(file: string, hubSize: number, append
 }
 
 async function getPatternSequences(audio: string[], points: any[][],
-    results: StructureResult[], groupingOptions: PatternGroupingOptions,
+    results: StructureResult[], groupingOptions: NodeGroupingOptions<PatternNode>,
     typeCount = 10, minCount = 2, path?: string): Promise<VisualsPoint[][]> {
   const sequences = results.map((v,i) => v.points.map((p,j) =>
     ({version:i, index:j, type:0, point:p, path: audio[i],
