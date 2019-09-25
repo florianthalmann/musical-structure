@@ -2,18 +2,19 @@ import * as fs from 'fs';
 import * as _ from 'lodash';
 import { pointsToIndices, ArrayMap, StructureResult, getCosiatec,
   getSmithWaterman, getDualSmithWaterman } from 'siafun';
-import { GD_AUDIO as GDA, GD_SONG_MAP, GD_PATTERNS, GD_GRAPHS } from './config';
-import { mapSeries, updateStatus, toIndexSeqMap, audioPathToDirName } from './util';
-import { loadJsonFile, initDirRec, getFoldersInFolder } from './file-manager';
-import { createSimilarityPatternGraph, getPatternGroupNFs, getNormalFormsMap,
-  getConnectednessByVersion, constructTimelineFromHybrids, PatternNode } from './pattern-stats';
-import { NodeGroupingOptions } from './graph-analysis';
-import { loadGraph } from './graph-theory';
+import { GD_AUDIO as GDA, GD_SONG_MAP, GD_PATTERNS, GD_GRAPHS } from './files/config';
+import { mapSeries, updateStatus, audioPathToDirName } from './files/util';
+import { loadJsonFile, initDirRec, getFoldersInFolder } from './files/file-manager';
+import { NodeGroupingOptions } from './graphs/graph-analysis';
+import { loadGraph } from './graphs/graph-theory';
 import { getOptionsWithCaching, getBestGdOptions, getGdSwOptions,
-  FullSIAOptions, FullSWOptions, getOptions } from './options';
-import { FeatureConfig } from './feature-extractor';
-import { getPointsFromAudio, getQuantizedPoints, quantize } from './feature-parser';
-import { toHistogram, getMostCommonPoints } from './histograms';
+  FullSIAOptions, FullSWOptions, getOptions } from './files/options';
+import { FeatureConfig } from './files/feature-extractor';
+import { getPointsFromAudio, getQuantizedPoints, quantize } from './files/feature-parser';
+import { createSimilarityPatternGraph, getPatternGroupNFs, getNormalFormsMap,
+  getConnectednessByVersion, constructTimelineFromHybrids, PatternNode } from './graphs/pattern-stats';
+import { toHistogram, getMostCommonPoints } from './graphs/histograms';
+import { toIndexSeqMap } from './graphs/util';
 
 interface GdVersion {
   recording: string,

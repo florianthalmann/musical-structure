@@ -7,8 +7,8 @@ import { saveHybridPatternGraphs, savePatternSequences, saveVectorSequences,
 import { calculateCompressionDistances, calculatePatternSimilarities,
   sweep, saveSimilarities, sweep2} from './run-gd-dists';
 
-import { analyzePatternGraph } from './pattern-stats';
-import { cleanCaches, renameJohanChordFeatures, moveToFeaturesDir } from './file-manager';
+import { analyzePatternGraph } from './graphs/pattern-stats';
+import { cleanCaches, renameJohanChordFeatures, moveToFeaturesDir } from './files/file-manager';
 
 
 /*fs.writeFileSync('connections3.json', JSON.stringify(

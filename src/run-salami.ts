@@ -1,14 +1,14 @@
 import * as fs from 'fs';
 import * as _ from 'lodash';
 import { getCosiatecOptionsString, getCosiatecIndexOccurrences, HEURISTICS } from 'siafun';
-import { SALAMI_AUDIO, SALAMI_ANNOTATIONS, SALAMI_RESULTS } from './config';
-import { getFeatures } from './feature-extractor';
-import { getVampValues, getPoints } from './feature-parser';
-import { Annotation, getAnnotations } from './salami-parser';
-import { mapSeries, printPatterns, cartesianProduct, updateStatus } from './util';
-import { mapToTimegrid, normalize } from './pattern-stats';
+import { SALAMI_AUDIO, SALAMI_ANNOTATIONS, SALAMI_RESULTS } from './files/config';
+import { getFeatures } from './files/feature-extractor';
+import { getVampValues, getPoints } from './files/feature-parser';
+import { Annotation, getAnnotations } from './files/salami-parser';
+import { mapSeries, printPatterns, cartesianProduct, updateStatus } from './files/util';
+import { mapToTimegrid, normalize } from './graphs/pattern-stats';
 import { FullSIAOptions, getOptionsWithCaching, getJohanBarsOptions,
-  getChromaBeatsOptions, getVariations } from './options';
+  getChromaBeatsOptions, getVariations } from './files/options';
 import { evaluate } from './eval';
 
 

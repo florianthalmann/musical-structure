@@ -5,7 +5,7 @@ const SimpleLinearRegression = require('ml-regression-simple-linear');
 import { DirectedGraph, Node, saveGraph, loadGraph } from './graph-theory';
 import { NodeGroupingOptions, getBestGroup, GROUP_RATING } from './graph-analysis';
 import { toIndexSeqMap, powerset } from './util';
-import { saveJsonFile } from './file-manager';
+import { saveJsonFile } from '../files/file-manager';
 
 interface ProtoNode {
   protoId: any
