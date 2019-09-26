@@ -44,11 +44,12 @@ export function getMostCommonPatternNFs(path: string) {
 
 export function getPatternGroupNFs(graph: DirectedGraph<PatternNode>,
     options?: NodeGroupingOptions<PatternNode>, count = Infinity): string[][] {
+  options.graph = graph;
   options.ratingMethod = GROUP_RATING.VALUE;
   options.valueFunction = nodes => _.sum(nodes.map(n => n.count));
   let normalForms: string[][] = [];
   while (graph.getSize() > 0 && count > 0) {
-    const best = getBestGroups(graph, options)[0].members;
+    const best = getBestGroups(options)[0].members;
     normalForms.push(best.map(n => n.id));
     best.forEach(n => graph.removeNode(n));
     graph = graph.pruneIsolatedNodes();
@@ -65,7 +66,8 @@ export function analyzePatternGraph(path: string, top = 5) {
   nodes.sort((a,b) => b.count-a.count);
   console.log('most common:', nodes.slice(0,top).map(n => n.count + ': ' + n.id));
 
-  const groups = getBestGroups(graph, {
+  const groups = getBestGroups({
+    graph: graph,
     ratingMethod: GROUP_RATING.VALUE,
     valueFunction: nodes => _.sum(nodes.map(n => n.count))
   })[0].members;
@@ -185,7 +187,8 @@ export function constructTimelineFromHybrids(versionPairs: [number,number][],
   console.log("components", JSON.stringify(components.slice(0,20).map(c => c.length)), "...");
   //console.log(JSON.stringify(_.sortBy(components[0].map(n => n.version+"."+n.time))));
   
-  const groups = getPartition(graph.getSubgraph(components[0]), {
+  const groups = getPartition({
+    graph: graph.getSubgraph(components[0]),
     condition: (n, os) => os.map(o => o.version).indexOf(n.version) < 0,
     ratingMethod: GROUP_RATING.INTERNAL,
     maxDistance: 0

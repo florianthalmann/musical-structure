@@ -14,6 +14,7 @@ type GroupingCondition<NodeType> =
   (node: NodeType, others: NodeType[]) => boolean;
 
 export interface NodeGroupingOptions<NodeType> {
+  graph?: DirectedGraph<NodeType>,
   maxDistance?: number,
   ratingMethod?: GROUP_RATING,
   condition?: GroupingCondition<NodeType>,
@@ -39,12 +40,11 @@ export interface NodeGroup<NodeType> {
  * - best would probably be to iteratively search the graph for new groups,
  *   but much more expensive
  */
-export function getPartition<T extends Node>(graph: DirectedGraph<T>,
-    options: NodeGroupingOptions<T>, greedy = false) {
-  let groups = getBestGroups(graph, options);
+export function getPartition<T extends Node>(options: NodeGroupingOptions<T>, greedy = false) {
+  let groups = getBestGroups(options);
   
   const best: NodeGroup<T>[] = [];
-  let remainingNodes = graph.getNodes();
+  let remainingNodes = options.graph.getNodes();
   let remainingGroups = _.clone(groups);
   while (remainingNodes.length > 0) {
     const alreadyThere = getUniqueMembers(best);
@@ -64,8 +64,8 @@ export function getPartition<T extends Node>(graph: DirectedGraph<T>,
       const overlap = _.intersection(bestCandidate.members, alreadyThere);
       overlap.forEach(n => {
         const previousBest = best.filter(b => b.members.indexOf(n) >= 0)[0];
-        const previousGraph = graph.getSubgraph(previousBest.members);
-        const candidateGraph = graph.getSubgraph(bestCandidate.members);
+        const previousGraph = options.graph.getSubgraph(previousBest.members);
+        const candidateGraph = options.graph.getSubgraph(bestCandidate.members);
         if (candidateGraph.getIncidentEdges(n).length
             > previousGraph.getIncidentEdges(n).length) {
           best[best.indexOf(previousBest)] = removeNodes(previousBest, [n], options);
@@ -81,15 +81,8 @@ export function getPartition<T extends Node>(graph: DirectedGraph<T>,
   }
   console.log("best", best.length);
   console.log("does it cover?", _.flatten(best.map(g => g.members)).length,
-    getUniqueMembers(best).length, graph.getSize(), _.sum(best.map(g => g.rating)));
-  console.log(JSON.stringify(best.map(g => g.rating)))
-  
-  //update ratings
-  const ratingFunc = getRatingFunction(options, graph);
-  best.forEach(g => g.rating = ratingFunc(g));
-  console.log(JSON.stringify(best.map(g => g.rating)))
-  
-  console.log("updated", _.sum(best.map(g => g.rating)));
+    getUniqueMembers(best).length, options.graph.getSize(), _.sum(best.map(g => g.rating)));
+  console.log(JSON.stringify(best.map(g => g.rating)));
   
   return groups;
 }
@@ -103,12 +96,8 @@ function removeNodes<T extends Node>(group: NodeGroup<T>, nodes: T[],
   return getNodeGroup(group.center, _.difference(group.members, nodes), options);
 }
 
-export function getBestGroups<T extends Node>(graph: DirectedGraph<T>,
-    options: NodeGroupingOptions<T>) {
-  const ratingFunc = getRatingFunction(options, graph);
-  
-  let groups = getNodeGroups(graph, options);
-  groups.forEach(g => g.rating = ratingFunc(g));
+export function getBestGroups<T extends Node>(options: NodeGroupingOptions<T>) {
+  let groups = getNodeGroups(options);
   console.log("total groups", groups.length)
   
   //merge groups where ratings and members identical
@@ -130,31 +119,33 @@ function equalSets<T>(s1: T[], s2: T[]) {
   return _.union(s1, s2).length === s1.length;
 }
 
-function getNodeGroups<T>(graph: DirectedGraph<T>,
-    options: NodeGroupingOptions<T>): NodeGroup<T>[] {
-  const nodes = graph.getNodes();
+function getNodeGroups<T>(options: NodeGroupingOptions<T>): NodeGroup<T>[] {
+  const nodes = options.graph.getNodes();
   const adjacents = nodes.map(n =>
-    graph.getAdjacents(n, (options.maxDistance || 0), options.condition));
+    options.graph.getAdjacents(n, (options.maxDistance || 0), options.condition));
   return nodes.map((n,i) =>
     getNodeGroup(n, _.concat([n], adjacents[i]), options));
 }
 
 function getNodeGroup<T>(center: T, members: T[], options: NodeGroupingOptions<T>): NodeGroup<T> {
   const valueFunc = options.valueFunction || (n => n.length);
-  return { center: center, members: members, value: valueFunc(members) };
+  const ratingFunc = getRatingFunction(options);
+  const group: NodeGroup<T> = {
+    center: center, members: members, value: valueFunc(members) };
+  group.rating = ratingFunc(group);
+  return group;
 }
 
-function getRatingFunction<T extends Node>(options: NodeGroupingOptions<T>,
-    graph: DirectedGraph<T>): (group: NodeGroup<T>) => number {
+function getRatingFunction<T extends Node>(options: NodeGroupingOptions<T>): (group: NodeGroup<T>) => number {
   let ratingFunc: (group: NodeGroup<T>) => number;
   if (options.ratingMethod === null || options.ratingMethod === GROUP_RATING.VALUE) {
     ratingFunc = g => g.value;
   } else if (options.ratingMethod === GROUP_RATING.VALUE_AVG) {
     ratingFunc = g => Math.pow(g.value, 1)/g.members.length;
   } else if (options.ratingMethod === GROUP_RATING.INTERNAL) {
-    ratingFunc = g => graph.getSubgraph(g.members).getEdges().length || 0;
+    ratingFunc = g => options.graph.getSubgraph(g.members).getEdges().length || 0;
   } else if (options.ratingMethod === GROUP_RATING.INTERNAL_AVG) {
-    ratingFunc = g => graph.getSubgraph(g.members).getEdges().length/g.members.length;
+    ratingFunc = g => options.graph.getSubgraph(g.members).getEdges().length/g.members.length;
   }
   return ratingFunc;
 }
