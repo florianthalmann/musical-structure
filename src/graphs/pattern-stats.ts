@@ -3,7 +3,7 @@ import { StructureResult, IterativeSmithWatermanResult, Pattern } from 'siafun';
 import { compareArrays } from 'arrayutils';
 const SimpleLinearRegression = require('ml-regression-simple-linear');
 import { DirectedGraph, Node, saveGraph, loadGraph } from './graph-theory';
-import { NodeGroupingOptions, getBestGroup, GROUP_RATING } from './graph-analysis';
+import { NodeGroupingOptions, getBestGroups, getPartition, GROUP_RATING } from './graph-analysis';
 import { toIndexSeqMap, powerset } from './util';
 import { saveJsonFile } from '../files/file-manager';
 
@@ -48,7 +48,7 @@ export function getPatternGroupNFs(graph: DirectedGraph<PatternNode>,
   options.valueFunction = nodes => _.sum(nodes.map(n => n.count));
   let normalForms: string[][] = [];
   while (graph.getSize() > 0 && count > 0) {
-    const best = getBestGroup(graph, options).members;
+    const best = getBestGroups(graph, options)[0].members;
     normalForms.push(best.map(n => n.id));
     best.forEach(n => graph.removeNode(n));
     graph = graph.pruneIsolatedNodes();
@@ -65,11 +65,11 @@ export function analyzePatternGraph(path: string, top = 5) {
   nodes.sort((a,b) => b.count-a.count);
   console.log('most common:', nodes.slice(0,top).map(n => n.count + ': ' + n.id));
 
-  const adjacents = getBestGroup(graph, {
+  const groups = getBestGroups(graph, {
     ratingMethod: GROUP_RATING.VALUE,
     valueFunction: nodes => _.sum(nodes.map(n => n.count))
-  }).members;
-  console.log('most adjacent:', adjacents.slice(0,top).map(a => a[2] + ', ' + a[0].count + ': ' + a[0].id));
+  })[0].members;
+  console.log('most adjacent:', groups.slice(0,top).map(a => a[2] + ', ' + a[0].count + ': ' + a[0].id));
 
   /*const neighbors = nodes.map(n => graph.getNeighbors(n));
   counts = neighbors.map(as => _.sum(as.map(n => n.count)));
@@ -185,15 +185,19 @@ export function constructTimelineFromHybrids(versionPairs: [number,number][],
   console.log("components", JSON.stringify(components.slice(0,20).map(c => c.length)), "...");
   //console.log(JSON.stringify(_.sortBy(components[0].map(n => n.version+"."+n.time))));
   
-  const group = getBestGroup(graph.getSubgraph(components[0]), {
+  const groups = getPartition(graph.getSubgraph(components[0]), {
     condition: (n, os) => os.map(o => o.version).indexOf(n.version) < 0,
     ratingMethod: GROUP_RATING.INTERNAL,
     maxDistance: 0
-  });
-  //console.log(group.center, group.members.length, group.value)
-  console.log(JSON.stringify(_.sortBy(group.members.map(n => n.version+"."+n.time))))
+  }).map(g => g.members).slice(0, 10);
   
-  saveGraph('plots/d3/latest/slice2.json', graph.getSubgraph(group.members));
+  //console.log(JSON.stringify(_.sortBy(groups[0].map(n => n.version+"."+n.time))))
+  
+  /*_.range(0, groups.length).forEach(i =>
+    console.log(i, "union", _.union(...groups.slice(0,i)).length,
+      "total", _.concat(groups[0], ...groups.slice(1,i)).length));*/
+  
+  saveGraph('plots/d3/latest/slice2.json', graph.getSubgraph(groups[0]));
   
   //let grouped = components.map(c => groupByPositionAndCycles(graph.getSubgraph(c)));
   /*let grouped = groupByPositionAndCycles(graph.getSubgraph(components[0]));

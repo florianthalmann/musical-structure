@@ -33,11 +33,6 @@ export function execute(command: string, callback: Function) {
   });
 }
 
-export function toIndexSeqMap<T>(mdArray: T[][], func: (t: T) => string): _.Dictionary<number[][]> {
-  const indexSeq = _.flatten(mdArray.map((a,i) => a.map((_,j) => [i, j])));
-  return _.groupBy(indexSeq, ([i,j]) => func(mdArray[i][j]));
-}
-
 export async function mapSeries<T,S>(array: T[], func: (arg: T, i?: number) => Promise<S>): Promise<S[]> {
   let result = [];
   for (let i = 0; i < array.length; i++) {
@@ -128,12 +123,6 @@ export function cartesianProduct(arr: any[][]): any[] {
   return arr.reduce((a, b) =>
     a.map(x => b.map(y => x.concat([y])))
       .reduce((a, b) => a.concat(b), []), [[]]);
-}
-
-export function powerset<T>(set: T[]): T[][] {
-  return set.reduce(
-    (subsets, value) => subsets.concat(subsets.map(s => [value, ...s])),
-    [[]]);
 }
 
 /*export function printSegments(segs: Segmentation[]) {
