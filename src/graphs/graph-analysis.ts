@@ -79,12 +79,12 @@ export function getPartition<T extends Node>(options: NodeGroupingOptions<T>, gr
     remainingNodes = _.difference(remainingNodes, bestCandidate.members);
     //console.log(remainingGroups.length, remainingNodes.length)
   }
-  console.log("best", best.length);
+  /*console.log("best", best.length);
   console.log("does it cover?", _.flatten(best.map(g => g.members)).length,
     getUniqueMembers(best).length, options.graph.getSize(), _.sum(best.map(g => g.rating)));
-  console.log(JSON.stringify(best.map(g => g.rating)));
+  console.log(JSON.stringify(best.map(g => g.rating)));*/
   
-  return groups;
+  return best;
 }
 
 function getUniqueMembers<T extends Node>(groups: NodeGroup<T>[]): T[] {
@@ -98,14 +98,14 @@ function removeNodes<T extends Node>(group: NodeGroup<T>, nodes: T[],
 
 export function getBestGroups<T extends Node>(options: NodeGroupingOptions<T>) {
   let groups = getNodeGroups(options);
-  console.log("total groups", groups.length)
+  //console.log("total groups", groups.length)
   
   //merge groups where ratings and members identical
   let byRating = _.groupBy(groups, g => g.rating);
   byRating = _.mapValues(byRating, gs =>
     _.uniqBy(gs, g => _.sortBy(g.members.map(n => n.id)).toString()));
   groups = _.flatten(_.values(byRating));
-  console.log("unique groups", groups.length, "ratings", _.values(byRating).length);
+  //console.log("unique groups", groups.length, "ratings", _.values(byRating).length);
   //console.log("nodes in groups", getUniqueMembers(groups).length, _.uniqBy(graph.getNodes(), n => n.id).length)
   
   groups.sort((a,b) => b.rating-a.rating);

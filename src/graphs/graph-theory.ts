@@ -59,7 +59,7 @@ export class DirectedGraph<NodeType extends Node> {
   
   getBidirectionalSubgraph(): DirectedGraph<NodeType> {
     return this.getEdgeSubgraph(this.getEdges()
-      .filter(e => this.findEdges(e.target, e.source).length > 0));
+      .filter(e => this.findEdges(e.target, e.source).length > 1));
   }
   
   getEdgeSubgraph(edges: Edge<NodeType>[]) {
@@ -330,7 +330,7 @@ export class DirectedGraph<NodeType extends Node> {
   }
   
   getIncidentEdges(node: NodeType) {
-    return this.findEdges(node).concat(this.findEdges(null, node));
+    return _.uniq(this.findEdges(node).concat(this.findEdges(null, node)));
   }
 
   private findEdges(source?: NodeType, target?: NodeType): Edge<NodeType>[] {

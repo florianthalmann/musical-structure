@@ -12,7 +12,8 @@ import { getOptionsWithCaching, getBestGdOptions, getGdSwOptions,
 import { FeatureConfig } from './files/feature-extractor';
 import { getPointsFromAudio, getQuantizedPoints, quantize } from './files/feature-parser';
 import { createSimilarityPatternGraph, getPatternGroupNFs, getNormalFormsMap,
-  getConnectednessByVersion, constructTimelineFromHybrids, PatternNode } from './graphs/pattern-stats';
+  getConnectednessByVersion, PatternNode } from './graphs/pattern-stats';
+import { constructTimelineFromHybrids } from './graphs/segment-analysis';
 import { toHistogram, getMostCommonPoints } from './graphs/histograms';
 import { toIndexSeqMap } from './graphs/util';
 

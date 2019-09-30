@@ -40,7 +40,7 @@ import { cleanCaches, renameJohanChordFeatures, moveToFeaturesDir } from './file
 
 //saveSWPatternAndVectorSequences("plots/d3/latest/box of rain-sw", false, "box of rain", ".m4a");
 //saveHybridSWPatternGraph("plots/d3/latest/box of rain-sw", "box of rain", ".m4a", 1)
-saveHybridSWSegmentGraph("plots/d3/latest/box of rain-sw", "box of rain", ".m4a", 5)
+saveHybridSWSegmentGraph("plots/d3/latest/box of rain-sw", "box of rain", ".m4a", 10)
 
 //saveAllSongSequences(4, 10, 10);
 //saveThomasSongSequences()
