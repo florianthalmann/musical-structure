@@ -67,9 +67,12 @@ export function constructTimelineFromHybrids(versionPairs: [number,number][],
   printVersion(84, timeline);
   printVersion(69, timeline);
   
+  saveGraph('plots/d3/latest/slice2.json', graph.getSubgraph(components[0]));
+  
   /*const print = _.zip(...timeline.map(t => _.range(0, MAX_VERSION).map(i =>
     t.filter(s => s.version === i).length > 0 ? '.' : ' ')));*/
   //print.forEach(p => console.log(p.join('')))
+  return timeline;
 }
 
 function printVersion(v: number, g: SegmentNode[][]) {

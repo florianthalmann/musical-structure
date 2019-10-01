@@ -4,7 +4,7 @@ import { pointsToIndices, ArrayMap, StructureResult, getCosiatec,
   getSmithWaterman, getDualSmithWaterman } from 'siafun';
 import { GD_AUDIO as GDA, GD_SONG_MAP, GD_PATTERNS, GD_GRAPHS } from './files/config';
 import { mapSeries, updateStatus, audioPathToDirName } from './files/util';
-import { loadJsonFile, initDirRec, getFoldersInFolder } from './files/file-manager';
+import { loadJsonFile, initDirRec, getFoldersInFolder, saveJsonFile } from './files/file-manager';
 import { NodeGroupingOptions } from './graphs/graph-analysis';
 import { loadGraph } from './graphs/graph-theory';
 import { getOptionsWithCaching, getBestGdOptions, getGdSwOptions,
@@ -67,14 +67,20 @@ export function getTunedSongs() {
     .filter(f => f !== 'temp' && f !== 'studio_reference')
 }
 
-export async function saveHybridSWSegmentGraph(filebase: string, song = SONG, extension?: string, count = 2) {
+export async function saveHybridSWSegmentTimeline(filename: string, song = SONG, extension?: string, count = 2) {
   const options = getGdSwOptions(initDirRec(GD_PATTERNS));
   const versions = getGdVersions(song, undefined, extension);
   const tuples = <[number,number][]>_.flatten(_.range(count).map(c =>
     getHybridConfig(song, 2, c, versions).map(pair => pair.map(s => versions.indexOf(s)))));
   const hybrids = _.flatten(await getHybridSWs(song, extension, count, options));
   //createSegmentGraphFromHybrids(tuples, hybrids, [0], filebase+'-hybrid-all-graph.json');
-  constructTimelineFromHybrids(tuples, hybrids);
+  const timeline = constructTimelineFromHybrids(tuples, hybrids);
+  const points = await Promise.all(versions.map(v => getPointsFromAudio(v, options)));
+  const segments = points.map((v,i) => v.map((p,j) =>
+    ({start: points[i][j][0][0],
+      duration: points[i][j+1] ? points[i][j+1][0][0]-points[i][j][0][0] : 1})));
+  const json = {versions: versions, segments: segments, timeline: timeline};
+  saveJsonFile(filename, json);
 }
 
 export async function saveHybridSWPatternGraph(filebase: string, song = SONG, extension?: string, count = 1) {
