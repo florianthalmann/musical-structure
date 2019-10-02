@@ -13,7 +13,7 @@ import { FeatureConfig } from './files/feature-extractor';
 import { getPointsFromAudio, getQuantizedPoints, quantize } from './files/feature-parser';
 import { createSimilarityPatternGraph, getPatternGroupNFs, getNormalFormsMap,
   getConnectednessByVersion, PatternNode } from './graphs/pattern-stats';
-import { constructTimelineFromHybrids } from './graphs/segment-analysis';
+import { constructTimelineFromAlignments, inferStructureFromAlignments } from './graphs/segment-analysis';
 import { toHistogram, getMostCommonPoints } from './graphs/histograms';
 import { toIndexSeqMap } from './graphs/util';
 
@@ -74,12 +74,14 @@ export async function saveHybridSWSegmentTimeline(filename: string, song = SONG,
     getHybridConfig(song, 2, c, versions).map(pair => pair.map(s => versions.indexOf(s)))));
   const hybrids = _.flatten(await getHybridSWs(song, extension, count, options));
   //createSegmentGraphFromHybrids(tuples, hybrids, [0], filebase+'-hybrid-all-graph.json');
-  const timeline = constructTimelineFromHybrids(tuples, hybrids);
+  const timeline = inferStructureFromAlignments(tuples, hybrids);
   const points = await Promise.all(versions.map(v => getPointsFromAudio(v, options)));
   const segments = points.map((v,i) => v.map((p,j) =>
     ({start: points[i][j][0][0],
       duration: points[i][j+1] ? points[i][j+1][0][0]-points[i][j][0][0] : 1})));
-  const json = {versions: versions, segments: segments, timeline: timeline};
+  const short = versions.map(v =>
+    v.split('/').slice(-2).join('/').replace('.m4a', '.mp3'));
+  const json = {versions: short, segments: segments, timeline: timeline};
   saveJsonFile(filename, json);
 }
 

@@ -10,7 +10,7 @@ export enum GROUP_RATING {
   VALUE_AVG, //highest value per member
 }
 
-type GroupingCondition<NodeType> =
+export type GroupingCondition<NodeType> =
   (node: NodeType, others: NodeType[]) => boolean;
 
 export interface NodeGroupingOptions<NodeType> {

@@ -2,7 +2,7 @@ import * as _ from 'lodash';
 import { StructureResult, IterativeSmithWatermanResult, Pattern } from 'siafun';
 const SimpleLinearRegression = require('ml-regression-simple-linear');
 import { DirectedGraph, Node, saveGraph } from './graph-theory';
-import { getPartition, GROUP_RATING } from './graph-analysis';
+import { getPartition, GROUP_RATING, GroupingCondition } from './graph-analysis';
 import { powerset } from './util';
 import { saveJsonFile } from '../files/file-manager';
 
@@ -12,16 +12,43 @@ export interface SegmentNode extends Node {
   time: number
 }
 
-export function constructTimelineFromHybrids(versionPairs: [number,number][],
-    results: StructureResult[]) {
-  const NUM_VERSIONS = _.uniq(_.flatten(versionPairs)).length;
-  const COMPONENT_SIZE_THRESHOLD = NUM_VERSIONS/4;
+export function inferStructureFromAlignments(versionPairs: [number,number][],
+    results: StructureResult[]) {
+  const MIN_COMPONENT_SIZE = _.uniq(_.flatten(versionPairs)).length/4;
+  const MIN_DISTANCE = 16;
   
   //divide graph into connected components
-  const graph = createSegmentGraphFromHybrids(versionPairs, results, [0,1]);
-  let components = graph.getConnectedComponents()
+  const graph = createSegmentGraphFromAlignments(versionPairs, results, [0,1], false);
+  let components = getSegmentGraphPartitions(graph, MIN_COMPONENT_SIZE,
+    (n, os) => !os.some(o => o.version == n.version
+      && Math.abs(o.time-n.time) < MIN_DISTANCE));
+  
+  return constructTimeline(components, MIN_COMPONENT_SIZE);
+}
+
+export function constructTimelineFromAlignments(versionPairs: [number,number][],
+    results: StructureResult[]) {
+  const MIN_COMPONENT_SIZE = _.uniq(_.flatten(versionPairs)).length/4;
+  
+  //divide graph into connected components
+  const graph = createSegmentGraphFromAlignments(versionPairs, results, [0,1], true);
+  let components = getSegmentGraphPartitions(graph, MIN_COMPONENT_SIZE,
+    (n, os) => !os.some(o => o.version == n.version));
+  
+  //(previous technique based on cycles)
+  //let grouped = components.map(c => groupByPositionAndCycles(graph.getSubgraph(c)));
+  
+  saveGraph('plots/d3/latest/slice2.json', graph.getSubgraph(components[0]));
+  
+  return constructTimeline(components);
+}
+
+function getSegmentGraphPartitions(graph: DirectedGraph<SegmentNode>,
+    minComponentSize = 0, groupingCondition: GroupingCondition<SegmentNode>) {
+  //divide graph into connected components, filter out small ones
+  let components = graph.getConnectedComponents();
   console.log("components", components.length);
-  components = components.filter(c => c.length > COMPONENT_SIZE_THRESHOLD)
+  components = components.filter(c => c.length > minComponentSize)
     //.map(c => graph.getSubgraph(c).pruneEdgesNotInCycles());
   console.log("large", components.length, JSON.stringify(components.slice(0,20).map(c => c.length)), "...");
   console.log("non-unique", components.filter(c => !uniqueVersions(c)).length);
@@ -29,18 +56,16 @@ export function constructTimelineFromHybrids(versionPairs: [number,number][],
   //partition connected components with more than one node per version
   components = _.flatten(components.map(c => !uniqueVersions(c) ? getPartition({
     graph: graph.getSubgraph(c),
-    condition: (n, os) => os.map(o => o.version).indexOf(n.version) < 0,
+    condition: groupingCondition,
     ratingMethod: GROUP_RATING.INTERNAL,
     maxDistance: 0
   }).map(g => g.members)
   : [c]));
   console.log("split", components.filter(c => !uniqueVersions(c)).length);
-  
-  saveGraph('plots/d3/latest/slice2.json', graph.getSubgraph(components[0]));
-  
-  //(previous technique based on cycles)
-  //let grouped = components.map(c => groupByPositionAndCycles(graph.getSubgraph(c)));
-  
+  return components;
+}
+
+function constructTimeline(components: SegmentNode[][], minTimepointSize = 0) {
   //sort components temporally
   /*components.sort((a,b) => _.range(0, NUM_VERSIONS).some(v =>
     getIndex(a, v) < getIndex(b, v)) ? -1 : 1);*/
@@ -54,7 +79,7 @@ export function constructTimelineFromHybrids(versionPairs: [number,number][],
       : timeline.push(c));
   console.log("timeline", timeline.length);
   
-  timeline = timeline.filter(c => c.length > COMPONENT_SIZE_THRESHOLD);
+  timeline = timeline.filter(c => c.length > minTimepointSize);
   console.log("simple", timeline.length);
   console.log("points", _.flatten(_.flatten((timeline))).length);
   
@@ -67,11 +92,10 @@ export function constructTimelineFromHybrids(versionPairs: [number,number][],
   printVersion(84, timeline);
   printVersion(69, timeline);
   
-  saveGraph('plots/d3/latest/slice2.json', graph.getSubgraph(components[0]));
-  
   /*const print = _.zip(...timeline.map(t => _.range(0, MAX_VERSION).map(i =>
     t.filter(s => s.version === i).length > 0 ? '.' : ' ')));*/
   //print.forEach(p => console.log(p.join('')))
+  
   return timeline;
 }
 
@@ -93,8 +117,9 @@ function getNumberOfIrregularties(timeline: SegmentNode[][]) {
   }));
 }
 
-export function createSegmentGraphFromHybrids(versionPairs: [number,number][],
-    results: StructureResult[], patternIndexes: number[], path?: string) {
+export function createSegmentGraphFromAlignments(versionPairs: [number,number][],
+    results: StructureResult[], patternIndexes: number[],
+    postprocessPatterns: boolean, path?: string) {
   //recover points for all versions from results
   const vIndexes: [number,number][] = [];
   versionPairs.forEach((vs,i) => vs.forEach((v,j) => vIndexes[v] = [i,j]));
@@ -108,20 +133,23 @@ export function createSegmentGraphFromHybrids(versionPairs: [number,number][],
   //initialize graph
   let graph = new DirectedGraph(_.flatten(nodes), []);
   
-  //reduce patterns using linear regression
-  const versionStringPoints = versionsPoints.map(v => v.map(p => JSON.stringify(p)));
   let patterns = results.map(r => r.patterns);
-  patterns = patterns.map((ps,i) =>
-    findMostCoherentAlignments(ps, versionPairs[i], versionStringPoints));
   
-  //remove overlaps
-  patterns = patterns.map((ps,i) =>
-    removePatternOverlaps(ps, versionPairs[i], versionStringPoints));
-  patterns.forEach((ps,i) =>
-    saveJsonFile('results/sw-post/sw_'+i+'o.json',
-      {'segmentMatrix': toMatrix(ps, versionPairs[i], versionStringPoints)}));
-  /*console.log(results.slice(0,10).map(r => r.patterns.length), " => ",
-    bestPatterns.slice(0,10).map(p => p.length))*/
+  if (postprocessPatterns) {
+    //reduce patterns using linear regression
+    const versionStringPoints = versionsPoints.map(v => v.map(p => JSON.stringify(p)));
+    patterns = patterns.map((ps,i) =>
+      findMostCoherentAlignments(ps, versionPairs[i], versionStringPoints));
+    
+    //remove overlaps
+    patterns = patterns.map((ps,i) =>
+      removePatternOverlaps(ps, versionPairs[i], versionStringPoints));
+    patterns.forEach((ps,i) =>
+      saveJsonFile('results/sw-post/sw_'+i+'o.json',
+        {'segmentMatrix': toMatrix(ps, versionPairs[i], versionStringPoints)}));
+    /*console.log(results.slice(0,10).map(r => r.patterns.length), " => ",
+      bestPatterns.slice(0,10).map(p => p.length))*/
+  }
   
   //add alignment connections
   _.zip(versionPairs, patterns).forEach(([vs,ps]) =>
@@ -137,7 +165,7 @@ export function createSegmentGraphFromHybrids(versionPairs: [number,number][],
   graph = graph.pruneIsolatedNodes();
   console.log("pruned", graph.getSize(), graph.getEdges().length)
   
-  //REMOVE ALL NODES WITH SMALL DEGREES
+  //REMOVE ALL NODES WITH SMALL DEGREES (ALL DEGREES ARE RELATIVELY SMALL THOUGH...)
   /*graph = graph.getSubgraph(graph.getNodes().filter(n => graph.getDegree(n) > 2));
   console.log("degrees", graph.getSize(), graph.getEdges().length)*/
     
@@ -145,8 +173,7 @@ export function createSegmentGraphFromHybrids(versionPairs: [number,number][],
   /*graph = graph.getBidirectionalSubgraph();
   console.log("bidirectional", graph.getSize(), graph.getEdges().length)*/
   
-  //REMOVE ALL EDGES THAT DON'T HAVE A THIRD!!
-  
+  //REMOVE ALL EDGES NOT IN CYCLES (TOO STRICT)
   /*graph = graph.pruneEdgesNotInCycles();
   console.log("pruned2", graph.getSize(), graph.getEdges().length)*/
   
