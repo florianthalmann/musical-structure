@@ -13,7 +13,7 @@ import { FeatureConfig } from './files/feature-extractor';
 import { getPointsFromAudio, getQuantizedPoints, quantize } from './files/feature-parser';
 import { createSimilarityPatternGraph, getPatternGroupNFs, getNormalFormsMap,
   getConnectednessByVersion, PatternNode } from './graphs/pattern-stats';
-import { constructTimelineFromAlignments, inferStructureFromAlignments } from './graphs/segment-analysis';
+import { constructTimelineFromAlignments, inferStructureFromAlignments2, inferStructureFromAlignments } from './graphs/segment-analysis';
 import { toHistogram, getMostCommonPoints } from './graphs/histograms';
 import { toIndexSeqMap } from './graphs/util';
 
@@ -67,14 +67,14 @@ export function getTunedSongs() {
     .filter(f => f !== 'temp' && f !== 'studio_reference')
 }
 
-export async function saveHybridSWSegmentTimeline(filename: string, song = SONG, extension?: string, count = 2) {
+export async function saveHybridSWSegmentTimeline(filebase: string, song = SONG, extension?: string, count = 2) {
   const options = getGdSwOptions(initDirRec(GD_PATTERNS));
   const versions = getGdVersions(song, undefined, extension);
   const tuples = <[number,number][]>_.flatten(_.range(count).map(c =>
     getHybridConfig(song, 2, c, versions).map(pair => pair.map(s => versions.indexOf(s)))));
   const hybrids = _.flatten(await getHybridSWs(song, extension, count, options));
   //createSegmentGraphFromHybrids(tuples, hybrids, [0], filebase+'-hybrid-all-graph.json');
-  const timeline = inferStructureFromAlignments(tuples, hybrids);
+  const timeline = inferStructureFromAlignments2(tuples, hybrids, filebase+'-matrix.json');
   const points = await Promise.all(versions.map(v => getPointsFromAudio(v, options)));
   const segments = points.map((v,i) => v.map((p,j) =>
     ({start: points[i][j][0][0],
@@ -82,7 +82,7 @@ export async function saveHybridSWSegmentTimeline(filename: string, song = SONG,
   const short = versions.map(v =>
     v.split('/').slice(-2).join('/').replace('.m4a', '.mp3'));
   const json = {versions: short, segments: segments, timeline: timeline};
-  saveJsonFile(filename, json);
+  saveJsonFile(filebase+'-timeline.json', json);
 }
 
 export async function saveHybridSWPatternGraph(filebase: string, song = SONG, extension?: string, count = 1) {

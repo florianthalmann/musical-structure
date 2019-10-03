@@ -22,8 +22,26 @@ export function inferStructureFromAlignments(versionPairs: [number,number][],
   let components = getSegmentGraphPartitions(graph, MIN_COMPONENT_SIZE,
     (n, os) => !os.some(o => o.version == n.version
       && Math.abs(o.time-n.time) < MIN_DISTANCE));
-  
   return constructTimeline(components, MIN_COMPONENT_SIZE);
+}
+
+export function inferStructureFromAlignments2(versionPairs: [number,number][],
+    results: StructureResult[], path?: string) {
+  
+  const timeline = constructTimelineFromAlignments(versionPairs, results);
+  const fullGraph = createSegmentGraphFromAlignments(versionPairs, results, [0,1], false);
+  const nodes = _.zipObject(fullGraph.getNodes().map(n => n.id), fullGraph.getNodes());
+  const edges = fullGraph.getEdges();
+  
+  const connections = timeline.map((t,i) => timeline.map((s,j) => {
+    const tn = t.map(n => nodes[n.id]);
+    const sn = s.map(n => nodes[n.id]);
+    //return i != j ?
+    return edges.filter(e => (tn.indexOf(e.source) >= 0 && sn.indexOf(e.target) >= 0)
+      || (tn.indexOf(e.target) >= 0 && sn.indexOf(e.source) >= 0)).length// : 0;
+  }));
+  
+  if (path) saveJsonFile(path, connections);
 }
 
 export function constructTimelineFromAlignments(versionPairs: [number,number][],
@@ -85,12 +103,12 @@ function constructTimeline(components: SegmentNode[][], minTimepointSize = 0) {
   
   console.log("irregularities", getNumberOfIrregularties(timeline));
   
-  printVersion(mostCommonVersion(components[0]), timeline);
+  /*printVersion(mostCommonVersion(components[0]), timeline);
   printVersion(0, timeline);
   printVersion(50, timeline);
   printVersion(76, timeline);
   printVersion(84, timeline);
-  printVersion(69, timeline);
+  printVersion(69, timeline);*/
   
   /*const print = _.zip(...timeline.map(t => _.range(0, MAX_VERSION).map(i =>
     t.filter(s => s.version === i).length > 0 ? '.' : ' ')));*/
@@ -101,7 +119,9 @@ function constructTimeline(components: SegmentNode[][], minTimepointSize = 0) {
 
 function printVersion(v: number, g: SegmentNode[][]) {
   console.log(JSON.stringify(g.map(g =>
-    _.find(g, n => n.version === v)).map(s => _.pad(s ? s.id.split(".")[1] : "-", 3)).join(" ")));
+    g.filter(n => n.version === v)).map(s =>
+      _.pad(s.length > 0 ?
+        _.sortBy(s.map(n => n.id.split(".")[1])).join("/") : "-", 6)).join(" ")));
 }
 
 function printComponent(c: SegmentNode[]) {
@@ -111,7 +131,8 @@ function printComponent(c: SegmentNode[]) {
 function getNumberOfIrregularties(timeline: SegmentNode[][]) {
   const versions = _.uniq(_.flatten(timeline.map(t => t.map(n => n.version))));
   return _.sum(versions.map(v => {
-    const ts = timeline.map(t => t.filter(n => n.version === v)[0]).filter(n => n);
+    const ts = timeline.map(t =>
+      _.sortBy(t.filter(n => n.version === v), n => n.time)[0]).filter(n => n);
     return ts.reduce((count, n, i) => i > 0
       && ts.slice(0,i).some(t => t.time > n.time) ? count+1 : count, 0);
   }));
