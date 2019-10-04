@@ -10,7 +10,7 @@ basedir = sys.argv[1] #'server/lib/output/jack57-nonit/'
 #paths = [y for x in os.walk(basedir) for y in glob(os.path.join(x[0], '*.json'))]
 #paths = [p for p in paths if 'sw_' in p]
 paths = [y for x in os.walk(basedir) for y in glob(os.path.join(x[0], '*.json'))]
-paths = [p for p in paths if 'structure' in p]
+paths = [p for p in paths if 'matrix' in p]
 
 for path in paths:
     with open(path) as ofile:
