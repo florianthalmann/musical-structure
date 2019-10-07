@@ -47,6 +47,7 @@ export function inferStructureFromAlignments2(versionPairs: [number,number][],
 export function constructTimelineFromAlignments(versionPairs: [number,number][],
     results: StructureResult[]) {
   const MIN_COMPONENT_SIZE = _.uniq(_.flatten(versionPairs)).length/4;
+  console.log("graph")
   
   //divide graph into connected components
   const graph = createSegmentGraphFromAlignments(versionPairs, results, [0,1], true);
@@ -149,6 +150,7 @@ export function createSegmentGraphFromAlignments(versionPairs: [number,number][]
   //create nodes and a map to find them quickly
   const nodes: SegmentNode[][] = versionsPoints.map((ps,i) =>
     ps.map((p,j) => ({id: i+"."+j, point: p, version: i, time: j})));
+  console.log("made nodes")
   const nodesByVersionByPoint = nodes.map(v =>
     _.zipObject(v.map(n => JSON.stringify(n.point)), v));
   //initialize graph
@@ -156,12 +158,16 @@ export function createSegmentGraphFromAlignments(versionPairs: [number,number][]
   
   let patterns = results.map(r => r.patterns);
   
+  console.log("processing patterns")
+  
   if (postprocessPatterns) {
+    console.log("reduce")
     //reduce patterns using linear regression
     const versionStringPoints = versionsPoints.map(v => v.map(p => JSON.stringify(p)));
     patterns = patterns.map((ps,i) =>
       findMostCoherentAlignments(ps, versionPairs[i], versionStringPoints));
     
+    console.log("overlaps")
     //remove overlaps
     patterns = patterns.map((ps,i) =>
       removePatternOverlaps(ps, versionPairs[i], versionStringPoints));
@@ -171,6 +177,8 @@ export function createSegmentGraphFromAlignments(versionPairs: [number,number][]
     /*console.log(results.slice(0,10).map(r => r.patterns.length), " => ",
       bestPatterns.slice(0,10).map(p => p.length))*/
   }
+  
+  console.log("done")
   
   //add alignment connections
   _.zip(versionPairs, patterns).forEach(([vs,ps]) =>
@@ -330,16 +338,30 @@ function groupByPositionAndCycles(graph: DirectedGraph<SegmentNode>) {
 function findMostCoherentAlignments(patterns: Pattern[],
     versions: [number, number], versionsPoints: string[][]) {
   const occurrenceIndexes = toOccurrenceIndexes(patterns, versions, versionsPoints);
+  const toIndexes = (ps: Pattern[]) =>
+    ps.map(p => occurrenceIndexes[patterns.indexOf(p)]);
   //return longest most coherent set of aligment segments
-  return _.maxBy(powerset(patterns), ps => {
-    if (ps.length == 0) return 0;
-    const indexes = ps.map(p => occurrenceIndexes[patterns.indexOf(p)]);
-    const xy = _.zip(...indexes).map(_.flatten);
-    const r = new SimpleLinearRegression(xy[0], xy[1]).score(xy[0], xy[1]).r;
-    //all unique indexes on both x and y axes
-    const minUniqs = Math.min(_.uniq(xy[0]).length, _.uniq(xy[1]).length);
-    return Math.pow(minUniqs, 1) * r; //heuristic based on indexes and r
-  });
+  let currentSet = _.clone(patterns);
+  let currentRating = getCoherenceRating(toIndexes(currentSet));
+  while (currentSet.length > 1) {
+    const ratings = currentSet.map(p =>
+      getCoherenceRating(toIndexes(_.without(currentSet, p))));
+    const max = _.max(ratings);
+    if (max > currentRating) {
+      currentRating = max;
+      currentSet = _.without(currentSet, currentSet[ratings.indexOf(max)]);
+    } else return currentSet;
+  }
+  return currentSet;
+}
+
+function getCoherenceRating(occurrenceIndexes: number[][][]) {
+  if (occurrenceIndexes.length == 0) return 0;
+  const xy = _.zip(...occurrenceIndexes).map(_.flatten);
+  const r = new SimpleLinearRegression(xy[0], xy[1]).score(xy[0], xy[1]).r;
+  //all unique indexes on both x and y axes
+  const minUniqs = Math.min(_.uniq(xy[0]).length, _.uniq(xy[1]).length);
+  return Math.pow(minUniqs, 1) * r //heuristic based on indexes and r
 }
 
 function removePatternOverlaps(patterns: Pattern[],
