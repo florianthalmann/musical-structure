@@ -3,7 +3,6 @@ import { StructureResult, IterativeSmithWatermanResult, Pattern } from 'siafun';
 const SimpleLinearRegression = require('ml-regression-simple-linear');
 import { DirectedGraph, Node, saveGraph } from './graph-theory';
 import { getPartition, GROUP_RATING, GroupingCondition } from './graph-analysis';
-import { powerset } from './util';
 import { saveJsonFile } from '../files/file-manager';
 
 export interface SegmentNode extends Node {
@@ -33,7 +32,7 @@ export function inferStructureFromAlignments2(versionPairs: [number,number][],
   const nodes = _.zipObject(fullGraph.getNodes().map(n => n.id), fullGraph.getNodes());
   const edges = fullGraph.getEdges();
   
-  const connections = timeline.map((t,i) => timeline.map((s,j) => {
+  const connectionMatrix = timeline.map((t,i) => timeline.map((s,j) => {
     const tn = t.map(n => nodes[n.id]);
     const sn = s.map(n => nodes[n.id]);
     //return i != j ?
@@ -41,7 +40,7 @@ export function inferStructureFromAlignments2(versionPairs: [number,number][],
       || (tn.indexOf(e.target) >= 0 && sn.indexOf(e.source) >= 0)).length// : 0;
   }));
   
-  if (path) saveJsonFile(path, connections);
+  if (path) saveJsonFile(path, connectionMatrix);
 }
 
 export function constructTimelineFromAlignments(versionPairs: [number,number][],

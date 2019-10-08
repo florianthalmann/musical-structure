@@ -42,7 +42,7 @@ export async function cleanCaches(path: string, search: string) {
 
 export async function getFeatureFiles(audioPath: string): Promise<string[]> {
   var folder = FEATURES_DIR + audioPathToDirName(audioPath) + '/';
-  return (await getFilesInFolder(folder, ["json", "n3"])).map(f => folder + f);
+  return getFilesInFolder(folder, ["json", "n3"]).map(f => folder + f);
 }
 
 export function loadJsonFile(path: string) {
@@ -62,24 +62,15 @@ function saveOutFile(filePath: string, content: string): Promise<any> {
   });
 }
 
-export function getFoldersInFolder(folder): string[] {
+export function getFoldersInFolder(folder: string): string[] {
   return fs.readdirSync(folder, { withFileTypes: true })
     .filter(dirent => dirent.isDirectory())
     .map(dirent => dirent.name);
 }
 
-function getFilesInFolder(folder, fileTypes): Promise<string[]> {
-  return new Promise(resolve => {
-    fs.readdir(folder, (err, files) => {
-      if (err) {
-        console.log(err);
-      } else if (files) {
-        var files = files.filter(f =>
-          //check if right extension
-          fileTypes.indexOf(f.split('.').slice(-1)[0]) >= 0
-        );
-      }
-      resolve(files);
-    });
-  });
+export function getFilesInFolder(folder: string, fileTypes: string[]): string[] {
+  try {
+    return fs.readdirSync(folder).filter(f =>
+      fileTypes.indexOf(f.split('.').slice(-1)[0]) >= 0);
+  } catch (err) { console.log(err); }
 }

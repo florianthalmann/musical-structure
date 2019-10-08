@@ -9,6 +9,7 @@ import { calculateCompressionDistances, calculatePatternSimilarities,
 
 import { analyzePatternGraph } from './graphs/pattern-stats';
 import { cleanCaches, renameJohanChordFeatures, moveToFeaturesDir } from './files/file-manager';
+import { gatherTunings } from './files/tunings';
 
 
 /*fs.writeFileSync('connections3.json', JSON.stringify(
@@ -41,9 +42,11 @@ import { cleanCaches, renameJohanChordFeatures, moveToFeaturesDir } from './file
 //saveSWPatternAndVectorSequences("plots/d3/latest/box of rain-sw", false, "box of rain", ".m4a");
 //saveHybridSWPatternGraph("plots/d3/latest/box of rain-sw", "box of rain", ".m4a", 1)
 
-saveHybridSWSegmentTimeline("results/boxofrain", "box of rain", ".m4a", 5)
-//saveHybridSWSegmentTimeline("results/meandmyuncle", "me and my uncle", ".mp3", 3)
+//saveHybridSWSegmentTimeline("results/boxofrain", "box of rain", ".m4a", 5)
+//saveHybridSWSegmentTimeline("results/meandmyuncle", "me and my uncle", ".mp3", 5)
 //saveHybridSWSegmentTimeline("results/goodlovin", "good lovin'", ".mp3", 5)
+
+gatherTunings('tunings/')
 
 //saveAllSongSequences(4, 10, 10);
 //saveThomasSongSequences()

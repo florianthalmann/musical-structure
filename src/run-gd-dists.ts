@@ -1,11 +1,11 @@
 import * as _ from 'lodash';
 import { OpsiatecResult, getCosiatec } from 'siafun';
-import { GD_PATTERNS, GD_GRAPHS, GD_RESULTS } from './config';
-import { mapSeries, updateStatus } from './util';
-import { loadJsonFile, saveJsonFile } from './file-manager';
-import { getPatternSimilarities } from './pattern-stats';
-import { getOptionsWithCaching, getBestGdOptions, getGdCompressionOptions } from './options';
-import { getPointsFromAudio } from './feature-parser';
+import { GD_PATTERNS, GD_GRAPHS, GD_RESULTS } from './files/config';
+import { mapSeries, updateStatus } from './files/util';
+import { loadJsonFile, saveJsonFile } from './files/file-manager';
+import { getPatternSimilarities } from './graphs/pattern-stats';
+import { getOptionsWithCaching, getBestGdOptions, getGdCompressionOptions } from './files/options';
+import { getPointsFromAudio } from './files/feature-parser';
 import { getSelectedTunedSongs, getHybridCacheDir, getCosiatecFromAudio } from './run-gd';
 
 const SWEEP_FILE = GD_RESULTS+'sweeps.json';
@@ -62,7 +62,7 @@ export async function calculatePatternSimilarities(songs = 4, versionsPerSong = 
     const format = s === SONGS[2] ? '.m4a' : '.mp3';
     return getGdVersions(s.split('_').join(' '), undefined, format).slice(0, versionsPerSong)
   }));*/
-  const versions = getSelectedTunedSongs(songs, versionsPerSong, offset);
+  const versions = _.flatten(await getSelectedTunedSongs(songs, versionsPerSong, offset));
 
   console.log('\n', method, 'songs', songs, 'versions', versionsPerSong, '\n')
 
@@ -97,7 +97,7 @@ export async function calculateCompressionDistances(songs = 4, versionsPerSong =
   const method = 'ncd_cosiatec_1dcompaxis';
   if (sweepResultExists(songs, versionsPerSong,  method)) return;
 
-  const versions = getSelectedTunedSongs(songs, versionsPerSong);
+  const versions = _.flatten(await getSelectedTunedSongs(songs, versionsPerSong));
 
   console.log('\n', method, 'songs', songs, 'versions', versionsPerSong, '\n')
 
