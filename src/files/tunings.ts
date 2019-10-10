@@ -1,5 +1,13 @@
 import * as fs from 'fs';
+import { GD_RESULTS } from './config';
 import { getFoldersInFolder, getFilesInFolder, saveJsonFile } from './file-manager';
+
+const TUNING_FILE = GD_RESULTS+'tunings.json';
+const TUNINGS = JSON.parse(fs.readFileSync(TUNING_FILE, 'utf8'));
+
+export function getTuningRatio(recording: string, track: string) {
+  if (TUNINGS[recording]) return TUNINGS[recording][track];
+}
 
 export function gatherTunings(dir: string) {
   const songs = getFoldersInFolder(dir);

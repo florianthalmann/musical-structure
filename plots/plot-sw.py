@@ -7,15 +7,15 @@ from glob import glob
 
 basedir = sys.argv[1] #'server/lib/output/jack57-nonit/'
 
-paths = [y for x in os.walk(basedir) for y in glob(os.path.join(x[0], '*.json'))]
-paths = [p for p in paths if 'sw_' in p]
 #paths = [y for x in os.walk(basedir) for y in glob(os.path.join(x[0], '*.json'))]
-#paths = [p for p in paths if 'matrix' in p]
+#paths = [p for p in paths if 'sw_' in p]
+paths = [y for x in os.walk(basedir) for y in glob(os.path.join(x[0], '*.json'))]
+paths = [p for p in paths if 'matrix' in p]
 
 for path in paths:
     with open(path) as ofile:
-        matrix = np.array(json.load(ofile)['segmentMatrix'])
-        #matrix = np.array(json.load(ofile))
+        #matrix = np.array(json.load(ofile)['segmentMatrix'])
+        matrix = np.array(json.load(ofile))
         #matrix = np.array(json.load(ofile)['matrices'][0]['scoreMatrix'])
         #matrix = np.sqrt(matrix)
 # mask = np.copy(matrix)
@@ -28,9 +28,9 @@ for path in paths:
 
 #mask2 = np.vectorize(lambda x: x if x > 17 else 0)
 #masked = mask2(matrix)
-    g = sns.heatmap(matrix, xticklabels=False, yticklabels=False)#, cmap=sns.cm.rocket_r)
+    g = sns.heatmap(matrix, xticklabels=False, yticklabels=False, cmap=sns.cm.rocket_r)
     fig = g.get_figure()
-    fig.savefig(path.replace('.json', '.png'))
+    fig.savefig(path.replace('.json', '.pdf'))
     fig.clf()
 
 # print mask2(np.amax(matrix,0))

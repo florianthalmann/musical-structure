@@ -7,7 +7,8 @@ export const SALAMI_ANNOTATIONS = SALAMI+'salami-data-public/annotations/';
 export const SALAMI_RESULTS = RESULTS_DIR+'salami/'//'/Volumes/FastSSD/salami/';
 
 export const GD_SONG_MAP = 'data/app_song_map.json';
-export const GD_AUDIO = "/Users/flo/Projects/Code/FAST/musical-structure/data/good_lovin'/"//'/Volumes/gspeed1/thomasw/grateful_dead/lma_soundboards/sbd/' //'data/goodlovin/';
+export const GD_AUDIO = "/Volumes/gspeed1/thomasw/grateful_dead/lma_soundboards/sbd/"
+//export const GD_AUDIO = "/Users/flo/Projects/Code/FAST/musical-structure/data/cosmic_charlie/"//'/Volumes/gspeed1/thomasw/grateful_dead/lma_soundboards/sbd/' //'data/goodlovin/';
 export const GD_RESULTS = RESULTS_DIR+'gd/'//RESULTS_DIR+'gd_tuned/'; //'/Volumes/FastSSD/gd/';
 export const GD_PATTERNS = GD_RESULTS+'patterns/';
 export const GD_GRAPHS = GD_RESULTS+'graphs/';

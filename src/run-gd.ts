@@ -14,6 +14,7 @@ import { getPointsFromAudio, getQuantizedPoints, quantize } from './files/featur
 import { createSimilarityPatternGraph, getPatternGroupNFs, getNormalFormsMap,
   getConnectednessByVersion, PatternNode } from './graphs/pattern-stats';
 import { constructTimelineFromAlignments, inferStructureFromAlignments2, inferStructureFromAlignments } from './graphs/segment-analysis';
+import { getTuningRatio } from './files/tunings';
 import { toHistogram, getMostCommonPoints } from './graphs/histograms';
 import { toIndexSeqMap } from './graphs/util';
 
@@ -55,6 +56,14 @@ export async function saveThomasSongSequences() {
   });
 }
 
+export async function saveThomasSongAlignments() {
+  mapSeries(getTunedSongs(), folder => {
+    GD_AUDIO = '/Volumes/gspeed1/florian/musical-structure/thomas/'+folder+'/';
+    const songname = folder.split('_').join(' ');
+    return saveHybridSWSegmentTimeline(GD_GRAPHS+songname, songname, '.wav');
+  });
+}
+
 export async function getSelectedTunedSongs(numSongs: number, versionsPerSong: number, offset = 0) {
   return await Promise.all(_.flatten(getTunedSongs().slice(offset, offset+numSongs).map(async s => {
     GD_AUDIO = '/Volumes/gspeed1/florian/musical-structure/thomas/'+s+'/';
@@ -78,13 +87,17 @@ export async function saveHybridSWSegmentTimeline(filebase: string, song = SONG,
   const hybrids = _.flatten(await getHybridSWs(song, extension, count, options, MAX_LENGTH, MAX_VERSIONS));
   //createSegmentGraphFromHybrids(tuples, hybrids, [0], filebase+'-hybrid-all-graph.json');
   const timeline = inferStructureFromAlignments2(tuples, hybrids, filebase+'-matrix.json');
+  //const timeline = inferStructureFromAlignments(tuples, hybrids);
   const points = await Promise.all(versions.map(v => getPointsFromAudio(v, options)));
   const segments = points.map((v,i) => v.map((p,j) =>
     ({start: points[i][j][0][0],
       duration: points[i][j+1] ? points[i][j+1][0][0]-points[i][j][0][0] : 1})));
   const short = versions.map(v =>
     v.split('/').slice(-2).join('/').replace('.m4a', '.mp3'));
-  const json = {versions: short, segments: segments, timeline: timeline};
+  const tunings = short.map(v =>
+    getTuningRatio(v.split('/')[0], v.split('/')[1].replace('.mp3','')));
+  const json = {versions: short, tunings: tunings,
+    segments: segments, timeline: timeline};
   saveJsonFile(filebase+'-timeline.json', json);
 }
 

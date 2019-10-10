@@ -45,7 +45,7 @@ export function inferStructureFromAlignments2(versionPairs: [number,number][],
 
 export function constructTimelineFromAlignments(versionPairs: [number,number][],
     results: StructureResult[]) {
-  const MIN_COMPONENT_SIZE = _.uniq(_.flatten(versionPairs)).length/4;
+  const MIN_COMPONENT_SIZE = _.uniq(_.flatten(versionPairs)).length/8;
   console.log("graph")
   
   //divide graph into connected components
@@ -58,7 +58,7 @@ export function constructTimelineFromAlignments(versionPairs: [number,number][],
   
   saveGraph('plots/d3/latest/slice2.json', graph.getSubgraph(components[0]));
   
-  return constructTimeline(components);
+  return constructTimeline(components, MIN_COMPONENT_SIZE);
 }
 
 function getSegmentGraphPartitions(graph: DirectedGraph<SegmentNode>,
