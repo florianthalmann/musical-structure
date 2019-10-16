@@ -13,7 +13,7 @@ import { FeatureConfig } from './files/feature-extractor';
 import { getPointsFromAudio, getQuantizedPoints, quantize } from './files/feature-parser';
 import { createSimilarityPatternGraph, getPatternGroupNFs, getNormalFormsMap,
   getConnectednessByVersion, PatternNode } from './graphs/pattern-stats';
-import { constructTimelineFromAlignments, inferStructureFromAlignments2, inferStructureFromAlignments } from './graphs/segment-analysis';
+import { inferStructureFromAlignments } from './graphs/segment-analysis';
 import { getTuningRatio } from './files/tunings';
 import { toHistogram, getMostCommonPoints } from './graphs/histograms';
 import { toIndexSeqMap } from './graphs/util';
@@ -77,8 +77,8 @@ export function getTunedSongs() {
 }
 
 export async function saveHybridSWSegmentTimeline(filebase: string, song = SONG, extension?: string, count = 2) {
-  const MAX_LENGTH = 400;
-  const MAX_VERSIONS = 100;
+  const MAX_LENGTH = 200;
+  const MAX_VERSIONS = 30;
   const options = getGdSwOptions(initDirRec(GD_PATTERNS));
   const versions = await getGdVersions(song, MAX_VERSIONS, extension, MAX_LENGTH, options);
   const tuples = <[number,number][]>_.flatten(_.range(count)
@@ -86,8 +86,7 @@ export async function saveHybridSWSegmentTimeline(filebase: string, song = SONG,
     .map(pair => pair.map(s => versions.indexOf(s)))));
   const hybrids = _.flatten(await getHybridSWs(song, extension, count, options, MAX_LENGTH, MAX_VERSIONS));
   //createSegmentGraphFromHybrids(tuples, hybrids, [0], filebase+'-hybrid-all-graph.json');
-  const timeline = inferStructureFromAlignments2(tuples, hybrids, filebase+'-matrix.json');
-  //const timeline = inferStructureFromAlignments(tuples, hybrids);
+  const timeline = inferStructureFromAlignments(tuples, hybrids, filebase);
   const points = await Promise.all(versions.map(v => getPointsFromAudio(v, options)));
   const segments = points.map((v,i) => v.map((p,j) =>
     ({start: points[i][j][0][0],
@@ -98,7 +97,7 @@ export async function saveHybridSWSegmentTimeline(filebase: string, song = SONG,
     getTuningRatio(v.split('/')[0], v.split('/')[1].replace('.mp3','')));
   const json = {versions: short, tunings: tunings,
     segments: segments, timeline: timeline};
-  saveJsonFile(filebase+'-timeline.json', json);
+  saveJsonFile(filebase+'-output.json', json);
 }
 
 export async function saveHybridSWPatternGraph(filebase: string, song = SONG, extension?: string, count = 1) {
@@ -437,7 +436,7 @@ async function getGdVersions(songname: string, count?: number, extension?: strin
     const points = await Promise.all(versions.map(a => getPointsFromAudio(a, options)));
     versions = versions.filter((_,i) => points[i].length <= maxLength);
   }
-  return versions.slice(0, count);
+  return versions.slice(-count);
 }
 
 function getGdSongMap() {

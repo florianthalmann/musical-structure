@@ -11,23 +11,18 @@ export interface SegmentNode extends Node {
   time: number
 }
 
-export function inferStructureFromAlignments(versionPairs: [number,number][],
-    results: StructureResult[]) {
-  const MIN_COMPONENT_SIZE = _.uniq(_.flatten(versionPairs)).length/4;
-  const MIN_DISTANCE = 16;
-  
-  //divide graph into connected components
-  const graph = createSegmentGraphFromAlignments(versionPairs, results, [0,1], false);
-  let components = getSegmentGraphPartitions(graph, MIN_COMPONENT_SIZE,
-    (n, os) => !os.some(o => o.version == n.version
-      && Math.abs(o.time-n.time) < MIN_DISTANCE));
-  return constructTimeline(components, MIN_COMPONENT_SIZE);
-}
+const DIFF_VERSIONS: GroupingCondition<SegmentNode>
+  = (n, os) => !os.some(o => o.version == n.version);
+const MIN_DISTANCE = 8;
+const DIFF_VERSIONS_MIN_DIST: GroupingCondition<SegmentNode>
+  = (n, os) => !os.some(o => o.version == n.version
+    && Math.abs(o.time-n.time) < MIN_DISTANCE);
 
-export function inferStructureFromAlignments2(versionPairs: [number,number][],
-    results: StructureResult[], path?: string) {
+export function inferStructureFromAlignments(versionPairs: [number,number][],
+    results: StructureResult[], filebase?: string) {
   
-  const timeline = constructTimelineFromAlignments(versionPairs, results);
+  const timeline = constructTimelineFromAlignments(versionPairs, results,
+    DIFF_VERSIONS_MIN_DIST, true);
   const fullGraph = createSegmentGraphFromAlignments(versionPairs, results, [0,1], false);
   const nodes = _.zipObject(fullGraph.getNodes().map(n => n.id), fullGraph.getNodes());
   const edges = fullGraph.getEdges();
@@ -40,23 +35,26 @@ export function inferStructureFromAlignments2(versionPairs: [number,number][],
       || (tn.indexOf(e.target) >= 0 && sn.indexOf(e.source) >= 0)).length// : 0;
   }));
   
-  if (path) saveJsonFile(path, connectionMatrix);
+  if (filebase) {
+    saveJsonFile(filebase+'-matrix.json', connectionMatrix);
+    saveGraph(filebase+'-graph.json', fullGraph);
+  }
 }
 
 export function constructTimelineFromAlignments(versionPairs: [number,number][],
-    results: StructureResult[]) {
+    results: StructureResult[], groupingCondition: GroupingCondition<SegmentNode>,
+    postprocess = true) {
   const MIN_COMPONENT_SIZE = _.uniq(_.flatten(versionPairs)).length/8;
   console.log("graph")
   
   //divide graph into connected components
-  const graph = createSegmentGraphFromAlignments(versionPairs, results, [0,1], true);
-  let components = getSegmentGraphPartitions(graph, MIN_COMPONENT_SIZE,
-    (n, os) => !os.some(o => o.version == n.version));
+  const graph = createSegmentGraphFromAlignments(versionPairs, results, [0,1], postprocess);
+  let components = getSegmentGraphPartitions(graph, MIN_COMPONENT_SIZE, groupingCondition);
   
   //(previous technique based on cycles)
   //let grouped = components.map(c => groupByPositionAndCycles(graph.getSubgraph(c)));
   
-  saveGraph('plots/d3/latest/slice2.json', graph.getSubgraph(components[0]));
+  //saveGraph('plots/d3/latest/slice2.json', graph.getSubgraph(components[0]));
   
   return constructTimeline(components, MIN_COMPONENT_SIZE);
 }

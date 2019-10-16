@@ -43,11 +43,11 @@ import { gatherTunings } from './files/tunings';
 //saveHybridSWPatternGraph("plots/d3/latest/box of rain-sw", "box of rain", ".m4a", 1)
 
 //saveHybridSWSegmentTimeline("results/boxofrain", "box of rain", ".m4a", 5) //[ 156, 178, 154, 156, 157, 156, 155, 155, 163, 163 ]
-//saveHybridSWSegmentTimeline("results/meandmyuncle", "me and my uncle", ".mp3", 5) //[ 135, 92, 90, 99, 99, 171, 87, 89, 89, 87 ]
+saveHybridSWSegmentTimeline("results/meandmyuncle8", "me and my uncle", ".mp3", 5) //[ 135, 92, 90, 99, 99, 171, 87, 89, 89, 87 ]
 //saveHybridSWSegmentTimeline("results/goodlovin", "good lovin'", ".mp3", 5)
 //saveHybridSWSegmentTimeline("results/cosmiccharlie", "cosmic charlie", ".mp3", 5)
 
-saveThomasSongAlignments()
+//saveThomasSongAlignments()
 
 //gatherTunings('tunings/')
 
