@@ -1,7 +1,8 @@
 import * as _ from 'lodash';
+import * as fs from 'fs';
 import { StructureResult, IterativeSmithWatermanResult, Pattern } from 'siafun';
 const SimpleLinearRegression = require('ml-regression-simple-linear');
-import { DirectedGraph, Node, saveGraph } from './graph-theory';
+import { DirectedGraph, Node, saveGraph, loadGraph } from './graph-theory';
 import { getPartition, GROUP_RATING, GroupingCondition } from './graph-analysis';
 import { saveJsonFile } from '../files/file-manager';
 
@@ -13,16 +14,18 @@ export interface SegmentNode extends Node {
 
 const DIFF_VERSIONS: GroupingCondition<SegmentNode>
   = (n, os) => !os.some(o => o.version == n.version);
+
 const MIN_DISTANCE = 8;
 const DIFF_VERSIONS_MIN_DIST: GroupingCondition<SegmentNode>
   = (n, os) => !os.some(o => o.version == n.version
     && Math.abs(o.time-n.time) < MIN_DISTANCE);
 
+
 export function inferStructureFromAlignments(versionPairs: [number,number][],
     results: StructureResult[], filebase?: string) {
   
   const timeline = constructTimelineFromAlignments(versionPairs, results,
-    DIFF_VERSIONS_MIN_DIST, true);
+    DIFF_VERSIONS_MIN_DIST, true, filebase);
   const fullGraph = createSegmentGraphFromAlignments(versionPairs, results, [0,1], false);
   const nodes = _.zipObject(fullGraph.getNodes().map(n => n.id), fullGraph.getNodes());
   const edges = fullGraph.getEdges();
@@ -43,12 +46,19 @@ export function inferStructureFromAlignments(versionPairs: [number,number][],
 
 export function constructTimelineFromAlignments(versionPairs: [number,number][],
     results: StructureResult[], groupingCondition: GroupingCondition<SegmentNode>,
-    postprocess = true) {
+    postprocess = true, filebase?: string) {
   const MIN_COMPONENT_SIZE = _.uniq(_.flatten(versionPairs)).length/8;
   console.log("graph")
   
+  let graph: DirectedGraph<SegmentNode>;
+  if (filebase && fs.existsSync(filebase+'-tlgraph.json')) {
+    graph = loadGraph(filebase+'-tlgraph.json');
+  } else {
+    graph = createSegmentGraphFromAlignments(versionPairs, results, [0,1], postprocess);
+    saveGraph(filebase+'-tlgraph.json', graph);
+  }
+  
   //divide graph into connected components
-  const graph = createSegmentGraphFromAlignments(versionPairs, results, [0,1], postprocess);
   let components = getSegmentGraphPartitions(graph, MIN_COMPONENT_SIZE, groupingCondition);
   
   //(previous technique based on cycles)
@@ -101,9 +111,11 @@ function constructTimeline(components: SegmentNode[][], minTimepointSize = 0) {
   
   console.log("irregularities", getNumberOfIrregularties(timeline));
   
-  /*printVersion(mostCommonVersion(components[0]), timeline);
+  printVersion(mostCommonVersion(components[0]), timeline);
   printVersion(0, timeline);
-  printVersion(50, timeline);
+  printVersion(5, timeline);
+  printVersion(10, timeline);
+  /*printVersion(50, timeline);
   printVersion(76, timeline);
   printVersion(84, timeline);
   printVersion(69, timeline);*/

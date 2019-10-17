@@ -318,7 +318,7 @@ export class DirectedGraph<NodeType extends Node> {
     const clone = _.clone(edge);
     clone.source = this.nodes.get(edge.source.id);
     clone.target = this.nodes.get(edge.target.id);
-    this.pushEdge(edge);
+    this.pushEdge(clone);
   }
 
   private pushEdge(e: Edge<NodeType>): Edge<NodeType> {
