@@ -3,7 +3,7 @@ import * as fs from 'fs';
 import { StructureResult, IterativeSmithWatermanResult, Pattern } from 'siafun';
 const SimpleLinearRegression = require('ml-regression-simple-linear');
 import { DirectedGraph, Node, saveGraph, loadGraph } from './graph-theory';
-import { getPartition, GROUP_RATING, GroupingCondition } from './graph-analysis';
+import { getPartition, GROUP_RATING, GroupingCondition, getBestGroups } from './graph-analysis';
 import { saveJsonFile } from '../files/file-manager';
 
 export interface SegmentNode extends Node {
@@ -25,7 +25,7 @@ export function inferStructureFromAlignments(versionPairs: [number,number][],
     results: StructureResult[], filebase?: string) {
   
   const timeline = constructTimelineFromAlignments(versionPairs, results,
-    DIFF_VERSIONS_MIN_DIST, true, filebase);
+    DIFF_VERSIONS, true, filebase);
   const fullGraph = createSegmentGraphFromAlignments(versionPairs, results, [0,1], false);
   const nodes = _.zipObject(fullGraph.getNodes().map(n => n.id), fullGraph.getNodes());
   const edges = fullGraph.getEdges();
@@ -59,10 +59,9 @@ export function constructTimelineFromAlignments(versionPairs: [number,number][],
   }
   
   //divide graph into connected components
-  let components = getSegmentGraphPartitions(graph, MIN_COMPONENT_SIZE, groupingCondition);
-  
-  //(previous technique based on cycles)
-  //let grouped = components.map(c => groupByPositionAndCycles(graph.getSubgraph(c)));
+  //let components = getSegmentGraphPartitions(graph, MIN_COMPONENT_SIZE, groupingCondition);
+  let components = getIndexBasedPartition(graph, groupingCondition);
+  console.log("partitions", components.length);
   
   //saveGraph('plots/d3/latest/slice2.json', graph.getSubgraph(components[0]));
   
@@ -79,6 +78,9 @@ function getSegmentGraphPartitions(graph: DirectedGraph<SegmentNode>,
   console.log("large", components.length, JSON.stringify(components.slice(0,20).map(c => c.length)), "...");
   console.log("non-unique", components.filter(c => !uniqueVersions(c)).length);
   
+  //(previous technique based on cycles)
+  //let grouped = components.map(c => groupByPositionAndCycles(graph.getSubgraph(c)));
+  
   //partition connected components with more than one node per version
   components = _.flatten(components.map(c => !uniqueVersions(c) ? getPartition({
     graph: graph.getSubgraph(c),
@@ -88,7 +90,58 @@ function getSegmentGraphPartitions(graph: DirectedGraph<SegmentNode>,
   }).map(g => g.members)
   : [c]));
   console.log("split", components.filter(c => !uniqueVersions(c)).length);
+  console.log(components.slice(0,20).map(c => c.length));
+  saveGraph('plots/d3/latest/best.json', graph.getSubgraph(components[1]));
+  
   return components;
+}
+
+function getIndexBasedPartition(graph: DirectedGraph<SegmentNode>, groupingCondition: GroupingCondition<SegmentNode>) {
+  let groups = getBestGroups({
+    graph: graph,
+    condition: groupingCondition,
+    ratingMethod: GROUP_RATING.INTERNAL,
+    maxDistance: 0
+  }).slice(0,20);
+  
+  //start with best group (most interconnected)
+  //find group with most successors (remove all non-sucessors), and so on
+  const sequence: SegmentNode[][] = [];
+  let currentComp = groups[0].members;
+  sequence.push(currentComp);
+  let remainingGroups = _.difference(groups, [groups[0]]);
+  while (currentComp && currentComp.length > 0) {
+    const mostSucc = _.reverse(_.sortBy(remainingGroups, g =>
+      getDirectSuccessors(currentComp, g.members).length))[0];
+    const reduced = getDirectSuccessors(currentComp, mostSucc.members);
+    currentComp = reduced;
+    sequence.push(currentComp);
+    remainingGroups = _.difference(groups, [mostSucc]);
+  }
+  //now also predecessors
+  currentComp = sequence[0];
+  while (currentComp && currentComp.length > 0) {
+    const mostSucc = _.reverse(_.sortBy(remainingGroups, g =>
+      getDirectSuccessors(g.members, currentComp).length))[0];
+    const reduced = getDirectPredecessors(currentComp, mostSucc.members);
+    currentComp = reduced;
+    sequence.unshift(currentComp);
+    remainingGroups = _.difference(groups, [mostSucc]);
+  }
+  //then assign all removed nodes to most appropriate comps....
+  return sequence;
+}
+
+//successors in time! (not graph)
+function getDirectSuccessors(before: SegmentNode[], after: SegmentNode[]) {
+  return after.filter(a => before.filter(b => b.version === a.version)
+    .some(b => b.time+1 === a.time));
+}
+
+//successors in time! (not graph)
+function getDirectPredecessors(before: SegmentNode[], after: SegmentNode[]) {
+  return before.filter(b => after.filter(a => b.version === a.version)
+    .some(a => b.time+1 === a.time));
 }
 
 function constructTimeline(components: SegmentNode[][], minTimepointSize = 0) {
@@ -111,10 +164,10 @@ function constructTimeline(components: SegmentNode[][], minTimepointSize = 0) {
   
   console.log("irregularities", getNumberOfIrregularties(timeline));
   
-  printVersion(mostCommonVersion(components[0]), timeline);
+  /*printVersion(mostCommonVersion(components[0]), timeline);
   printVersion(0, timeline);
   printVersion(5, timeline);
-  printVersion(10, timeline);
+  printVersion(10, timeline);*/
   /*printVersion(50, timeline);
   printVersion(76, timeline);
   printVersion(84, timeline);
