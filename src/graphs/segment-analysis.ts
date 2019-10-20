@@ -102,7 +102,8 @@ function getIndexBasedPartition(graph: DirectedGraph<SegmentNode>, groupingCondi
     condition: groupingCondition,
     ratingMethod: GROUP_RATING.INTERNAL,
     maxDistance: 0
-  }).slice(0,20);
+  }).slice(0,300);
+  
   
   //start with best group (most interconnected)
   //find group with most successors (remove all non-sucessors), and so on
@@ -110,25 +111,27 @@ function getIndexBasedPartition(graph: DirectedGraph<SegmentNode>, groupingCondi
   let currentComp = groups[0].members;
   sequence.push(currentComp);
   let remainingGroups = _.difference(groups, [groups[0]]);
-  while (currentComp && currentComp.length > 0) {
+  while (remainingGroups.length > 0) {
     const mostSucc = _.reverse(_.sortBy(remainingGroups, g =>
       getDirectSuccessors(currentComp, g.members).length))[0];
-    const reduced = getDirectSuccessors(currentComp, mostSucc.members);
-    currentComp = reduced;
+    currentComp = mostSucc.members;
     sequence.push(currentComp);
-    remainingGroups = _.difference(groups, [mostSucc]);
+    remainingGroups = _.difference(remainingGroups, [mostSucc]);
   }
   //now also predecessors
   currentComp = sequence[0];
-  while (currentComp && currentComp.length > 0) {
+  while (remainingGroups.length > 0) {
     const mostSucc = _.reverse(_.sortBy(remainingGroups, g =>
       getDirectSuccessors(g.members, currentComp).length))[0];
-    const reduced = getDirectPredecessors(currentComp, mostSucc.members);
-    currentComp = reduced;
+    currentComp = mostSucc.members;
     sequence.unshift(currentComp);
-    remainingGroups = _.difference(groups, [mostSucc]);
+    remainingGroups = _.difference(remainingGroups, [mostSucc]);
   }
+  //then remove all contradictions...
+  
   //then assign all removed nodes to most appropriate comps....
+  console.log(JSON.stringify(sequence.map(t => t.length)));
+  //sequence.forEach(t => console.log(JSON.stringify(_.sortBy(t.map(n => n.id)))));
   return sequence;
 }
 
