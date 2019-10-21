@@ -91,7 +91,13 @@ function getUniqueMembers<T extends Node>(groups: NodeGroup<T>[]): T[] {
   return _.uniq(_.flatten(groups.map(g => g.members)));
 }
 
-function removeNodes<T extends Node>(group: NodeGroup<T>, nodes: T[],
+export function removeGroupAndNodes<T extends Node>(groups: NodeGroup<T>[],
+    group: NodeGroup<T>, options: NodeGroupingOptions<T>) {
+  return _.difference(groups, [group])
+    .map(g => removeNodes(g, group.members, options));
+}
+
+export function removeNodes<T extends Node>(group: NodeGroup<T>, nodes: T[],
     options: NodeGroupingOptions<T>): NodeGroup<T> {
   return getNodeGroup(group.center, _.difference(group.members, nodes), options);
 }

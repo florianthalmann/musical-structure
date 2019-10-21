@@ -3,7 +3,8 @@ import * as fs from 'fs';
 import { StructureResult, IterativeSmithWatermanResult, Pattern } from 'siafun';
 const SimpleLinearRegression = require('ml-regression-simple-linear');
 import { DirectedGraph, Node, saveGraph, loadGraph } from './graph-theory';
-import { getPartition, GROUP_RATING, GroupingCondition, getBestGroups } from './graph-analysis';
+import { getPartition, GROUP_RATING, GroupingCondition, getBestGroups,
+  removeGroupAndNodes } from './graph-analysis';
 import { saveJsonFile } from '../files/file-manager';
 
 export interface SegmentNode extends Node {
@@ -97,41 +98,38 @@ function getSegmentGraphPartitions(graph: DirectedGraph<SegmentNode>,
 }
 
 function getIndexBasedPartition(graph: DirectedGraph<SegmentNode>, groupingCondition: GroupingCondition<SegmentNode>) {
-  let groups = getBestGroups({
+  const options = {
     graph: graph,
     condition: groupingCondition,
     ratingMethod: GROUP_RATING.INTERNAL,
     maxDistance: 0
-  }).map(g => g.members);
+  };
+  const groups = getBestGroups(options).slice(0, 300);
   
   
   //start with best group (most interconnected)
   //find group with most successors (remove all non-sucessors), and so on
   let sequence: SegmentNode[][] = [];
+  let remainingGroups = groups;
   let currentComp = groups[0];
-  sequence.push(currentComp);
-  let remainingGroups = _.difference(groups, [groups[0]])
-    .map(g => _.difference(g, currentComp));
-  while (remainingGroups.length > 0) {
-    const mostSucc = _.reverse(_.sortBy(remainingGroups, g =>
-      getDirectSuccessors(currentComp, g).length))[0];
-    currentComp = mostSucc;
-    sequence.push(currentComp);
-    remainingGroups = _.difference(remainingGroups, [mostSucc])
-      .map(g => _.difference(g, currentComp));
+  sequence.push(currentComp.members);
+  while (remainingGroups.length > 1) {
+    remainingGroups = removeGroupAndNodes(remainingGroups, currentComp, options);
+    currentComp = _.reverse(_.sortBy(remainingGroups, g =>
+      g.rating * getDirectSuccessors(currentComp.members, g.members).length))[0];
+    sequence.push(currentComp.members);
   }
   //now also predecessors
-  currentComp = sequence[0];
-  while (remainingGroups.length > 0) {
-    const mostSucc = _.reverse(_.sortBy(remainingGroups, g =>
-      getDirectSuccessors(g, currentComp).length))[0];
-    currentComp = mostSucc;
-    sequence.unshift(currentComp);
-    remainingGroups = _.difference(remainingGroups, [mostSucc])
-      .map(g => _.difference(g, currentComp));
+  currentComp = groups[0];
+  while (remainingGroups.length > 1) {
+    remainingGroups = removeGroupAndNodes(remainingGroups, currentComp, options);
+    currentComp = _.reverse(_.sortBy(remainingGroups, g =>
+      g.rating * getDirectSuccessors(g.members, currentComp.members).length))[0];
+    sequence.unshift(currentComp.members);
   }
+  const max = _.max(sequence.map(t => t.length));
   //remove all tiny ones
-  sequence = sequence.filter(t => t.length > 10)
+  sequence = sequence.filter(t => t.length > max/2);
   
   //then remove all contradictions...
   
