@@ -77,7 +77,7 @@ export function getTunedSongs() {
 }
 
 export async function saveHybridSWSegmentTimeline(filebase: string, song = SONG, extension?: string, count = 2) {
-  const MAX_LENGTH = 400;
+  const MAX_LENGTH = 200;
   const MAX_VERSIONS = 30;
   const options = getGdSwOptions(initDirRec(GD_PATTERNS));
   const versions = await getGdVersions(song, MAX_VERSIONS, extension, MAX_LENGTH, options);

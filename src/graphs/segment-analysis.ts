@@ -105,7 +105,7 @@ function getIndexBasedPartition(graph: DirectedGraph<SegmentNode>, groupingCondi
     maxDistance: 0
   };
   const groups = getBestGroups(options).slice(0, 300);
-  
+  const max = _.max(groups.map(g => g.members.length));
   
   //start with best group (most interconnected)
   //find group with most successors (remove all non-sucessors), and so on
@@ -113,25 +113,70 @@ function getIndexBasedPartition(graph: DirectedGraph<SegmentNode>, groupingCondi
   let remainingGroups = groups;
   let currentComp = groups[0];
   sequence.push(currentComp.members);
-  while (remainingGroups.length > 1) {
+  while (currentComp && remainingGroups.length > 1) {
     remainingGroups = removeGroupAndNodes(remainingGroups, currentComp, options);
-    currentComp = _.reverse(_.sortBy(remainingGroups, g =>
-      g.rating * getDirectSuccessors(currentComp.members, g.members).length))[0];
-    sequence.push(currentComp.members);
+    const mostSucc = _.reverse(_.sortBy(remainingGroups, g =>
+      getDirectSuccessors(currentComp.members, g.members).length))[0];
+      //g.rating * getDirectSuccessors(currentComp.members, g.members).length))[0];
+    const succ = getDirectSuccessors(currentComp.members, mostSucc.members);
+    if (succ.length > mostSucc.members.length/3) {//more than a third are direct succ
+      currentComp = mostSucc;
+      sequence.push(currentComp.members);
+    } else {
+      currentComp = null; //break..
+    }
   }
   //now also predecessors
   currentComp = groups[0];
-  while (remainingGroups.length > 1) {
+  while (currentComp && remainingGroups.length > 1) {
     remainingGroups = removeGroupAndNodes(remainingGroups, currentComp, options);
-    currentComp = _.reverse(_.sortBy(remainingGroups, g =>
-      g.rating * getDirectSuccessors(g.members, currentComp.members).length))[0];
-    sequence.unshift(currentComp.members);
+    const mostPred = _.reverse(_.sortBy(remainingGroups, g =>
+      getDirectSuccessors(g.members, currentComp.members).length))[0];
+      //g.rating * getDirectSuccessors(g.members, currentComp.members).length))[0];
+    const pred = getDirectSuccessors(mostPred.members, currentComp.members);
+    if (pred.length > mostPred.members.length/3) {//more than a third are direct pred
+      currentComp = mostPred;
+      sequence.unshift(currentComp.members);
+    } else {
+      currentComp = null; //break..
+    }
   }
-  const max = _.max(sequence.map(t => t.length));
-  //remove all tiny ones
-  sequence = sequence.filter(t => t.length > max/2);
   
   //then remove all contradictions...
+  const removed = getContradictions(sequence, true);
+  console.log("contradictions removed", removed.length);
+  sequence = sequence.map(t => t.filter(n => removed.indexOf(n) < 0));
+  
+  //readd all removed nodes wherever most appropriate
+  removed.forEach(n => {
+    const times = sequence.map(t =>
+      _.min(t.filter(m => m.version === n.version).map(m => m.time)));
+    //console.log("times", JSON.stringify(times))
+    const filled = _.clone(times);
+    filled.forEach((t,i) => filled[i] = t != null ? t :
+      i > 0 ? Math.min(filled[i-1]+1, filled.slice(i).find(t => t != null)) : 0);
+    //console.log("filled", JSON.stringify(filled))
+    const places = times.map((_,i) =>
+      !times.slice(0,i+1).some(t => t > n.time)
+      && !times.slice(i).some(t => t < n.time));
+    //console.log("places", JSON.stringify(places))
+    const matches = sequence.map((t,i) => places[i] ?
+      graph.getSubgraph(_.concat(t, n)).getDirectAdjacents(n).length
+        / (Math.abs(filled[i]-n.time)+1) : 0);
+    //console.log("matches", JSON.stringify(matches))
+    const max = _.max(matches);
+    if (max > 0) {
+      const index = matches.indexOf(max);
+      if (sequence[index].map(n => n.version).indexOf(n.version) < 0)
+        sequence[index].push(n);
+    }
+  });
+  
+  //add all other missing nodes wherever most appropriate
+  
+  
+  //remove all time points with few nodes
+  sequence = sequence.filter(t => t.length > max/2);
   
   //then assign all removed nodes to most appropriate comps....
   console.log(JSON.stringify(sequence.map(t => t.length)));
@@ -145,17 +190,18 @@ function getDirectSuccessors(before: SegmentNode[], after: SegmentNode[]) {
     .some(b => b.time+1 === a.time));
 }
 
-//successors in time! (not graph)
-function getDirectPredecessors(before: SegmentNode[], after: SegmentNode[]) {
-  return before.filter(b => after.filter(a => b.version === a.version)
-    .some(a => b.time+1 === a.time));
-}
-
 function constructTimeline(components: SegmentNode[][], minTimepointSize = 0) {
   //sort components temporally
   /*components.sort((a,b) => _.range(0, NUM_VERSIONS).some(v =>
     getIndex(a, v) < getIndex(b, v)) ? -1 : 1);*/
-  components.sort((a,b) => _.mean(a.map(n => n.time)) < _.mean(b.map(n => n.time)) ? -1 : 1);
+  //components.sort((a,b) => _.mean(a.map(n => n.time)) < _.mean(b.map(n => n.time)) ? -1 : 1);
+  //new sorting method based on common versions!!
+  components.sort((a,b) => {
+    const versions = _.intersection(a.map(n => n.version), b.map(n => n.version));
+    const aversions = a.filter(n => versions.indexOf(n.version) >= 0);
+    const bversions = b.filter(n => versions.indexOf(n.version) >= 0);
+    return _.mean(aversions.map(n => n.time)) < _.mean(bversions.map(n => n.time)) ? -1 : 1
+  });
   
   //now gradually add to timeline (disjunct at same time!)
   let timeline: SegmentNode[][] = [];
@@ -199,13 +245,28 @@ function printComponent(c: SegmentNode[]) {
 }
 
 function getNumberOfIrregularties(timeline: SegmentNode[][]) {
+  return getContradictions(timeline, false).length;
+}
+
+//includeAll false => only later points that contradict earlier are returned
+//true => earlier points part of contradiction are also included
+function getContradictions(timeline: SegmentNode[][], includeAll: boolean): SegmentNode[] {
   const versions = _.uniq(_.flatten(timeline.map(t => t.map(n => n.version))));
-  return _.sum(versions.map(v => {
+  return _.uniq(_.flatten(versions.map(v => {
+    //get only earliest time point per version in each slice
     const ts = timeline.map(t =>
       _.sortBy(t.filter(n => n.version === v), n => n.time)[0]).filter(n => n);
-    return ts.reduce((count, n, i) => i > 0
-      && ts.slice(0,i).some(t => t.time > n.time) ? count+1 : count, 0);
-  }));
+    //keep all nodes with contradictory times
+    return ts.reduce<SegmentNode[]>((contras, n, i) => {
+      if (i > 0) {
+        const earlyLater = ts.slice(0,i).find(t => t.time > n.time);
+        if (earlyLater) {
+          return _.concat(contras, includeAll ? [earlyLater, n] : [n]);
+        }
+      }
+      return contras;
+    }, []);
+  })));
 }
 
 export function createSegmentGraphFromAlignments(versionPairs: [number,number][],
