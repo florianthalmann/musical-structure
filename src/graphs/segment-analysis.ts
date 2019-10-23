@@ -4,7 +4,7 @@ import { StructureResult, IterativeSmithWatermanResult, Pattern } from 'siafun';
 const SimpleLinearRegression = require('ml-regression-simple-linear');
 import { DirectedGraph, Node, saveGraph, loadGraph } from './graph-theory';
 import { getPartition, GROUP_RATING, GroupingCondition, getBestGroups,
-  removeGroupAndNodes } from './graph-analysis';
+  removeGroupAndNodes, NodeGroup } from './graph-analysis';
 import { saveJsonFile } from '../files/file-manager';
 
 export interface SegmentNode extends Node {
@@ -108,37 +108,38 @@ function getIndexBasedPartition(graph: DirectedGraph<SegmentNode>, groupingCondi
   const max = _.max(groups.map(g => g.members.length));
   
   //start with best group (most interconnected)
-  //find group with most successors (remove all non-sucessors), and so on
+  //find group with most successors/predecessors, add to sequence, and so on
   let sequence: SegmentNode[][] = [];
-  let remainingGroups = groups;
-  let currentComp = groups[0];
-  sequence.push(currentComp.members);
-  while (currentComp && remainingGroups.length > 1) {
-    remainingGroups = removeGroupAndNodes(remainingGroups, currentComp, options);
-    const mostSucc = _.reverse(_.sortBy(remainingGroups, g =>
-      getDirectSuccessors(currentComp.members, g.members).length))[0];
-      //g.rating * getDirectSuccessors(currentComp.members, g.members).length))[0];
-    const succ = getDirectSuccessors(currentComp.members, mostSucc.members);
-    if (succ.length > mostSucc.members.length/3) {//more than a third are direct succ
-      currentComp = mostSucc;
-      sequence.push(currentComp.members);
-    } else {
-      currentComp = null; //break..
-    }
-  }
-  //now also predecessors
-  currentComp = groups[0];
-  while (currentComp && remainingGroups.length > 1) {
-    remainingGroups = removeGroupAndNodes(remainingGroups, currentComp, options);
-    const mostPred = _.reverse(_.sortBy(remainingGroups, g =>
-      getDirectSuccessors(g.members, currentComp.members).length))[0];
+  let remainingGroups = _.clone(groups);
+  let lastAdded = groups[0];
+  sequence.push(lastAdded.members);
+  while (lastAdded && remainingGroups.length > 1) {
+    remainingGroups = removeGroupAndNodes(remainingGroups, lastAdded, options);
+    //does have to be calculated every time since the remaining groups change
+    const succRatings = remainingGroups.map(g =>
+      getDirectSuccessors(_.last(sequence), g.members).length);
+      //g.rating * getDirectSuccessors(currentComp.members, g.members).length);
+    const predRatings = remainingGroups.map(g =>
+      getDirectSuccessors(g.members, _.first(sequence)).length);
       //g.rating * getDirectSuccessors(g.members, currentComp.members).length))[0];
-    const pred = getDirectSuccessors(mostPred.members, currentComp.members);
-    if (pred.length > mostPred.members.length/3) {//more than a third are direct pred
-      currentComp = mostPred;
-      sequence.unshift(currentComp.members);
+    if (_.max(succRatings) >= _.max(predRatings)) {
+      lastAdded = remainingGroups[succRatings.indexOf(_.max(succRatings))];
+      const succ = getDirectSuccessors(_.last(sequence), lastAdded.members);
+      if (succ.length > lastAdded.members.length/3) {//more than a third are direct succ
+        //console.log(remainingGroups.indexOf(currentComp))
+        //console.log(JSON.stringify(currentComp.members.map(n => n.id)))
+        sequence.push(lastAdded.members);
+      } else {
+        lastAdded = null;
+      }
     } else {
-      currentComp = null; //break..
+      lastAdded = remainingGroups[predRatings.indexOf(_.max(predRatings))];
+      const pred = getDirectSuccessors(lastAdded.members, _.first(sequence));
+      if (pred.length > lastAdded.members.length/3) {//more than a third are direct pred
+        sequence.unshift(lastAdded.members);
+      } else {
+        lastAdded = null;
+      }
     }
   }
   
@@ -148,13 +149,38 @@ function getIndexBasedPartition(graph: DirectedGraph<SegmentNode>, groupingCondi
   sequence = sequence.map(t => t.filter(n => removed.indexOf(n) < 0));
   
   //readd all removed nodes wherever most appropriate
-  removed.forEach(n => {
+  addSegmentsAtBestSpots(removed, sequence, graph);
+  
+  //add all other missing nodes wherever most appropriate
+  let missing = _.difference(graph.getNodes(), _.flatten(sequence));
+  console.log("missing", missing.length);
+  addSegmentsAtBestSpots(missing, sequence, graph);
+  missing = _.difference(graph.getNodes(), _.flatten(sequence));
+  console.log("still missing", missing.length);
+  addSegmentsAtBestSpots(missing, sequence, graph);
+  missing = _.difference(graph.getNodes(), _.flatten(sequence));
+  console.log("still missing", missing.length);
+  addSegmentsAtBestSpots(missing, sequence, graph);
+  missing = _.difference(graph.getNodes(), _.flatten(sequence));
+  console.log("still missing", missing.length);
+  
+  //remove all time points with few nodes
+  sequence = sequence.filter(t => t.length > max/2);
+  
+  //then assign all removed nodes to most appropriate comps....
+  console.log(JSON.stringify(sequence.map(t => t.length)));
+  //sequence.forEach(t => console.log(JSON.stringify(_.sortBy(t.map(n => n.id)))));
+  return sequence;
+}
+
+function addSegmentsAtBestSpots(segments: SegmentNode[],
+    sequence: SegmentNode[][], graph: DirectedGraph<SegmentNode>) {
+  segments.forEach(n => {
+    //console.log(n.id)
     const times = sequence.map(t =>
       _.min(t.filter(m => m.version === n.version).map(m => m.time)));
     //console.log("times", JSON.stringify(times))
-    const filled = _.clone(times);
-    filled.forEach((t,i) => filled[i] = t != null ? t :
-      i > 0 ? Math.min(filled[i-1]+1, filled.slice(i).find(t => t != null)) : 0);
+    const filled = getCompletedNumberArray(times);
     //console.log("filled", JSON.stringify(filled))
     const places = times.map((_,i) =>
       !times.slice(0,i+1).some(t => t > n.time)
@@ -169,19 +195,32 @@ function getIndexBasedPartition(graph: DirectedGraph<SegmentNode>, groupingCondi
       const index = matches.indexOf(max);
       if (sequence[index].map(n => n.version).indexOf(n.version) < 0)
         sequence[index].push(n);
+    } else {
+      //INSERT IF APPROPRIATE!!!
+      /*const next = sequence.find(t => 
+        t.find(m => m.version === n.version && m.time > n.time) != null);
+      if (next) {
+        sequence.splice(sequence.indexOf(next), 0, [n]);
+      } else {
+        sequence.push([n]);
+      }*/
     }
   });
-  
-  //add all other missing nodes wherever most appropriate
-  
-  
-  //remove all time points with few nodes
-  sequence = sequence.filter(t => t.length > max/2);
-  
-  //then assign all removed nodes to most appropriate comps....
-  console.log(JSON.stringify(sequence.map(t => t.length)));
-  //sequence.forEach(t => console.log(JSON.stringify(_.sortBy(t.map(n => n.id)))));
-  return sequence;
+}
+
+function getCompletedNumberArray(nums: number[]) {
+  nums = _.clone(nums);
+  //fill gaps and end
+  nums.forEach((n,i) => {
+    if (n == null && nums[i-1] != null) {
+      const next = nums.slice(i).find(t => t != null);
+      nums[i] = next ? Math.min(nums[i-1]+1, next) : nums[i-1]+1;
+    }
+  });
+  //fill beginning
+  nums = _.reverse(nums);
+  nums.forEach((n,i) => nums[i] = n != null ? n : Math.max(nums[i-1]-1, 0));
+  return _.reverse(nums);
 }
 
 //successors in time! (not graph)
