@@ -98,48 +98,49 @@ function getSegmentGraphPartitions(graph: DirectedGraph<SegmentNode>,
 
 function iterativeGetIndexBasedPartition(graph: DirectedGraph<SegmentNode>,
     groupingCondition: GroupingCondition<SegmentNode>) {
-  let sequence: SegmentNode[][] = [];
-  let previouslyMissing: number;
+  let currentSequence: SegmentNode[][] = [];
+  let bestSequence: SegmentNode[][] = [];
   let missing: SegmentNode[] = graph.getNodes();
+  let previouslyMissing: number[] = [missing.length];
   
-  while (!previouslyMissing || missing.length < previouslyMissing) {
+  while (previouslyMissing.filter(m => m < missing.length).length < 5) {
     //remove all time points with too few nodes
-    const max = _.max(sequence.map(t => t.length));
-    let newSequence = _.clone(sequence.filter(t => t.length > max/2));
+    const max = _.max(currentSequence.map(t => t.length));
+    currentSequence = _.clone(currentSequence.filter(t => t.length > max/2));
     
     //add new partitions
     const currentGraph = graph.getSubgraph(missing);
     let addition = getIndexBasedPartition(currentGraph, groupingCondition);
-    newSequence.push(...addition);
-    sortComponentsTemporally(newSequence);
+    currentSequence.push(...addition);
+    sortComponentsTemporally(currentSequence);
     
     //then remove all nodes involved in contradictions
-    const removed = getContradictions(newSequence, true);
+    const removed = getContradictions(currentSequence, true);
     console.log("contradictions removed", removed.length);
-    newSequence = newSequence.map(t => t.filter(n => removed.indexOf(n) < 0));
+    currentSequence = currentSequence.map(t => t.filter(n => removed.indexOf(n) < 0));
     
     //readd removed nodes wherever most appropriate
-    addSegmentsAtBestSpots(removed, newSequence, graph);
+    addSegmentsAtBestSpots(removed, currentSequence, graph);
     
     //add any other missing nodes wherever most appropriate
-    previouslyMissing = missing.length;
-    missing = _.difference(graph.getNodes(), _.flatten(newSequence));
+    previouslyMissing.push(missing.length);
+    missing = _.difference(graph.getNodes(), _.flatten(currentSequence));
     console.log("missing", missing.length);
     while (missing.length > 0) {
-      addSegmentsAtBestSpots(missing, newSequence, graph);
+      addSegmentsAtBestSpots(missing, currentSequence, graph);
       const prevMissing = missing;
-      missing = _.difference(graph.getNodes(), _.flatten(newSequence));
+      missing = _.difference(graph.getNodes(), _.flatten(currentSequence));
       if (prevMissing.length === missing.length) break;
     }
     console.log("still missing", missing.length);
     
-    if (missing.length < previouslyMissing) {
-      sequence = newSequence;
-      console.log(JSON.stringify(sequence.map(t => t.length)));
+    if (previouslyMissing.every(m => missing.length < m)) {
+      bestSequence = currentSequence;
+      console.log(JSON.stringify(currentSequence.map(t => t.length)));
     }
   }
   
-  return sequence;
+  return bestSequence;
 }
 
 function getIndexBasedPartition(graph: DirectedGraph<SegmentNode>,
