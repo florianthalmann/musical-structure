@@ -61,12 +61,11 @@ export function constructTimelineFromAlignments(versionPairs: [number,number][],
   
   //divide graph into connected components
   //let components = getSegmentGraphPartitions(graph, MIN_COMPONENT_SIZE, groupingCondition);
-  let components = getIndexBasedPartition(graph, groupingCondition);
-  console.log("partitions", components.length);
+  let partition = iterativeGetIndexBasedPartition(graph, groupingCondition);
   
   //saveGraph('plots/d3/latest/slice2.json', graph.getSubgraph(components[0]));
   
-  return constructTimeline(components, MIN_COMPONENT_SIZE);
+  return constructTimeline(partition, MIN_COMPONENT_SIZE);
 }
 
 function getSegmentGraphPartitions(graph: DirectedGraph<SegmentNode>,
@@ -97,7 +96,51 @@ function getSegmentGraphPartitions(graph: DirectedGraph<SegmentNode>,
   return components;
 }
 
-function getIndexBasedPartition(graph: DirectedGraph<SegmentNode>, groupingCondition: GroupingCondition<SegmentNode>) {
+function iterativeGetIndexBasedPartition(graph: DirectedGraph<SegmentNode>,
+    groupingCondition: GroupingCondition<SegmentNode>) {
+  let sequence: SegmentNode[][] = [];
+  let previouslyMissing: number[] = [];
+  let missing: SegmentNode[] = graph.getNodes();
+  
+  while (previouslyMissing.indexOf(missing.length) < 0) { //avoids cycles...
+    //remove all time points with too few nodes
+    const max = _.max(sequence.map(t => t.length));
+    sequence = sequence.filter(t => t.length > max/2);
+    
+    //add new partitions
+    const currentGraph = graph.getSubgraph(missing);
+    let addition = getIndexBasedPartition(currentGraph, groupingCondition);
+    sequence.push(...addition);
+    sortComponentsTemporally(sequence);
+    
+    //then remove all nodes involved in contradictions
+    const removed = getContradictions(sequence, true);
+    console.log("contradictions removed", removed.length);
+    sequence = sequence.map(t => t.filter(n => removed.indexOf(n) < 0));
+    
+    //readd removed nodes wherever most appropriate
+    addSegmentsAtBestSpots(removed, sequence, graph);
+    
+    //add any other missing nodes wherever most appropriate
+    previouslyMissing.push(missing.length);
+    missing = _.difference(graph.getNodes(), _.flatten(sequence));
+    console.log("missing", missing.length);
+    while (missing.length > 0) {
+      addSegmentsAtBestSpots(missing, sequence, graph);
+      const prevMissing = missing;
+      missing = _.difference(graph.getNodes(), _.flatten(sequence));
+      if (prevMissing.length === missing.length) break;
+    }
+    console.log("still missing", missing.length);
+    
+    console.log(JSON.stringify(sequence.map(t => t.length)));
+  }
+  
+  return sequence;
+}
+
+function getIndexBasedPartition(graph: DirectedGraph<SegmentNode>,
+    groupingCondition: GroupingCondition<SegmentNode>) {
   const options = {
     graph: graph,
     condition: groupingCondition,
@@ -105,7 +148,6 @@ function getIndexBasedPartition(graph: DirectedGraph<SegmentNode>, groupingCondi
     maxDistance: 0
   };
   const groups = getBestGroups(options).slice(0, 300);
-  const max = _.max(groups.map(g => g.members.length));
   
   //start with best group (most interconnected)
   //find group with most successors/predecessors, add to sequence, and so on
@@ -113,63 +155,39 @@ function getIndexBasedPartition(graph: DirectedGraph<SegmentNode>, groupingCondi
   let remainingGroups = _.clone(groups);
   let lastAdded = groups[0];
   sequence.push(lastAdded.members);
-  while (lastAdded && remainingGroups.length > 1) {
-    remainingGroups = removeGroupAndNodes(remainingGroups, lastAdded, options);
-    //does have to be calculated every time since the remaining groups change
-    const succRatings = remainingGroups.map(g =>
-      getDirectSuccessors(_.last(sequence), g.members).length);
-      //g.rating * getDirectSuccessors(currentComp.members, g.members).length);
-    const predRatings = remainingGroups.map(g =>
-      getDirectSuccessors(g.members, _.first(sequence)).length);
-      //g.rating * getDirectSuccessors(g.members, currentComp.members).length))[0];
-    if (_.max(succRatings) >= _.max(predRatings)) {
-      lastAdded = remainingGroups[succRatings.indexOf(_.max(succRatings))];
-      const succ = getDirectSuccessors(_.last(sequence), lastAdded.members);
-      if (succ.length > lastAdded.members.length/3) {//more than a third are direct succ
-        //console.log(remainingGroups.indexOf(currentComp))
-        //console.log(JSON.stringify(currentComp.members.map(n => n.id)))
-        sequence.push(lastAdded.members);
+  while (lastAdded) {
+    remainingGroups = removeGroupAndNodes(remainingGroups, lastAdded, options)
+      .filter(g => g.members.length > 1);
+    if (remainingGroups.length > 0) {
+      //does have to be calculated every time since the remaining groups change
+      const succRatings = remainingGroups.map(g =>
+        getDirectSuccessors(_.last(sequence), g.members).length);
+        //g.rating * getDirectSuccessors(currentComp.members, g.members).length);
+      const predRatings = remainingGroups.map(g =>
+        getDirectSuccessors(g.members, _.first(sequence)).length);
+        //g.rating * getDirectSuccessors(g.members, currentComp.members).length))[0];
+      if (_.max(succRatings) >= _.max(predRatings)) {
+        lastAdded = remainingGroups[succRatings.indexOf(_.max(succRatings))];
+        const succ = getDirectSuccessors(_.last(sequence), lastAdded.members);
+        if (succ.length > lastAdded.members.length/3) {//more than a third are direct succ
+          sequence.push(lastAdded.members);
+        } else {
+          lastAdded = null;
+        }
       } else {
-        lastAdded = null;
+        lastAdded = remainingGroups[predRatings.indexOf(_.max(predRatings))];
+        const pred = getDirectSuccessors(lastAdded.members, _.first(sequence));
+        if (pred.length > lastAdded.members.length/3) {//more than a third are direct pred
+          sequence.unshift(lastAdded.members);
+        } else {
+          lastAdded = null;
+        }
       }
     } else {
-      lastAdded = remainingGroups[predRatings.indexOf(_.max(predRatings))];
-      const pred = getDirectSuccessors(lastAdded.members, _.first(sequence));
-      if (pred.length > lastAdded.members.length/3) {//more than a third are direct pred
-        sequence.unshift(lastAdded.members);
-      } else {
-        lastAdded = null;
-      }
+      lastAdded = null;
     }
   }
   
-  //then remove all contradictions...
-  const removed = getContradictions(sequence, true);
-  console.log("contradictions removed", removed.length);
-  sequence = sequence.map(t => t.filter(n => removed.indexOf(n) < 0));
-  
-  //readd all removed nodes wherever most appropriate
-  addSegmentsAtBestSpots(removed, sequence, graph);
-  
-  //add all other missing nodes wherever most appropriate
-  let missing = _.difference(graph.getNodes(), _.flatten(sequence));
-  console.log("missing", missing.length);
-  addSegmentsAtBestSpots(missing, sequence, graph);
-  missing = _.difference(graph.getNodes(), _.flatten(sequence));
-  console.log("still missing", missing.length);
-  addSegmentsAtBestSpots(missing, sequence, graph);
-  missing = _.difference(graph.getNodes(), _.flatten(sequence));
-  console.log("still missing", missing.length);
-  addSegmentsAtBestSpots(missing, sequence, graph);
-  missing = _.difference(graph.getNodes(), _.flatten(sequence));
-  console.log("still missing", missing.length);
-  
-  //remove all time points with few nodes
-  sequence = sequence.filter(t => t.length > max/2);
-  
-  //then assign all removed nodes to most appropriate comps....
-  console.log(JSON.stringify(sequence.map(t => t.length)));
-  //sequence.forEach(t => console.log(JSON.stringify(_.sortBy(t.map(n => n.id)))));
   return sequence;
 }
 
@@ -230,17 +248,8 @@ function getDirectSuccessors(before: SegmentNode[], after: SegmentNode[]) {
 }
 
 function constructTimeline(components: SegmentNode[][], minTimepointSize = 0) {
-  //sort components temporally
-  /*components.sort((a,b) => _.range(0, NUM_VERSIONS).some(v =>
-    getIndex(a, v) < getIndex(b, v)) ? -1 : 1);*/
-  //components.sort((a,b) => _.mean(a.map(n => n.time)) < _.mean(b.map(n => n.time)) ? -1 : 1);
-  //new sorting method based on common versions!!
-  components.sort((a,b) => {
-    const versions = _.intersection(a.map(n => n.version), b.map(n => n.version));
-    const aversions = a.filter(n => versions.indexOf(n.version) >= 0);
-    const bversions = b.filter(n => versions.indexOf(n.version) >= 0);
-    return _.mean(aversions.map(n => n.time)) < _.mean(bversions.map(n => n.time)) ? -1 : 1
-  });
+  
+  sortComponentsTemporally(components);
   
   //now gradually add to timeline (disjunct at same time!)
   let timeline: SegmentNode[][] = [];
@@ -270,6 +279,19 @@ function constructTimeline(components: SegmentNode[][], minTimepointSize = 0) {
   //print.forEach(p => console.log(p.join('')))
   
   return timeline;
+}
+
+function sortComponentsTemporally(components: SegmentNode[][]) {
+  /*components.sort((a,b) => _.range(0, NUM_VERSIONS).some(v =>
+    getIndex(a, v) < getIndex(b, v)) ? -1 : 1);*/
+  //components.sort((a,b) => _.mean(a.map(n => n.time)) < _.mean(b.map(n => n.time)) ? -1 : 1);
+  //new sorting method based on common versions!!
+  components.sort((a,b) => {
+    const versions = _.intersection(a.map(n => n.version), b.map(n => n.version));
+    const aversions = a.filter(n => versions.indexOf(n.version) >= 0);
+    const bversions = b.filter(n => versions.indexOf(n.version) >= 0);
+    return _.mean(aversions.map(n => n.time)) < _.mean(bversions.map(n => n.time)) ? -1 : 1
+  });
 }
 
 function printVersion(v: number, g: SegmentNode[][]) {
