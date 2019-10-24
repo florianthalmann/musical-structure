@@ -99,41 +99,44 @@ function getSegmentGraphPartitions(graph: DirectedGraph<SegmentNode>,
 function iterativeGetIndexBasedPartition(graph: DirectedGraph<SegmentNode>,
     groupingCondition: GroupingCondition<SegmentNode>) {
   let sequence: SegmentNode[][] = [];
-  let previouslyMissing: number[] = [];
+  let previouslyMissing: number;
   let missing: SegmentNode[] = graph.getNodes();
   
-  while (previouslyMissing.indexOf(missing.length) < 0) { //avoids cycles...
+  while (!previouslyMissing || missing.length < previouslyMissing) {
     //remove all time points with too few nodes
     const max = _.max(sequence.map(t => t.length));
-    sequence = sequence.filter(t => t.length > max/2);
+    let newSequence = _.clone(sequence.filter(t => t.length > max/2));
     
     //add new partitions
     const currentGraph = graph.getSubgraph(missing);
     let addition = getIndexBasedPartition(currentGraph, groupingCondition);
-    sequence.push(...addition);
-    sortComponentsTemporally(sequence);
+    newSequence.push(...addition);
+    sortComponentsTemporally(newSequence);
     
     //then remove all nodes involved in contradictions
-    const removed = getContradictions(sequence, true);
+    const removed = getContradictions(newSequence, true);
     console.log("contradictions removed", removed.length);
-    sequence = sequence.map(t => t.filter(n => removed.indexOf(n) < 0));
+    newSequence = newSequence.map(t => t.filter(n => removed.indexOf(n) < 0));
     
     //readd removed nodes wherever most appropriate
-    addSegmentsAtBestSpots(removed, sequence, graph);
+    addSegmentsAtBestSpots(removed, newSequence, graph);
     
     //add any other missing nodes wherever most appropriate
-    previouslyMissing.push(missing.length);
-    missing = _.difference(graph.getNodes(), _.flatten(sequence));
+    previouslyMissing = missing.length;
+    missing = _.difference(graph.getNodes(), _.flatten(newSequence));
     console.log("missing", missing.length);
     while (missing.length > 0) {
-      addSegmentsAtBestSpots(missing, sequence, graph);
+      addSegmentsAtBestSpots(missing, newSequence, graph);
       const prevMissing = missing;
-      missing = _.difference(graph.getNodes(), _.flatten(sequence));
+      missing = _.difference(graph.getNodes(), _.flatten(newSequence));
       if (prevMissing.length === missing.length) break;
     }
     console.log("still missing", missing.length);
     
-    console.log(JSON.stringify(sequence.map(t => t.length)));
+    if (missing.length < previouslyMissing) {
+      sequence = newSequence;
+      console.log(JSON.stringify(sequence.map(t => t.length)));
+    }
   }
   
   return sequence;
