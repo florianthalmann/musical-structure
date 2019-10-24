@@ -103,7 +103,8 @@ function iterativeGetIndexBasedPartition(graph: DirectedGraph<SegmentNode>,
   let missing: SegmentNode[] = graph.getNodes();
   let previouslyMissing: number[] = [missing.length];
   
-  while (previouslyMissing.filter(m => m < missing.length).length < 5) {
+  while (previouslyMissing.filter(m => m < missing.length).length < 5
+      && previouslyMissing.indexOf(missing.length) < 0) {
     //remove all time points with too few nodes
     const max = _.max(currentSequence.map(t => t.length));
     currentSequence = _.clone(currentSequence.filter(t => t.length > max/2));
