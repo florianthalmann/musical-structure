@@ -60,7 +60,7 @@ export async function saveThomasSongAlignments() {
   mapSeries(getTunedSongs(), folder => {
     GD_AUDIO = '/Volumes/gspeed1/florian/musical-structure/thomas/'+folder+'/';
     const songname = folder.split('_').join(' ');
-    return saveHybridSWSegmentTimeline(GD_GRAPHS+songname, songname, '.wav');
+    return saveHybridSWSegmentTimeline(GD_GRAPHS+songname, songname, '.wav', 5);
   });
 }
 
@@ -72,12 +72,12 @@ export async function getSelectedTunedSongs(numSongs: number, versionsPerSong: n
 }
 
 export function getTunedSongs() {
-  return getFoldersInFolder('thomas/')
+  return getFoldersInFolder('/Volumes/gspeed1/florian/musical-structure/thomas/')
     .filter(f => f !== 'temp' && f !== 'studio_reference')
 }
 
 export async function saveHybridSWSegmentTimeline(filebase: string, song = SONG, extension?: string, count = 2) {
-  const MAX_LENGTH = 200;
+  const MAX_LENGTH = 400;
   const MAX_VERSIONS = 30;
   const options = getGdSwOptions(initDirRec(GD_PATTERNS));
   const versions = await getGdVersions(song, MAX_VERSIONS, extension, MAX_LENGTH, options);
