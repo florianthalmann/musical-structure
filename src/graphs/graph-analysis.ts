@@ -11,7 +11,7 @@ export enum GROUP_RATING {
 }
 
 export type GroupingCondition<NodeType> =
-  (node: NodeType, others: NodeType[]) => boolean;
+  (node: NodeType, others: NodeType[], graph: DirectedGraph<NodeType>) => boolean;
 
 export interface NodeGroupingOptions<NodeType> {
   graph?: DirectedGraph<NodeType>,

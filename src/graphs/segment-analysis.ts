@@ -21,6 +21,19 @@ const DIFF_VERSIONS_MIN_DIST: GroupingCondition<SegmentNode>
   = (n, os) => !os.some(o => o.version == n.version
     && Math.abs(o.time-n.time) < MIN_DISTANCE);
 
+const DIFF_VERSIONS_MAX_EDGES: GroupingCondition<SegmentNode>
+  = (n, os, g) => {
+    if (os.every(o => o.version !== n.version)) return true;
+    const existing = os.find(o => o.version === n.version);
+    const sub1 = g.getSubgraph(os);
+    const sub2 = g.getSubgraph(os.map(o => o === existing ? n : o));
+    if (sub1.getEdges() < sub2.getEdges()) {
+      os.splice(os.indexOf(existing), 1);
+      return true;
+    }
+    return false;
+  }
+
 
 export function inferStructureFromAlignments(versionPairs: [number,number][],
     results: StructureResult[], filebase?: string) {
@@ -43,6 +56,8 @@ export function inferStructureFromAlignments(versionPairs: [number,number][],
     saveJsonFile(filebase+'-matrix.json', connectionMatrix);
     saveGraph(filebase+'-graph.json', fullGraph);
   }
+  
+  return timeline;
 }
 
 export function constructTimelineFromAlignments(versionPairs: [number,number][],
@@ -120,8 +135,13 @@ function iterativeGetIndexBasedPartition(graph: DirectedGraph<SegmentNode>,
     console.log("contradictions removed", removed.length);
     currentSequence = currentSequence.map(t => t.filter(n => removed.indexOf(n) < 0));
     
+    //then remove all of the nodes not in slices to which the have the most connections
+    const misplaced = getInconsistencies(currentSequence, graph);
+    console.log("inconsistencies removed", misplaced.length);
+    currentSequence = currentSequence.map(t => t.filter(n => misplaced.indexOf(n) < 0));
+    
     //readd removed nodes wherever most appropriate
-    addSegmentsAtBestSpots(removed, currentSequence, graph);
+    addSegmentsAtBestSpots(_.concat(removed, misplaced), currentSequence, graph);
     
     //add any other missing nodes wherever most appropriate
     previouslyMissing.push(missing.length);
@@ -141,7 +161,42 @@ function iterativeGetIndexBasedPartition(graph: DirectedGraph<SegmentNode>,
     }
   }
   
+  console.log(JSON.stringify(bestSequence.map(t =>
+    graph.getSubgraph(t).getConnectedComponents().length)));
+  
+  /*//move nodes between neighboring bins if appropriate
+  let neighboring = bestSequence.reduce<number>((n,s,i) =>
+    i > 0 ? n+getInterGroupEdges(s, bestSequence[i-1], graph).length : 0, 0);
+  let previousN = Infinity;
+  while (neighboring < previousN) {
+    bestSequence.forEach((t,i) => {
+      if (i > 0) {
+        const edges = getInterGroupEdges(t, bestSequence[i-1], graph);
+        const sourceGraph = graph.getSubgraph(t);
+        const targetGraph = graph.getSubgraph(bestSequence[i-1]);
+        edges.forEach(e => {
+          console.log(sourceGraph.getDirectAdjacents(e.source).length,
+            targetGraph.getDirectAdjacents(e.source).length,
+            sourceGraph.getDirectAdjacents(e.target).length,
+            targetGraph.getDirectAdjacents(e.target).length);
+        });
+        neighboring = bestSequence.reduce<number>((n,s,i) =>
+          i > 0 ? n+graph.getSubgraph(_.concat(s, bestSequence[i-1])).getEdges().length : 0, 0);
+      }
+    });
+  }*/
+  
   return bestSequence;
+}
+
+function getInterGroupEdges(group1: SegmentNode[], group2: SegmentNode[],
+    graph: DirectedGraph<SegmentNode>) {
+  console.log(graph.getSubgraph(_.concat(group1, group2)).getEdges().length,
+    graph.getSubgraph(group1).getEdges().length, graph.getSubgraph(group2).getEdges().length)
+  
+  return _.differenceBy(graph.getSubgraph(_.concat(group1, group2)).getEdges(),
+    _.concat(graph.getSubgraph(group1).getEdges(), graph.getSubgraph(group2).getEdges()),
+    e => e.source.id+e.target.id);
 }
 
 function getIndexBasedPartition(graph: DirectedGraph<SegmentNode>,
@@ -332,6 +387,15 @@ function getContradictions(timeline: SegmentNode[][], includeAll: boolean): Segm
       }
       return contras;
     }, []);
+  })));
+}
+
+function getInconsistencies(timeline: SegmentNode[][], graph: DirectedGraph<SegmentNode>): SegmentNode[] {
+  return _.flatten(timeline.map((t,i) => t.filter(n => {
+    const adjacents = graph.getDirectAdjacents(n);
+    const connections =
+      timeline.map(t => t.filter(n => _.includes(adjacents, n)).length);
+    return connections[i] < _.max(connections);
   })));
 }
 
