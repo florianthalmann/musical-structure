@@ -116,14 +116,11 @@ function iterativeGetIndexBasedPartition(graph: DirectedGraph<SegmentNode>,
   let currentSequence: SegmentNode[][] = [];
   let bestSequence: SegmentNode[][] = [];
   let missing: SegmentNode[] = graph.getNodes();
-  let previouslyMissing: number[] = [missing.length];
+  let previousNodeCounts = [0];
+  let currentNodeCount = 0;
   
-  while (previouslyMissing.filter(m => m < missing.length).length <= 5
-      && previouslyMissing.filter(m => m === missing.length).length <= 1) {
-    //remove all time points with too few nodes
-    const max = _.max(currentSequence.map(t => t.length));
-    currentSequence = _.clone(currentSequence.filter(t => t.length > max/2));
-    
+  while (previousNodeCounts.filter(m => m > currentNodeCount).length <= 5
+      && previousNodeCounts.filter(m => m === currentNodeCount).length <= 1) {
     //add new partitions
     const currentGraph = graph.getSubgraph(missing);
     let addition = getIndexBasedPartition(currentGraph, groupingCondition);
@@ -144,21 +141,37 @@ function iterativeGetIndexBasedPartition(graph: DirectedGraph<SegmentNode>,
     addSegmentsAtBestSpots(_.concat(removed, misplaced), currentSequence, graph);
     
     //add any other missing nodes wherever most appropriate
-    previouslyMissing.push(missing.length);
     missing = _.difference(graph.getNodes(), _.flatten(currentSequence));
     console.log("missing", missing.length);
     while (missing.length > 0) {
-      addSegmentsAtBestSpots(missing, currentSequence, graph);
-      const prevMissing = missing;
-      missing = _.difference(graph.getNodes(), _.flatten(currentSequence));
-      if (prevMissing.length === missing.length) break;
+      const added = addSegmentsAtBestSpots(missing, currentSequence, graph);
+      if (added.length > 0) {
+        missing = _.difference(missing, added);
+        console.log("m", missing.length)
+      } else break;
     }
     console.log("still missing", missing.length);
     
-    if (previouslyMissing.every(m => missing.length < m)) {
+    //remove all nodes not in cycles
+    let tempNodeCount = _.flatten(currentSequence).length;
+    currentSequence = currentSequence.map(t =>
+      graph.getSubgraph(t).pruneEdgesNotInCycles().pruneIsolatedNodes().getNodes())
+    currentNodeCount = _.flatten(currentSequence).length;
+    console.log("non-cycles removed", tempNodeCount-currentNodeCount);
+    
+    //remove all time points with too few nodes
+    tempNodeCount = _.flatten(currentSequence).length;
+    const max = _.max(currentSequence.map(t => t.length));
+    currentSequence = _.clone(currentSequence.filter(t => t.length > max/2));
+    currentNodeCount = _.flatten(currentSequence).length;
+    console.log("small removed", tempNodeCount-currentNodeCount);
+    console.log("current count", currentNodeCount);
+    
+    if (previousNodeCounts.every(m => currentNodeCount > m)) {
       bestSequence = currentSequence;
       console.log(JSON.stringify(currentSequence.map(t => t.length)));
     }
+    previousNodeCounts.push(currentNodeCount);
   }
   
   console.log(JSON.stringify(bestSequence.map(t =>
@@ -253,6 +266,7 @@ function getIndexBasedPartition(graph: DirectedGraph<SegmentNode>,
 
 function addSegmentsAtBestSpots(segments: SegmentNode[],
     sequence: SegmentNode[][], graph: DirectedGraph<SegmentNode>) {
+  const added: SegmentNode[] = [];
   segments.forEach(n => {
     //console.log(n.id)
     const times = sequence.map(t =>
@@ -271,8 +285,10 @@ function addSegmentsAtBestSpots(segments: SegmentNode[],
     const max = _.max(matches);
     if (max > 0) {
       const index = matches.indexOf(max);
-      if (sequence[index].map(n => n.version).indexOf(n.version) < 0)
+      if (sequence[index].map(n => n.version).indexOf(n.version) < 0) {
         sequence[index].push(n);
+        added.push(n);
+      }
     } else {
       //INSERT IF APPROPRIATE!!!
       /*const next = sequence.find(t => 
@@ -284,6 +300,7 @@ function addSegmentsAtBestSpots(segments: SegmentNode[],
       }*/
     }
   });
+  return added;
 }
 
 function getCompletedNumberArray(nums: number[]) {
