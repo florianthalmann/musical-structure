@@ -25,7 +25,7 @@ interface GdVersion {
 
 interface VisualsPoint {
   version: number,
-  index: number,
+  time: number,
   type: number,
   point: number[],
   path: string,
@@ -77,7 +77,7 @@ export function getTunedSongs() {
 }
 
 export async function saveHybridSWSegmentTimeline(filebase: string, song = SONG, extension?: string, count = 2) {
-  const MAX_LENGTH = 400;
+  const MAX_LENGTH = 200;
   const MAX_VERSIONS = 30;
   const options = getGdSwOptions(initDirRec(GD_PATTERNS));
   const versions = await getGdVersions(song, MAX_VERSIONS, extension, MAX_LENGTH, options);
@@ -95,9 +95,15 @@ export async function saveHybridSWSegmentTimeline(filebase: string, song = SONG,
     v.split('/').slice(-2).join('/').replace('.m4a', '.mp3'));
   const tunings = short.map(v =>
     getTuningRatio(v.split('/')[0], v.split('/')[1].replace('.mp3','')));
-  const json = {versions: short, tunings: tunings,
+  const json = {title: _.startCase(song), versions: short, tunings: tunings,
     segments: segments, timeline: timeline};
   saveJsonFile(filebase+'-output.json', json);
+  const visuals: VisualsPoint[] = _.flatten(versions.map((v,i) => timeline.map(t => {
+    const n = t.find(n => n.version === i);
+    return n ? ({version:i, time:n.time, type:1, point:n.point, path: versions[i],
+      start: segments[i][n.time].start, duration: segments[i][n.time].duration}) : undefined;
+  }))).filter(p=>p);
+  saveJsonFile(filebase+'-visuals.json', visuals);
 }
 
 export async function saveHybridSWPatternGraph(filebase: string, song = SONG, extension?: string, count = 1) {
@@ -255,7 +261,7 @@ async function getPatternSequences(audio: string[], points: any[][],
     results: StructureResult[], groupingOptions: NodeGroupingOptions<PatternNode>,
     typeCount = 10, minCount = 2, path?: string): Promise<VisualsPoint[][]> {
   const sequences = results.map((v,i) => v.points.map((p,j) =>
-    ({version:i, index:j, type:0, point:p, path: audio[i],
+    ({version:i, time:j, type:0, point:p, path: audio[i],
       start: points[i][j][0][0],
       duration: points[i][j+1] ? points[i][j+1][0][0]-points[i][j][0][0] : 1})));
   const nfMap = getNormalFormsMap(results);
@@ -297,7 +303,7 @@ async function getVectorSequences(audio: string[], points: any[][], options: Ful
   const pointMap = toIndexSeqMap(atemporalPoints, JSON.stringify);
   const mostCommon = getMostCommonPoints(_.flatten(atemporalPoints));
   const sequences = quantPoints.map((v,i) => v.map((p,j) =>
-    ({version:i, index:j, type:0, point:p, path: audio[i],
+    ({version:i, time:j, type:0, point:p, path: audio[i],
       start: points[i][j][0][0],
       duration: points[i][j+1] ? points[i][j+1][0][0]-points[i][j][0][0] : 1})));
   mostCommon.slice(0, typeCount).forEach((p,i) =>
