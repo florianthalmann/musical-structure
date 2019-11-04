@@ -60,7 +60,7 @@ export async function saveThomasSongAlignments() {
   mapSeries(getTunedSongs(), folder => {
     GD_AUDIO = '/Volumes/gspeed1/florian/musical-structure/thomas/'+folder+'/';
     const songname = folder.split('_').join(' ');
-    return saveHybridSWSegmentTimeline(GD_GRAPHS+songname, songname, '.wav', 5);
+    return saveHybridSWSegmentTimeline('results/gd/graphs30-10plus2/'+songname, songname, '.wav', 10);
   });
 }
 
@@ -73,31 +73,33 @@ export async function getSelectedTunedSongs(numSongs: number, versionsPerSong: n
 
 export function getTunedSongs() {
   return getFoldersInFolder('/Volumes/gspeed1/florian/musical-structure/thomas/')
-    .filter(f => f !== 'temp' && f !== 'studio_reference')
+    .filter(f => f !== 'temp' && f !== 'studio_reference' && f !== "dancin'_in_the_street")
 }
 
 export async function saveHybridSWSegmentTimeline(filebase: string, song = SONG, extension?: string, count = 2) {
-  const MAX_LENGTH = 400;
-  const MAX_VERSIONS = 30;
-  const options = getGdSwOptions(initDirRec(GD_PATTERNS));
-  const versions = await getGdVersions(song, MAX_VERSIONS, extension, MAX_LENGTH, options);
-  const tuples = <[number,number][]>_.flatten(_.range(count)
-    .map(c => getHybridConfig(song, 2, c, versions, MAX_LENGTH, MAX_VERSIONS)
-    .map(pair => pair.map(s => versions.indexOf(s)))));
-  const hybrids = _.flatten(await getHybridSWs(song, extension, count, options, MAX_LENGTH, MAX_VERSIONS));
-  //createSegmentGraphFromHybrids(tuples, hybrids, [0], filebase+'-hybrid-all-graph.json');
-  const timeline = inferStructureFromAlignments(tuples, hybrids, filebase);
-  const points = await Promise.all(versions.map(v => getPointsFromAudio(v, options)));
-  const segments = points.map((v,i) => v.map((p,j) =>
-    ({start: points[i][j][0][0],
-      duration: points[i][j+1] ? points[i][j+1][0][0]-points[i][j][0][0] : 1})));
-  const short = versions.map(v =>
-    v.split('/').slice(-2).join('/').replace('.m4a', '.mp3'));
-  const tunings = short.map(v =>
-    getTuningRatio(v.split('/')[0], v.split('/')[1].replace('.mp3','')));
-  const json = {versions: short, tunings: tunings,
-    segments: segments, timeline: timeline};
-  saveJsonFile(filebase+'-output.json', json);
+  if (!fs.existsSync(filebase+'-output.json')) {
+    const MAX_LENGTH = 400;
+    const MAX_VERSIONS = 30;
+    const options = getGdSwOptions(initDirRec(GD_PATTERNS));
+    const versions = await getGdVersions(song, MAX_VERSIONS, extension, MAX_LENGTH, options);
+    const tuples = <[number,number][]>_.flatten(_.range(count)
+      .map(c => getHybridConfig(song, 2, c, versions, MAX_LENGTH, MAX_VERSIONS)
+      .map(pair => pair.map(s => versions.indexOf(s)))));
+    const hybrids = _.flatten(await getHybridSWs(song, extension, count, options, MAX_LENGTH, MAX_VERSIONS));
+    //createSegmentGraphFromHybrids(tuples, hybrids, [0], filebase+'-hybrid-all-graph.json');
+    const timeline = inferStructureFromAlignments(tuples, hybrids, filebase);
+    const points = await Promise.all(versions.map(v => getPointsFromAudio(v, options)));
+    const segments = points.map((v,i) => v.map((p,j) =>
+      ({start: points[i][j][0][0],
+        duration: points[i][j+1] ? points[i][j+1][0][0]-points[i][j][0][0] : 1})));
+    const short = versions.map(v =>
+      v.split('/').slice(-2).join('/').replace(extension || '.m4a', '.mp3'));
+    const tunings = short.map(v =>
+      getTuningRatio(v.split('/')[0], v.split('/')[1].replace('.mp3','')));
+    const json = {title: _.startCase(song), versions: short, tunings: tunings,
+      segments: segments, timeline: timeline};
+    saveJsonFile(filebase+'-output.json', json);
+  }
 }
 
 export async function saveHybridSWPatternGraph(filebase: string, song = SONG, extension?: string, count = 1) {
@@ -137,13 +139,13 @@ export async function savePS(filebase: string, cosiatecFile: string, graphFile: 
   const file = filebase+"-seqs.json";
   const results: StructureResult[] = loadJsonFile(cosiatecFile);
   const points = results.map(r => r.points);
-  
+
   const MIN_OCCURRENCE = 2;
   const PATTERN_TYPES = 10;
 
   const grouping: NodeGroupingOptions<PatternNode> = { maxDistance: 5, condition: (n,c) => n.size > 5};
   const patsec = _.flatten(await getPatternSequences([], points, results, grouping, PATTERN_TYPES, MIN_OCCURRENCE, graphFile));
-  
+
   //TODO TAKE MOST CONNECTED ONES :)
 
   fs.writeFileSync(file, JSON.stringify(patsec));
@@ -166,7 +168,7 @@ export async function saveSWPatternAndVectorSequences(filebase: string, tryHalft
     const doubleOptions = getGdSwOptions(true);
     const doublePoints = await mapSeries(versions, a => getPointsFromAudio(a, doubleOptions));
     const doubleResults = await getSmithWatermanFromAudio(versions, doubleOptions);
-    
+
     const graph = createSimilarityPatternGraph(results.concat(doubleResults), false, null, MIN_OCCURRENCE);
     let conn = getConnectednessByVersion(graph);
     //console.log(conn)
@@ -340,6 +342,9 @@ async function getHybridSW(name: string, index: number, audioFiles: string[], op
   return mapSeries(tuples, async (tuple,i) => {
     updateStatus('  ' + (i+1) + '/' + tuples.length);
     const currentPoints = tuple.map(a => points[audioFiles.indexOf(a)]);
+    /*console.log(tuple)
+    console.log(currentPoints[0].length)
+    console.log(currentPoints[1].length)*/
     return getDualSmithWaterman(currentPoints[0], currentPoints[1],
       getOptionsWithCaching(getHybridCacheDir(...tuple), options));
   });
