@@ -49,7 +49,7 @@ import { gatherTunings } from './files/tunings';
 
 saveThomasSongAlignments()
 
-//gatherTunings('tunings/')
+//gatherTunings('../musical-structure/thomas/')
 
 //saveAllSongSequences(4, 10, 10);
 //saveThomasSongSequences()

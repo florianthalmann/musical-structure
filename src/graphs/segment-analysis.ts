@@ -14,7 +14,7 @@ export interface SegmentNode extends Node {
 }
 
 const DIFF_VERSIONS: GroupingCondition<SegmentNode>
-  = (n, os) => !os.some(o => o.version == n.version);
+  = (n, os) => os.every(o => o.version !== n.version);
 
 const MIN_DISTANCE = 8;
 const DIFF_VERSIONS_MIN_DIST: GroupingCondition<SegmentNode>
@@ -25,10 +25,10 @@ const DIFF_VERSIONS_MAX_EDGES: GroupingCondition<SegmentNode>
   = (n, os, g) => {
     if (os.every(o => o.version !== n.version)) return true;
     const existing = os.find(o => o.version === n.version);
-    const sub1 = g.getSubgraph(os);
-    const sub2 = g.getSubgraph(os.map(o => o === existing ? n : o));
-    if (sub1.getEdges() < sub2.getEdges()) {
-      os.splice(os.indexOf(existing), 1);
+    const edges1 = g.getAllEdges(os);
+    const edges2 = g.getAllEdges(os.map(o => o === existing ? n : o));
+    if (edges1.length < edges2.length) {
+      os.splice(os.indexOf(existing), 1, n);
       return true;
     }
     return false;
@@ -39,7 +39,7 @@ export function inferStructureFromAlignments(versionPairs: [number,number][],
     results: StructureResult[], filebase?: string) {
   
   const timeline = constructTimelineFromAlignments(versionPairs, results,
-    DIFF_VERSIONS, true, filebase);
+    DIFF_VERSIONS, false, filebase);
   const fullGraph = createSegmentGraphFromAlignments(versionPairs, results, [0,1], false);
   const nodes = _.zipObject(fullGraph.getNodes().map(n => n.id), fullGraph.getNodes());
   const edges = fullGraph.getEdges();
@@ -162,7 +162,9 @@ function iterativeGetIndexBasedPartition(graph: DirectedGraph<SegmentNode>,
     //remove all time points with too few nodes
     tempNodeCount = _.flatten(currentSequence).length;
     const max = _.max(currentSequence.map(t => t.length));
-    currentSequence = _.clone(currentSequence.filter(t => t.length > max/2));
+    currentSequence = _.clone(currentSequence.filter(t => t.length > max/3));
+    /*const smallest = _.sortBy(currentSequence, t => t.length).slice(0,currentSequence.length/4);
+    currentSequence = currentSequence.filter(t => smallest.indexOf(t) < 0);*/
     currentNodeCount = _.flatten(currentSequence).length;
     console.log("small removed", tempNodeCount-currentNodeCount);
     console.log("current count", currentNodeCount);
@@ -269,9 +271,11 @@ function addSegmentsAtBestSpots(segments: SegmentNode[],
   const added: SegmentNode[] = [];
   segments.forEach(n => {
     //console.log(n.id)
+    //all current times for version
     const times = sequence.map(t =>
       _.min(t.filter(m => m.version === n.version).map(m => m.time)));
     //console.log("times", JSON.stringify(times))
+    //gaps filled
     const filled = getCompletedNumberArray(times);
     //console.log("filled", JSON.stringify(filled))
     const places = times.map((_,i) =>
@@ -279,16 +283,20 @@ function addSegmentsAtBestSpots(segments: SegmentNode[],
       && !times.slice(i).some(t => t < n.time));
     //console.log("places", JSON.stringify(places))
     const matches = sequence.map((t,i) => places[i] ?
-      graph.getSubgraph(_.concat(t, n)).getDirectAdjacents(n).length
+      graph.getDirectAdjacents(n).filter(a => t.indexOf(a) >= 0).length
+      //graph.getSubgraph(_.concat(t, n)).getDirectAdjacents(n).length
         / (Math.abs(filled[i]-n.time)+1) : 0);
     //console.log("matches", JSON.stringify(matches))
     const max = _.max(matches);
     if (max > 0) {
       const index = matches.indexOf(max);
-      if (sequence[index].map(n => n.version).indexOf(n.version) < 0) {
+      if (sequence[index].length > 30) {
+        console.log(n.id, JSON.stringify(sequence[index].map(n => n.id)))
+      }
+      //if (sequence[index].map(n => n.version).indexOf(n.version) < 0) {
         sequence[index].push(n);
         added.push(n);
-      }
+      //}
     } else {
       //INSERT IF APPROPRIATE!!!
       /*const next = sequence.find(t => 
