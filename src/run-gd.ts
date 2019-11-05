@@ -60,7 +60,7 @@ export async function saveThomasSongAlignments() {
   mapSeries(getTunedSongs(), folder => {
     GD_AUDIO = '/Volumes/gspeed1/florian/musical-structure/thomas/'+folder+'/';
     const songname = folder.split('_').join(' ');
-    return saveHybridSWSegmentTimeline('results/gd/graphs30-10plus2/'+songname, songname, '.wav', 10);
+    return saveHybridSWSegmentTimeline('results/gd/graphs100new3/'+songname, songname, '.wav', 5);
   });
 }
 
@@ -79,7 +79,7 @@ export function getTunedSongs() {
 export async function saveHybridSWSegmentTimeline(filebase: string, song = SONG, extension?: string, count = 2) {
   if (!fs.existsSync(filebase+'-output.json')) {
     const MAX_LENGTH = 400;
-    const MAX_VERSIONS = 30;
+    const MAX_VERSIONS = 100;
     const options = getGdSwOptions(initDirRec(GD_PATTERNS));
     const versions = await getGdVersions(song, MAX_VERSIONS, extension, MAX_LENGTH, options);
     const tuples = <[number,number][]>_.flatten(_.range(count)
@@ -348,11 +348,11 @@ async function getHybridSW(name: string, index: number, audioFiles: string[], op
   return mapSeries(tuples, async (tuple,i) => {
     updateStatus('  ' + (i+1) + '/' + tuples.length);
     const currentPoints = tuple.map(a => points[audioFiles.indexOf(a)]);
-    /*console.log(tuple)
-    console.log(currentPoints[0].length)
-    console.log(currentPoints[1].length)*/
-    return getDualSmithWaterman(currentPoints[0], currentPoints[1],
-      getOptionsWithCaching(getHybridCacheDir(...tuple), options));
+    if (currentPoints[0] && currentPoints[1]) {
+      return getDualSmithWaterman(currentPoints[0], currentPoints[1],
+        getOptionsWithCaching(getHybridCacheDir(...tuple), options));
+    }
+    return getDualSmithWaterman([], [], getOptionsWithCaching(getHybridCacheDir(...tuple), options));
   });
 }
 
