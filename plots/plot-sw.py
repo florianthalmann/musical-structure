@@ -28,10 +28,11 @@ for path in paths:
 
 #mask2 = np.vectorize(lambda x: x if x > 17 else 0)
 #masked = mask2(matrix)
-    g = sns.heatmap(matrix, xticklabels=False, yticklabels=False, cmap=sns.cm.rocket_r)
-    fig = g.get_figure()
-    fig.savefig(path.replace('.json', '.pdf'))
-    fig.clf()
+    if (len(matrix) > 0):
+        g = sns.heatmap(matrix, xticklabels=False, yticklabels=False, cmap=sns.cm.rocket_r)
+        fig = g.get_figure()
+        fig.savefig(path.replace('.json', '.pdf'))
+        fig.clf()
 
 # print mask2(np.amax(matrix,0))
 # g = sns.tsplot(np.amax(matrix,0), color=sns.cubehelix_palette())

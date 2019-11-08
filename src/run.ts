@@ -49,7 +49,7 @@ saveHybridSWSegmentTimeline("results/timeline/meandmyuncle30c", "me and my uncle
 
 //saveThomasSongAlignments()
 
-//gatherTunings('tunings/')
+//gatherTunings('../musical-structure/thomas/')
 
 //saveAllSongSequences(4, 10, 10);
 //saveThomasSongSequences()
