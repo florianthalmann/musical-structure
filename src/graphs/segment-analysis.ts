@@ -132,13 +132,19 @@ function iterativeGetIndexBasedPartition(graph: DirectedGraph<SegmentNode>,
     console.log("contradictions removed", removed.length);
     currentSequence = currentSequence.map(t => t.filter(n => removed.indexOf(n) < 0));
     
-    //then remove all of the nodes not in slices to which the have the most connections
+    //then remove all of the nodes not in slices to which they have the most connections
     const misplaced = getInconsistencies(currentSequence, graph);
     console.log("inconsistencies removed", misplaced.length);
     currentSequence = currentSequence.map(t => t.filter(n => misplaced.indexOf(n) < 0));
     
+    //then remove all of the nodes in slices with more than one per version
+    const unique = currentSequence.map(t => _.uniqBy(t, n => n.version));
+    const multi = _.difference(_.flatten(currentSequence), _.flatten(unique));
+    console.log("multiples removed", multi.length);
+    currentSequence = unique;
+    
     //readd removed nodes wherever most appropriate
-    addSegmentsAtBestSpots(_.concat(removed, misplaced), currentSequence, graph);
+    addSegmentsAtBestSpots(_.concat(removed, misplaced, multi), currentSequence, graph);
     
     //add any other missing nodes wherever most appropriate
     missing = _.difference(graph.getNodes(), _.flatten(currentSequence));
@@ -162,7 +168,7 @@ function iterativeGetIndexBasedPartition(graph: DirectedGraph<SegmentNode>,
     //remove all time points with too few nodes
     tempNodeCount = _.flatten(currentSequence).length;
     const max = _.max(currentSequence.map(t => t.length));
-    currentSequence = _.clone(currentSequence.filter(t => t.length > max/3));
+    currentSequence = _.clone(currentSequence.filter(t => t.length > max/2));
     /*const smallest = _.sortBy(currentSequence, t => t.length).slice(0,currentSequence.length/4);
     currentSequence = currentSequence.filter(t => smallest.indexOf(t) < 0);*/
     currentNodeCount = _.flatten(currentSequence).length;
@@ -171,6 +177,8 @@ function iterativeGetIndexBasedPartition(graph: DirectedGraph<SegmentNode>,
     
     if (previousNodeCounts.every(m => currentNodeCount > m)) {
       bestSequence = currentSequence;
+      const removed = getContradictions(currentSequence, true);
+      console.log("CONTRADICTIONS REMAINING", removed.length);
       console.log(JSON.stringify(currentSequence.map(t => t.length)));
     }
     previousNodeCounts.push(currentNodeCount);
@@ -290,13 +298,10 @@ function addSegmentsAtBestSpots(segments: SegmentNode[],
     const max = _.max(matches);
     if (max > 0) {
       const index = matches.indexOf(max);
-      if (sequence[index].length > 30) {
-        console.log(n.id, JSON.stringify(sequence[index].map(n => n.id)))
-      }
-      //if (sequence[index].map(n => n.version).indexOf(n.version) < 0) {
+      if (sequence[index].map(n => n.version).indexOf(n.version) < 0) {
         sequence[index].push(n);
         added.push(n);
-      //}
+      }
     } else {
       //INSERT IF APPROPRIATE!!!
       /*const next = sequence.find(t => 

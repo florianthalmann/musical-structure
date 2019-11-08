@@ -252,14 +252,12 @@ export class DirectedGraph<NodeType extends Node> {
       condition(n, _.concat(node, ns), this) ? ns.concat([n]) : ns, []);
     let latest = adjacents;
     while (maxDegreesRemoved > 1 || maxDegreesRemoved <= 0) {
-      //console.log("adjacents", JSON.stringify(adjacents.map(l => l.id)))
-      const checking = _.reverse(_.sortBy(latest, l => this.getIncidentEdges(l).length));
-      //console.log("checking", JSON.stringify(checking.map(l => l.id)))
+      //const checking = _.reverse(_.sortBy(latest, l => this.getIncidentEdges(l).length));
+      const checking = latest;
       latest = _.difference(_.uniq(_.flatten(checking.map(n => this.getDirectAdjacents(n)))), checked);
       //keep only as many nodes as the condition allows
       if (condition) latest = latest.reduce((ns: NodeType[], n) =>
         condition(n, _.concat(node, adjacents, ns), this) ? ns.concat([n]) : ns, []);
-      //console.log("latest", JSON.stringify(latest.map(l => l.id)))
       const previousSize = adjacents.length;
       adjacents = _.union(adjacents, latest);
       if (adjacents.length <= previousSize) return adjacents; //entire connected component reached
