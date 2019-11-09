@@ -6,7 +6,7 @@ import { loadJsonFile, saveJsonFile } from './files/file-manager';
 import { getPatternSimilarities } from './graphs/pattern-stats';
 import { getOptionsWithCaching, getBestGdOptions, getGdCompressionOptions } from './files/options';
 import { getPointsFromAudio } from './files/feature-parser';
-import { getSelectedTunedSongs, getHybridCacheDir, getCosiatecFromAudio } from './run-gd';
+import { getSelectedTunedSongs, getMultiCacheDir, getCosiatecFromAudio } from './run-gd';
 
 const SWEEP_FILE = GD_RESULTS+'sweeps.json';
 
@@ -112,7 +112,7 @@ export async function calculateCompressionDistances(songs = 4, versionsPerSong =
   const combined = points.map((p,i) => points.slice(i+1).map((q,j) => {
       current++;
       updateStatus('  ' + current + '/' + pl*(pl-1)/2 +  '  ');
-      const cachedir = getHybridCacheDir(versions[i], versions[i+j+1]);
+      const cachedir = getMultiCacheDir(versions[i], versions[i+j+1]);
       return getCosiatec(p.concat(q), getOptionsWithCaching(cachedir, options));
   }));
 

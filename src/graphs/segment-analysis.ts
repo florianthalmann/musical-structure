@@ -1,6 +1,6 @@
 import * as _ from 'lodash';
 import * as fs from 'fs';
-import { StructureResult, IterativeSmithWatermanResult, Pattern } from 'siafun';
+import { Pattern, MultiStructureResult } from 'siafun';
 const SimpleLinearRegression = require('ml-regression-simple-linear');
 import { DirectedGraph, Node, saveGraph, loadGraph } from './graph-theory';
 import { getPartition, GROUP_RATING, GroupingCondition, getBestGroups,
@@ -36,7 +36,7 @@ const DIFF_VERSIONS_MAX_EDGES: GroupingCondition<SegmentNode>
 
 
 export function inferStructureFromAlignments(versionPairs: [number,number][],
-    results: StructureResult[], filebase?: string) {
+    results: MultiStructureResult[], filebase?: string) {
 
   const timeline = constructTimelineFromAlignments(versionPairs, results,
     DIFF_VERSIONS, false, filebase);
@@ -61,7 +61,7 @@ export function inferStructureFromAlignments(versionPairs: [number,number][],
 }
 
 export function constructTimelineFromAlignments(versionPairs: [number,number][],
-    results: StructureResult[], groupingCondition: GroupingCondition<SegmentNode>,
+    results: MultiStructureResult[], groupingCondition: GroupingCondition<SegmentNode>,
     postprocess = true, filebase?: string) {
   const MIN_COMPONENT_SIZE = _.uniq(_.flatten(versionPairs)).length/8;
   console.log("graph")
@@ -430,13 +430,16 @@ function getInconsistencies(timeline: SegmentNode[][], graph: DirectedGraph<Segm
 }
 
 export function createSegmentGraphFromAlignments(versionPairs: [number,number][],
-    results: StructureResult[], patternIndexes: number[],
+    results: MultiStructureResult[], patternIndexes: number[],
     postprocessPatterns: boolean, path?: string) {
   //recover points for all versions from results
   const vIndexes: [number,number][] = [];
   versionPairs.forEach((vs,i) => vs.forEach((v,j) => vIndexes[v] = [i,j]));
-  const versionsPoints = vIndexes.map(ij =>
-    ij[1] == 0 ? results[ij[0]].points : (<IterativeSmithWatermanResult[]>results)[ij[0]].points2)
+  let versionsPoints = vIndexes.map(ij =>
+    ij[1] == 0 ? results[ij[0]].points : results[ij[0]].points2)
+  
+  console.log(JSON.stringify(versionsPoints[20]));
+  
   //create nodes and a map to find them quickly
   const nodes: SegmentNode[][] = versionsPoints.map((ps,i) =>
     ps.map((p,j) => ({id: i+"."+j, point: p, version: i, time: j})));
@@ -475,8 +478,10 @@ export function createSegmentGraphFromAlignments(versionPairs: [number,number][]
     ps.filter((_,i) => patternIndexes.indexOf(i) >= 0).forEach(pn => pn.points.map((_,i) => {
       const nodes = vs.map((v,j) =>
         nodesByVersionByPoint[v][JSON.stringify(pn.occurrences[j][i])]);
+      //console.log(JSON.stringify(nodes), JSON.stringify(vs))
       //if (i < 20)
-      graph.addEdge(nodes[0], nodes[1]);
+      if (nodes[0] && nodes[1])
+        graph.addEdge(nodes[0], nodes[1]);
     })));
 
   console.log("\nfull", graph.getSize(), graph.getEdges().length)

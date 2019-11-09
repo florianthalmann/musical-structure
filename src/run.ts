@@ -1,9 +1,6 @@
 import * as _ from 'lodash';
 //import { saveGdHists } from './histograms';
-import { saveHybridPatternGraphs, savePatternSequences, saveVectorSequences,
-  savePatternAndVectorSequences, saveAllSongSequences, saveThomasSongSequences,
-  analyzeHybridPatternGraphs, savePS, saveSWPatternAndVectorSequences,
-  saveHybridSWPatternGraph, saveHybridSWSegmentTimeline, saveThomasSongAlignments } from './run-gd';
+import { saveMultiSWSegmentTimeline, saveThomasSongAlignments } from './run-gd';
 import { calculateCompressionDistances, calculatePatternSimilarities,
   sweep, saveSimilarities, sweep2} from './run-gd-dists';
 
@@ -42,10 +39,10 @@ import { gatherTunings } from './files/tunings';
 //saveSWPatternAndVectorSequences("plots/d3/latest/box of rain-sw", false, "box of rain", ".m4a");
 //saveHybridSWPatternGraph("plots/d3/latest/box of rain-sw", "box of rain", ".m4a", 1)
 
-//saveHybridSWSegmentTimeline("results/timeline/boxofrain30s", "box of rain", ".m4a", 5) //[ 156, 178, 154, 156, 157, 156, 155, 155, 163, 163 ]
-saveHybridSWSegmentTimeline("results/timeline/meandmyuncle30c", "me and my uncle", ".mp3", 5) //[ 135, 92, 90, 99, 99, 171, 87, 89, 89, 87 ]
-//saveHybridSWSegmentTimeline("results/timeline/goodlovin30t", "good lovin'", ".mp3", 5)
-//saveHybridSWSegmentTimeline("results/cosmiccharlie30", "cosmic charlie", ".mp3", 5)
+//saveMultiSWSegmentTimeline("results/timeline/boxofrain30s", "box of rain", ".m4a", 5) //[ 156, 178, 154, 156, 157, 156, 155, 155, 163, 163 ]
+saveMultiSWSegmentTimeline("results/timeline-cos/meandmyuncle30c", "me and my uncle", ".mp3", 5) //[ 135, 92, 90, 99, 99, 171, 87, 89, 89, 87 ]
+//saveMultiSWSegmentTimeline("results/timeline/goodlovin30t", "good lovin'", ".mp3", 5)
+//saveMultiSWSegmentTimeline("results/cosmiccharlie30", "cosmic charlie", ".mp3", 5)
 
 //saveThomasSongAlignments()
 
