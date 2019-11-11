@@ -23,6 +23,7 @@ const DIFF_VERSIONS_MIN_DIST: GroupingCondition<SegmentNode>
 
 const DIFF_VERSIONS_MAX_EDGES: GroupingCondition<SegmentNode>
   = (n, os, g) => {
+    if (os[0].version === n.version) return false; //do not replace first node (center)
     if (os.every(o => o.version !== n.version)) return true;
     const existing = os.find(o => o.version === n.version);
     const edges1 = g.getAllEdges(os);
@@ -69,6 +70,7 @@ export function constructTimelineFromAlignments(versionPairs: [number,number][],
   let graph: DirectedGraph<SegmentNode>;
   if (filebase && fs.existsSync(filebase+'-tlgraph.json')) {
     graph = loadGraph(filebase+'-tlgraph.json');
+    console.log("loaded", graph.getSize(), graph.getEdges().length)
   } else {
     graph = createSegmentGraphFromAlignments(versionPairs, results, [0,1], postprocess);
     saveGraph(filebase+'-tlgraph.json', graph);
@@ -113,17 +115,37 @@ function getSegmentGraphPartitions(graph: DirectedGraph<SegmentNode>,
 
 function iterativeGetIndexBasedPartition(graph: DirectedGraph<SegmentNode>,
     groupingCondition: GroupingCondition<SegmentNode>) {
+  
+  const MIN_SIZE_FACTOR = 4;
   let currentSequence: SegmentNode[][] = [];
   let bestSequence: SegmentNode[][] = [];
   let missing: SegmentNode[] = graph.getNodes();
   let previousNodeCounts = [0];
   let currentNodeCount = 0;
 
-  while (previousNodeCounts.filter(m => m > currentNodeCount).length <= 5
-      && previousNodeCounts.filter(m => m === currentNodeCount).length <= 1) {
+  while (previousNodeCounts.filter(m => m >= currentNodeCount).length <= 10) {
     //add new partitions
     const currentGraph = graph.getSubgraph(missing);
-    let addition = getIndexBasedPartition(currentGraph, groupingCondition);
+    console.log("GRAPH", currentGraph.getSize(), currentGraph.getEdges().length)
+    
+    const succ = currentSequence.map(t => t.map(n => currentGraph.getNodes()
+      .find(m => m.version === n.version && m.time === n.time+1)).filter(m=>m));
+    const pred = currentSequence.map(t => t.map(n => currentGraph.getNodes()
+      .find(m => m.version === n.version && m.time === n.time-1)).filter(m=>m));
+    const succGs = succ.map(s => currentGraph.getSubgraph(s).pruneIsolatedNodes().getNodes()).filter(s => s.length > 1);
+    const predGs = pred.map(p => currentGraph.getSubgraph(p).pruneIsolatedNodes().getNodes()).filter(p => p.length > 1);
+    let max = _.max(currentSequence.map(t => t.length));
+    const direct = _.concat(predGs, succGs).filter(s => s.length > max/6);
+    
+    let addition: SegmentNode[][];
+    if (direct.length && previousNodeCounts[previousNodeCounts.length-2] !== currentNodeCount) {
+      addition = direct;
+    } else {
+      //addition = getIndexBasedPartition(currentGraph, groupingCondition);
+      addition = getBestGroup(currentGraph, groupingCondition);
+      //addition = getSuccessiveGroups(currentGraph, groupingCondition, currentSequence);
+    }
+    console.log("added slices", JSON.stringify(addition.map(a => a.length)));
     currentSequence.push(...addition);
     sortComponentsTemporally(currentSequence);
 
@@ -159,16 +181,16 @@ function iterativeGetIndexBasedPartition(graph: DirectedGraph<SegmentNode>,
     console.log("still missing", missing.length);
 
     //remove all nodes not in cycles
-    let tempNodeCount = _.flatten(currentSequence).length;
+    /*let tempNodeCount = _.flatten(currentSequence).length;
     currentSequence = currentSequence.map(t =>
       graph.getSubgraph(t).pruneEdgesNotInCycles().pruneIsolatedNodes().getNodes())
     currentNodeCount = _.flatten(currentSequence).length;
-    console.log("non-cycles removed", tempNodeCount-currentNodeCount);
+    console.log("non-cycles removed", tempNodeCount-currentNodeCount);*/
 
     //remove all time points with too few nodes
-    tempNodeCount = _.flatten(currentSequence).length;
-    const max = _.max(currentSequence.map(t => t.length));
-    currentSequence = _.clone(currentSequence.filter(t => t.length > max/2));
+    let tempNodeCount = _.flatten(currentSequence).length;
+    max = _.max(currentSequence.map(t => t.length));
+    currentSequence = _.clone(currentSequence.filter(t => t.length > max/MIN_SIZE_FACTOR));
     /*const smallest = _.sortBy(currentSequence, t => t.length).slice(0,currentSequence.length/4);
     currentSequence = currentSequence.filter(t => smallest.indexOf(t) < 0);*/
     currentNodeCount = _.flatten(currentSequence).length;
@@ -177,8 +199,6 @@ function iterativeGetIndexBasedPartition(graph: DirectedGraph<SegmentNode>,
 
     if (previousNodeCounts.every(m => currentNodeCount > m)) {
       bestSequence = currentSequence;
-      const removed = getContradictions(currentSequence, true);
-      console.log("CONTRADICTIONS REMAINING", removed.length);
       console.log(JSON.stringify(currentSequence.map(t => t.length)));
     }
     previousNodeCounts.push(currentNodeCount);
@@ -222,6 +242,71 @@ function getInterGroupEdges(group1: SegmentNode[], group2: SegmentNode[],
     e => e.source.id+e.target.id);
 }
 
+function getSuccessiveGroups(graph: DirectedGraph<SegmentNode>,
+    groupingCondition: GroupingCondition<SegmentNode>, existingSeq: SegmentNode[][] = []) {
+  const options = {
+    graph: graph,
+    condition: groupingCondition,
+    ratingMethod: GROUP_RATING.INTERNAL,
+    maxDistance: 0
+  };
+  const groups = getBestGroups(options).slice(0,500);
+  
+  /*let sequence = sortComponentsTemporally(groups.map(g => g.members));
+  let numSucc = sequence.map((t,i) => i > 0 ?
+    getDirectSuccessors(sequence[i-1], t).length : 0);
+  sequence = sequence.filter((_,i) => numSucc[i] > 1 || numSucc[i+1] > 1);
+  numSucc = sequence.map((t,i) => i > 0 ?
+    getDirectSuccessors(sequence[i-1], t).length : 0);
+  console.log(JSON.stringify(numSucc));*/
+  
+  let sequence = sortComponentsTemporally(_.concat(existingSeq, groups.map(g => g.members)));
+  let numSucc = sequence.map((t,i) => i > 0 ?
+    getDirectSuccessors(sequence[i-1], t).length : 0);
+  sequence = sequence.filter((_,i) => numSucc[i] > 1 || numSucc[i+1] > 1);
+  numSucc = sequence.map((t,i) => i > 0
+    && (existingSeq.indexOf(t) < 0 || existingSeq.indexOf(sequence[i-1]) < 0) ?
+    getDirectSuccessors(sequence[i-1], t).length : 0); //ignore succ between pairs of existing
+  console.log(JSON.stringify(numSucc));
+  
+  const max = _.max(numSucc);
+  let best = sequence.filter((_,i) => numSucc[i] === max || numSucc[i+1] === max);
+  let bbest = best;
+  best = best.filter(b => existingSeq.indexOf(b) < 0);
+  console.log("best", bbest.length, best.length)
+  
+  return best;
+}
+
+function getBestGroup(graph: DirectedGraph<SegmentNode>,
+    groupingCondition: GroupingCondition<SegmentNode>) {
+  const options = {
+    graph: graph,
+    condition: groupingCondition,
+    ratingMethod: GROUP_RATING.INTERNAL,
+    maxDistance: 0
+  };
+  const groups = getBestGroups(options).slice(0,100);
+  let sequence: SegmentNode[][] = [];
+  let remainingGroups = _.clone(groups);
+  let lastAdded = groups[0];
+  sequence.push(lastAdded.members);
+  while (lastAdded) {
+    remainingGroups = removeGroupAndNodes(remainingGroups, lastAdded, options)
+      .filter(g => g.members.length > 1);
+    if (remainingGroups.length > 0) {
+      //does have to be calculated every time since the remaining groups change
+      lastAdded = _.maxBy(remainingGroups, g => g.members.length);
+      if (lastAdded.members.length > 15) {//more than a third are direct succ
+        sequence.push(lastAdded.members);
+      } else {
+        lastAdded = null;
+      }
+    }
+  }
+  return sequence;
+}
+
 function getIndexBasedPartition(graph: DirectedGraph<SegmentNode>,
     groupingCondition: GroupingCondition<SegmentNode>) {
   const options = {
@@ -231,12 +316,14 @@ function getIndexBasedPartition(graph: DirectedGraph<SegmentNode>,
     maxDistance: 0
   };
   const groups = getBestGroups(options).slice(0, 300);
+  //groups.slice(0,10).forEach(g => console.log(JSON.stringify(g.members.map(m => m.id))));
 
   //start with best group (most interconnected)
+  let currentStart = 0;
   //find group with most successors/predecessors, add to sequence, and so on
   let sequence: SegmentNode[][] = [];
   let remainingGroups = _.clone(groups);
-  let lastAdded = groups[0];
+  let lastAdded = groups[currentStart];
   sequence.push(lastAdded.members);
   while (lastAdded) {
     remainingGroups = removeGroupAndNodes(remainingGroups, lastAdded, options)
@@ -249,13 +336,22 @@ function getIndexBasedPartition(graph: DirectedGraph<SegmentNode>,
       const predRatings = remainingGroups.map(g =>
         getDirectSuccessors(g.members, _.first(sequence)).length);
         //g.rating * getDirectSuccessors(g.members, currentComp.members).length))[0];
+      //console.log(_.max(predRatings), _.max(succRatings));
       if (_.max(succRatings) >= _.max(predRatings)) {
-        lastAdded = remainingGroups[succRatings.indexOf(_.max(succRatings))];
-        const succ = getDirectSuccessors(_.last(sequence), lastAdded.members);
-        if (succ.length > lastAdded.members.length/3) {//more than a third are direct succ
+        const candidate = remainingGroups[succRatings.indexOf(_.max(succRatings))];
+        const succ = getDirectSuccessors(_.last(sequence), candidate.members);
+        if (succ.length > candidate.members.length/3) {//more than a third are direct succ
+          lastAdded = candidate;
           sequence.push(lastAdded.members);
         } else {
-          lastAdded = null;
+          if (sequence.length == 1) {//try harder if no pair found
+            currentStart++;
+            remainingGroups = _.clone(groups).slice(currentStart);
+            lastAdded = remainingGroups[0];
+            sequence = [lastAdded.members];
+          } else {
+            lastAdded = null;
+          }
         }
       } else {
         lastAdded = remainingGroups[predRatings.indexOf(_.max(predRatings))];
@@ -263,7 +359,14 @@ function getIndexBasedPartition(graph: DirectedGraph<SegmentNode>,
         if (pred.length > lastAdded.members.length/3) {//more than a third are direct pred
           sequence.unshift(lastAdded.members);
         } else {
-          lastAdded = null;
+          if (sequence.length == 1) {//try harder if no pair found
+            currentStart++;
+            remainingGroups = _.clone(groups).slice(currentStart);
+            lastAdded = remainingGroups[0];
+            sequence = [lastAdded.members];
+          } else {
+            lastAdded = null;
+          }
         }
       }
     } else {
@@ -382,6 +485,7 @@ function sortComponentsTemporally(components: SegmentNode[][]) {
     const bversions = b.filter(n => versions.indexOf(n.version) >= 0);
     return _.mean(aversions.map(n => n.time)) < _.mean(bversions.map(n => n.time)) ? -1 : 1
   });
+  return components;
 }
 
 function printVersion(v: number, g: SegmentNode[][]) {
@@ -437,8 +541,6 @@ export function createSegmentGraphFromAlignments(versionPairs: [number,number][]
   versionPairs.forEach((vs,i) => vs.forEach((v,j) => vIndexes[v] = [i,j]));
   let versionsPoints = vIndexes.map(ij =>
     ij[1] == 0 ? results[ij[0]].points : results[ij[0]].points2)
-  
-  console.log(JSON.stringify(versionsPoints[20]));
   
   //create nodes and a map to find them quickly
   const nodes: SegmentNode[][] = versionsPoints.map((ps,i) =>
