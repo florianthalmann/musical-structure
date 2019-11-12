@@ -291,7 +291,7 @@ function getBestGroup(graph: DirectedGraph<SegmentNode>,
   let remainingGroups = _.clone(groups);
   let lastAdded = groups[0];
   sequence.push(lastAdded.members);
-  while (lastAdded) {
+  while (lastAdded && remainingGroups.length > 0) {
     remainingGroups = removeGroupAndNodes(remainingGroups, lastAdded, options)
       .filter(g => g.members.length > 1);
     if (remainingGroups.length > 0) {
@@ -579,7 +579,8 @@ export function createSegmentGraphFromAlignments(versionPairs: [number,number][]
   _.zip(versionPairs, patterns).forEach(([vs,ps]) =>
     ps.filter((_,i) => patternIndexes.indexOf(i) >= 0).forEach(pn => pn.points.map((_,i) => {
       const nodes = vs.map((v,j) =>
-        nodesByVersionByPoint[v][JSON.stringify(pn.occurrences[j][i])]);
+        nodesByVersionByPoint[v] ?
+        nodesByVersionByPoint[v][JSON.stringify(pn.occurrences[j][i])] : null);
       //console.log(JSON.stringify(nodes), JSON.stringify(vs))
       //if (i < 20)
       if (nodes[0] && nodes[1])

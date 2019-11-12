@@ -1,6 +1,6 @@
 import * as fs from 'fs';
 import * as _ from 'lodash';
-import { pointsToIndices, ArrayMap, StructureResult, getCosiatec,
+import { pointsToIndices, ArrayMap, StructureResult, MultiStructureResult, getCosiatec,
   getSmithWaterman, getDualSmithWaterman, getMultiCosiatec } from 'siafun';
 import { GD_AUDIO as GDA, GD_SONG_MAP, GD_PATTERNS, GD_GRAPHS } from './files/config';
 import { mapSeries, updateStatus, audioPathToDirName } from './files/util';
@@ -85,10 +85,12 @@ export async function saveMultiSWSegmentTimeline(filebase: string, song = SONG, 
     const tuples = <[number,number][]>_.flatten(_.range(count)
       .map(c => getMultiConfig(song, 2, c, versions, MAX_LENGTH, MAX_VERSIONS)
       .map(pair => pair.map(s => versions.indexOf(s)))));
-    //const multis = _.flatten(await getMultiSWs(song, extension, count, options, MAX_LENGTH, MAX_VERSIONS));
-    const multis = _.flatten(await getMultiCosiatecsForSong(song, extension, count, options, MAX_LENGTH, MAX_VERSIONS));
-    //createSegmentGraphFromMultis(tuples, multis, [0], filebase+'-multi-all-graph.json');
+    const multis = _.flatten(await getMultiSWs(song, extension, count, options, MAX_LENGTH, MAX_VERSIONS));
+    //const multis = _.flatten(await getMultiCosiatecsForSong(song, extension, count, options, MAX_LENGTH, MAX_VERSIONS));
+    /*const multis = _.concat<MultiStructureResult>(_.flatten(await getMultiSWs(song, extension, count, options, MAX_LENGTH, MAX_VERSIONS)),
+      _.flatten(await getMultiCosiatecsForSong(song, extension, count, options, MAX_LENGTH, MAX_VERSIONS)));*/
     const timeline = inferStructureFromAlignments(tuples, multis, filebase);
+    //const timeline = inferStructureFromAlignments(_.concat(tuples, tuples), multis, filebase);
     const points = await Promise.all(versions.map(v => getPointsFromAudio(v, options)));
     const segments = points.map((v,i) => v.map((p,j) =>
       ({start: points[i][j][0][0],
