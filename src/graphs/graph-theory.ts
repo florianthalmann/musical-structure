@@ -52,6 +52,7 @@ export class DirectedGraph<NodeType extends Node> {
   }
   
   getSubgraph(nodes: NodeType[]): DirectedGraph<NodeType> {
+    nodes = nodes.map(n => this.nodes.get(n.id));
     return new DirectedGraph(nodes, this.getAllEdges(nodes));
   }
   
