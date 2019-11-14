@@ -45,18 +45,19 @@ export function inferStructureFromAlignments(versionPairs: [number,number][],
   const nodes = _.zipObject(fullGraph.getNodes().map(n => n.id), fullGraph.getNodes());
   const edges = fullGraph.getEdges();
 
-  const connectionMatrix = timeline.map((t,i) => timeline.map((s,j) => {
+  const connectionMatrix = timeline.map(t => timeline.map(s => {
     const tn = t.map(n => nodes[n.id]);
     const sn = s.map(n => nodes[n.id]);
-    //return i != j ?
     return edges.filter(e => (tn.indexOf(e.source) >= 0 && sn.indexOf(e.target) >= 0)
-      || (tn.indexOf(e.target) >= 0 && sn.indexOf(e.source) >= 0)).length// : 0;
+      || (tn.indexOf(e.target) >= 0 && sn.indexOf(e.source) >= 0)).length;
   }));
 
   if (filebase) {
     saveJsonFile(filebase+'-matrix.json', connectionMatrix);
     saveGraph(filebase+'-graph.json', fullGraph);
+    //saveGraph(filebase+'-graph-seg.json', fullGraph.getSubgraph(_.flatten(timeline.slice(75, 79))));
   }
+  //console.log(timeline.slice(75, 79).map(t => t.map(n => n.id)));
 
   return timeline;
 }
@@ -116,7 +117,7 @@ function getSegmentGraphPartitions(graph: DirectedGraph<SegmentNode>,
 function iterativeGetIndexBasedPartition(graph: DirectedGraph<SegmentNode>,
     groupingCondition: GroupingCondition<SegmentNode>) {
   
-  const MIN_SIZE_FACTOR = 4;
+  const MIN_SIZE_FACTOR = 3;
   let currentSequence: SegmentNode[][] = [];
   let bestSequence: SegmentNode[][] = [];
   let missing: SegmentNode[] = graph.getNodes();
@@ -125,48 +126,67 @@ function iterativeGetIndexBasedPartition(graph: DirectedGraph<SegmentNode>,
 
   while (previousNodeCounts.filter(m => m >= currentNodeCount).length <= 10) {
     //add new partitions
-    const currentGraph = graph.getSubgraph(missing);
+    let currentGraph = graph.getSubgraph(missing);
     console.log("GRAPH", currentGraph.getSize(), currentGraph.getEdges().length)
     
-    const succ = currentSequence.map(t => t.map(n => currentGraph.getNodes()
-      .find(m => m.version === n.version && m.time === n.time+1)).filter(m=>m));
-    const pred = currentSequence.map(t => t.map(n => currentGraph.getNodes()
-      .find(m => m.version === n.version && m.time === n.time-1)).filter(m=>m));
-    const succGs = succ.map(s => currentGraph.getSubgraph(s).pruneIsolatedNodes().getNodes()).filter(s => s.length > 1);
-    const predGs = pred.map(p => currentGraph.getSubgraph(p).pruneIsolatedNodes().getNodes()).filter(p => p.length > 1);
-    let max = _.max(currentSequence.map(t => t.length));
-    const direct = _.concat(predGs, succGs).filter(s => s.length > max/6);
-    
-    let addition: SegmentNode[][];
-    if (direct.length && previousNodeCounts[previousNodeCounts.length-2] !== currentNodeCount) {
-      addition = direct;
-    } else {
-      //addition = getIndexBasedPartition(currentGraph, groupingCondition);
-      addition = getBestGroup(currentGraph, groupingCondition);
+    let addition: SegmentNode[][] = [];
+    let lastAdded = currentSequence;
+    let numLastAdded = Infinity;
+    while (numLastAdded && previousNodeCounts[previousNodeCounts.length-2] !== currentNodeCount) {
+      const succ = lastAdded.map(t => t.map(n => currentGraph.getNodes()
+        .find(m => m.version === n.version && m.time === n.time+1)).filter(m=>m));
+      const pred = lastAdded.map(t => t.map(n => currentGraph.getNodes()
+        .find(m => m.version === n.version && m.time === n.time-1)).filter(m=>m));
+      const succGs = succ.map(s => currentGraph.getSubgraph(s).pruneIsolatedNodes().getNodes())
+        .filter(s => s.length > 1);
+      const predGs = pred.map(p => currentGraph.getSubgraph(p).pruneIsolatedNodes().getNodes())
+        .filter(p => p.length > 1);
+      let max = _.max(currentSequence.map(t => t.length));
+      lastAdded = _.concat(predGs, succGs).filter(s => s.length > max/(MIN_SIZE_FACTOR+1));
+      numLastAdded = lastAdded.length;
+      if (numLastAdded) {
+        addition.push(...lastAdded);
+        numLastAdded = 0; //(REVERT TO JUST ADDING SOME PER ITERATION)
+        currentGraph = graph.getSubgraph(_.difference(missing, _.flatten(addition)));
+      }
+    }
+    //else search graph
+    if (!addition.length) {
+      let max = _.max(currentSequence.map(t => t.length));
+      addition = getIndexBasedPartition(currentGraph, groupingCondition);
+      //addition = getBestGroup(currentGraph, groupingCondition, max/(MIN_SIZE_FACTOR+1));
       //addition = getSuccessiveGroups(currentGraph, groupingCondition, currentSequence);
     }
     console.log("added slices", JSON.stringify(addition.map(a => a.length)));
     currentSequence.push(...addition);
     sortComponentsTemporally(currentSequence);
 
-    //then remove all nodes involved in contradictions
+    //then remove all nodes involved in contradictions (ensure strict order)
     const removed = getContradictions(currentSequence, true);
     console.log("contradictions removed", removed.length);
     currentSequence = currentSequence.map(t => t.filter(n => removed.indexOf(n) < 0));
     
-    //then remove all of the nodes not in slices to which they have the most connections
+    //then keep only largest connected components per slice
+    /*const minorComponents = _.flatten(currentSequence.map(t =>
+      _.flatten(graph.getSubgraph(t).getConnectedComponents().slice(1))));
+    console.log("minor components removed", minorComponents.length);
+    currentSequence = currentSequence.map(t => t.filter(n => minorComponents.indexOf(n) < 0));*/
+    
+    //then remove all nodes without connections to their own slice
+    let nodeCount = _.flatten(currentSequence).length;
+    currentSequence = currentSequence.map(t => graph.getSubgraph(t).pruneIsolatedNodes().getNodes());
+    console.log("disconnected removed", nodeCount-_.flatten(currentSequence).length);
+    
+    //then remove all nodes not in slices to which they have the most connections
     const misplaced = getInconsistencies(currentSequence, graph);
     console.log("inconsistencies removed", misplaced.length);
     currentSequence = currentSequence.map(t => t.filter(n => misplaced.indexOf(n) < 0));
     
-    //then remove all of the nodes in slices with more than one per version
+    //then remove all nodes in slices with more than one per version
     const unique = currentSequence.map(t => _.uniqBy(t, n => n.version));
     const multi = _.difference(_.flatten(currentSequence), _.flatten(unique));
     console.log("multiples removed", multi.length);
     currentSequence = unique;
-    
-    //readd removed nodes wherever most appropriate
-    addSegmentsAtBestSpots(_.concat(removed, misplaced, multi), currentSequence, graph);
     
     //add any other missing nodes wherever most appropriate
     missing = _.difference(graph.getNodes(), _.flatten(currentSequence));
@@ -179,7 +199,13 @@ function iterativeGetIndexBasedPartition(graph: DirectedGraph<SegmentNode>,
       } else break;
     }
     console.log("still missing", missing.length);
-
+    
+    //remove all with connections to neighboring slices
+    const blurs = _.flatten(currentSequence.map((t,i) => i < currentSequence.length-1 ?
+      getInterGroupEdges(t, currentSequence[i+1], graph).map(e => e.source) : []));
+    console.log("blurs removed", blurs.length);
+    currentSequence = currentSequence.map(t => t.filter(n => blurs.indexOf(n) < 0));
+    
     //remove all nodes not in cycles
     /*let tempNodeCount = _.flatten(currentSequence).length;
     currentSequence = currentSequence.map(t =>
@@ -189,7 +215,7 @@ function iterativeGetIndexBasedPartition(graph: DirectedGraph<SegmentNode>,
 
     //remove all time points with too few nodes
     let tempNodeCount = _.flatten(currentSequence).length;
-    max = _.max(currentSequence.map(t => t.length));
+    let max = _.max(currentSequence.map(t => t.length));
     currentSequence = _.clone(currentSequence.filter(t => t.length > max/MIN_SIZE_FACTOR));
     /*const smallest = _.sortBy(currentSequence, t => t.length).slice(0,currentSequence.length/4);
     currentSequence = currentSequence.filter(t => smallest.indexOf(t) < 0);*/
@@ -198,10 +224,13 @@ function iterativeGetIndexBasedPartition(graph: DirectedGraph<SegmentNode>,
     console.log("current count", currentNodeCount);
 
     if (previousNodeCounts.every(m => currentNodeCount > m)) {
-      bestSequence = currentSequence;
+      bestSequence = _.clone(currentSequence);
       console.log(JSON.stringify(currentSequence.map(t => t.length)));
+      console.log(JSON.stringify(currentSequence.map(t => graph.getSubgraph(t).getEdges().length)))
     }
     previousNodeCounts.push(currentNodeCount);
+    
+    console.log(JSON.stringify(_.sample(bestSequence).map(n => n.point)))
   }
 
   console.log(JSON.stringify(bestSequence.map(t =>
@@ -232,11 +261,9 @@ function iterativeGetIndexBasedPartition(graph: DirectedGraph<SegmentNode>,
   return bestSequence;
 }
 
+//returns all edges between the two given groups
 function getInterGroupEdges(group1: SegmentNode[], group2: SegmentNode[],
     graph: DirectedGraph<SegmentNode>) {
-  console.log(graph.getSubgraph(_.concat(group1, group2)).getEdges().length,
-    graph.getSubgraph(group1).getEdges().length, graph.getSubgraph(group2).getEdges().length)
-
   return _.differenceBy(graph.getSubgraph(_.concat(group1, group2)).getEdges(),
     _.concat(graph.getSubgraph(group1).getEdges(), graph.getSubgraph(group2).getEdges()),
     e => e.source.id+e.target.id);
@@ -279,7 +306,7 @@ function getSuccessiveGroups(graph: DirectedGraph<SegmentNode>,
 }
 
 function getBestGroup(graph: DirectedGraph<SegmentNode>,
-    groupingCondition: GroupingCondition<SegmentNode>) {
+    groupingCondition: GroupingCondition<SegmentNode>, minSize: number) {
   const options = {
     graph: graph,
     condition: groupingCondition,
@@ -297,7 +324,7 @@ function getBestGroup(graph: DirectedGraph<SegmentNode>,
     if (remainingGroups.length > 0) {
       //does have to be calculated every time since the remaining groups change
       lastAdded = _.maxBy(remainingGroups, g => g.members.length);
-      if (lastAdded.members.length > 15) {//more than a third are direct succ
+      if (lastAdded.members.length > minSize) {//more than a third are direct succ
         sequence.push(lastAdded.members);
       } else {
         lastAdded = null;
@@ -441,13 +468,14 @@ function getDirectSuccessors(before: SegmentNode[], after: SegmentNode[]) {
 }
 
 function constructTimeline(components: SegmentNode[][], minTimepointSize = 0) {
+  console.log("components", components.length)
 
   sortComponentsTemporally(components);
 
   //now gradually add to timeline (disjunct at same time!)
   let timeline: SegmentNode[][] = [];
   components.forEach((c,i) =>
-    i > 0 && differentVersions(c, components[i-1]) ?
+    i > 0 && differentVersions(c, _.last(timeline)) ?
       _.last(timeline).push(...c)
       : timeline.push(c));
   console.log("timeline", timeline.length);
@@ -552,6 +580,12 @@ export function createSegmentGraphFromAlignments(versionPairs: [number,number][]
   let graph = new DirectedGraph(_.flatten(nodes), []);
 
   let patterns = results.map(r => r.patterns);
+  
+  //plot all matrices
+  /*const versionStringPoints = versionsPoints.map(v => v.map(p => JSON.stringify(p)));
+  patterns.forEach((ps,i) =>
+    saveJsonFile('results/sw-post2/sw_'+i+'.json',
+      {'segmentMatrix': toMatrix(ps, versionPairs[i], versionStringPoints)}));*/
 
   console.log("processing patterns")
 
@@ -566,6 +600,7 @@ export function createSegmentGraphFromAlignments(versionPairs: [number,number][]
     //remove overlaps
     patterns = patterns.map((ps,i) =>
       removePatternOverlaps(ps, versionPairs[i], versionStringPoints));
+    //plot processed matrices
     patterns.forEach((ps,i) =>
       saveJsonFile('results/sw-post/sw_'+i+'o.json',
         {'segmentMatrix': toMatrix(ps, versionPairs[i], versionStringPoints)}));
