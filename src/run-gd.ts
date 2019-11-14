@@ -100,23 +100,34 @@ export async function saveMultiTimelineDecomposition(tlo: TimelineOptions) {
   if (!fs.existsSync(tlo.filebase+'-output.json')) {
     const MAX_LENGTH = 400;
     const MAX_VERSIONS = 30;
-    const options = getGdSwOptions(initDirRec(GD_PATTERNS));
-    const versions = await getGdVersions(tlo.song, MAX_VERSIONS, tlo.extension, MAX_LENGTH, options);
-    const tuples = <[number,number][]>_.flatten(_.range(tlo.count)
+    const swOptions = getGdSwOptions(initDirRec(GD_PATTERNS));
+    const siaOptions = getBestGdOptions(initDirRec(GD_PATTERNS));
+    const versions = await getGdVersions(tlo.song, MAX_VERSIONS, tlo.extension, MAX_LENGTH, swOptions);
+    let tuples = <[number,number][]>_.flatten(_.range(tlo.count)
       .map(c => getMultiConfig(tlo.song, 2, c, versions, MAX_LENGTH, MAX_VERSIONS)
       .map(pair => pair.map(s => versions.indexOf(s)))));
+    if (tlo.algorithm === AlignmentAlgorithm.BOTH) tuples = _.concat(tuples, tuples);
     const multis = tlo.algorithm === AlignmentAlgorithm.SIA ?
-      _.flatten(await getMultiCosiatecsForSong(tlo.song, tlo.extension, tlo.count, options, MAX_LENGTH, MAX_VERSIONS))
+      _.flatten(await getMultiCosiatecsForSong(tlo.song, tlo.extension, tlo.count, siaOptions, MAX_LENGTH, MAX_VERSIONS))
       : tlo.algorithm === AlignmentAlgorithm.SW ?
-      _.flatten(await getMultiSWs(tlo.song, tlo.extension, tlo.count, options, MAX_LENGTH, MAX_VERSIONS))
-      : _.concat<MultiStructureResult>(_.flatten(await getMultiSWs(tlo.song, tlo.extension, tlo.count, options, MAX_LENGTH, MAX_VERSIONS)),
-      _.flatten(await getMultiCosiatecsForSong(tlo.song, tlo.extension, tlo.count, options, MAX_LENGTH, MAX_VERSIONS)));
-    const autos = await getSmithWatermanFromAudio(versions, options, MAX_LENGTH);
-    multis.push(...autos.map(a => Object.assign(a, {points2: a.points})));
-    tuples.push(...<[number,number][]>versions.map((_,i) => [i,i]));
+      _.flatten(await getMultiSWs(tlo.song, tlo.extension, tlo.count, swOptions, MAX_LENGTH, MAX_VERSIONS))
+      : _.concat<MultiStructureResult>(_.flatten(await getMultiSWs(tlo.song, tlo.extension, tlo.count, swOptions, MAX_LENGTH, MAX_VERSIONS)),
+      _.flatten(await getMultiCosiatecsForSong(tlo.song, tlo.extension, tlo.count, siaOptions, MAX_LENGTH, MAX_VERSIONS)));
+    if (tlo.includeSelfAlignments) {
+      if (tlo.algorithm === AlignmentAlgorithm.SIA || tlo.algorithm === AlignmentAlgorithm.BOTH) {
+        const autos = await getCosiatecFromAudio(versions, siaOptions, MAX_LENGTH);
+        multis.push(...autos.map(a => Object.assign(a, {points2: a.points})));
+        tuples.push(...<[number,number][]>versions.map((_,i) => [i,i]));
+      }
+      if (tlo.algorithm === AlignmentAlgorithm.SW || tlo.algorithm === AlignmentAlgorithm.BOTH) {
+        const autos = await getSmithWatermanFromAudio(versions, swOptions, MAX_LENGTH);
+        multis.push(...autos.map(a => Object.assign(a, {points2: a.points})));
+        tuples.push(...<[number,number][]>versions.map((_,i) => [i,i]));
+      }
+    }
     const timeline = inferStructureFromAlignments(tuples, multis, tlo.filebase);
     //const timeline = inferStructureFromAlignments(_.concat(tuples, tuples), multis, filebase);
-    const points = await Promise.all(versions.map(v => getPointsFromAudio(v, options)));
+    const points = await Promise.all(versions.map(v => getPointsFromAudio(v, swOptions)));
     const segments = points.map((v,i) => v.map((p,j) =>
       ({start: points[i][j][0][0],
         duration: points[i][j+1] ? points[i][j+1][0][0]-points[i][j][0][0] : 1})));
@@ -152,7 +163,7 @@ async function getMultiSWs(song = SONG, extension: string, count: number, option
   })
 }
 
-async function getMultiCosiatecsForSong(song = SONG, extension: string, count: number, options: FullSWOptions, maxLength?: number, maxVersions?: number) {
+async function getMultiCosiatecsForSong(song = SONG, extension: string, count: number, options: FullSIAOptions, maxLength?: number, maxVersions?: number) {
   const versions = await getGdVersions(song, maxVersions, extension, maxLength, options);
   return mapSeries(_.range(count), async i => {
     console.log('working on ' + song + ' - multi ' + i);
