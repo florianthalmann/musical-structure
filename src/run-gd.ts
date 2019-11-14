@@ -72,11 +72,13 @@ export async function saveThomasSongSequences() {
 }
 
 export async function saveThomasSongAlignments() {
+  const DIR = 'results/gd/graphs-sw-full-30-5/';
+  fs.existsSync(DIR) || fs.mkdirSync(DIR);
   mapSeries(getTunedSongs(), folder => {
     GD_AUDIO = '/Volumes/gspeed1/florian/musical-structure/thomas/'+folder+'/';
     const songname = folder.split('_').join(' ');
     return saveMultiTimelineDecomposition({
-      filebase: 'results/gd/graphs-sw-full/'+songname, song: songname,
+      filebase: DIR+songname, song: songname,
       extension: '.wav', count: 5, algorithm: AlignmentAlgorithm.SW,
       includeSelfAlignments: true});
   });
