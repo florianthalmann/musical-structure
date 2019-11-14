@@ -159,7 +159,7 @@ function iterativeGetIndexBasedPartition(graph: DirectedGraph<SegmentNode>,
     }
     console.log("added slices", JSON.stringify(addition.map(a => a.length)));
     currentSequence.push(...addition);
-    sortComponentsTemporally(currentSequence);
+    sortPartitionsTemporally(currentSequence);
 
     //then remove all nodes involved in contradictions (ensure strict order)
     const removed = getContradictions(currentSequence, true);
@@ -172,7 +172,7 @@ function iterativeGetIndexBasedPartition(graph: DirectedGraph<SegmentNode>,
     console.log("minor components removed", minorComponents.length);
     currentSequence = currentSequence.map(t => t.filter(n => minorComponents.indexOf(n) < 0));*/
     
-    //then remove all nodes without connections to their own slice
+    //then remove all nodes with no connections to their own slice
     let nodeCount = _.flatten(currentSequence).length;
     currentSequence = currentSequence.map(t => graph.getSubgraph(t).pruneIsolatedNodes().getNodes());
     console.log("disconnected removed", nodeCount-_.flatten(currentSequence).length);
@@ -187,6 +187,9 @@ function iterativeGetIndexBasedPartition(graph: DirectedGraph<SegmentNode>,
     const multi = _.difference(_.flatten(currentSequence), _.flatten(unique));
     console.log("multiples removed", multi.length);
     currentSequence = unique;
+    
+    //merge neighboring slices where possible
+    currentSequence = mergeNeighboringPartitions(currentSequence);
     
     //add any other missing nodes wherever most appropriate
     missing = _.difference(graph.getNodes(), _.flatten(currentSequence));
@@ -230,7 +233,7 @@ function iterativeGetIndexBasedPartition(graph: DirectedGraph<SegmentNode>,
     }
     previousNodeCounts.push(currentNodeCount);
     
-    console.log(JSON.stringify(_.sample(bestSequence).map(n => n.point)))
+    //console.log(JSON.stringify(_.sample(bestSequence).map(n => n.point)))
   }
 
   console.log(JSON.stringify(bestSequence.map(t =>
@@ -287,7 +290,7 @@ function getSuccessiveGroups(graph: DirectedGraph<SegmentNode>,
     getDirectSuccessors(sequence[i-1], t).length : 0);
   console.log(JSON.stringify(numSucc));*/
   
-  let sequence = sortComponentsTemporally(_.concat(existingSeq, groups.map(g => g.members)));
+  let sequence = sortPartitionsTemporally(_.concat(existingSeq, groups.map(g => g.members)));
   let numSucc = sequence.map((t,i) => i > 0 ?
     getDirectSuccessors(sequence[i-1], t).length : 0);
   sequence = sequence.filter((_,i) => numSucc[i] > 1 || numSucc[i+1] > 1);
@@ -467,17 +470,13 @@ function getDirectSuccessors(before: SegmentNode[], after: SegmentNode[]) {
     .some(b => b.time+1 === a.time));
 }
 
-function constructTimeline(components: SegmentNode[][], minTimepointSize = 0) {
-  console.log("components", components.length)
+function constructTimeline(partitions: SegmentNode[][], minTimepointSize = 0) {
+  console.log("partitions", partitions.length)
 
-  sortComponentsTemporally(components);
+  sortPartitionsTemporally(partitions);
 
   //now gradually add to timeline (disjunct at same time!)
-  let timeline: SegmentNode[][] = [];
-  components.forEach((c,i) =>
-    i > 0 && differentVersions(c, _.last(timeline)) ?
-      _.last(timeline).push(...c)
-      : timeline.push(c));
+  let timeline = mergeNeighboringPartitions(partitions);
   console.log("timeline", timeline.length);
 
   timeline = timeline.filter(c => c.length > minTimepointSize);
@@ -502,7 +501,14 @@ function constructTimeline(components: SegmentNode[][], minTimepointSize = 0) {
   return timeline;
 }
 
-function sortComponentsTemporally(components: SegmentNode[][]) {
+function mergeNeighboringPartitions(partitions: SegmentNode[][]): SegmentNode[][] {
+  return partitions.reduce<SegmentNode[][]>((p,t,i) =>
+    i > 0 && _.last(p) && differentVersions(t, _.last(p)) ?
+      p.map(s => s === _.last(p) ? _.concat(s, t) : s)
+      : _.concat(p,[t]), []);
+}
+
+function sortPartitionsTemporally(components: SegmentNode[][]) {
   /*components.sort((a,b) => _.range(0, NUM_VERSIONS).some(v =>
     getIndex(a, v) < getIndex(b, v)) ? -1 : 1);*/
   //components.sort((a,b) => _.mean(a.map(n => n.time)) < _.mean(b.map(n => n.time)) ? -1 : 1);
