@@ -204,7 +204,7 @@ function iterativeGetIndexBasedPartition(graph: DirectedGraph<SegmentNode>,
     console.log("still missing", missing.length);
     
     //remove all with connections to neighboring slices
-    const blurs = _.flatten(currentSequence.map((t,i) => i < currentSequence.length-1 ?
+    /*const blurs = _.flatten(currentSequence.map((t,i) => i < currentSequence.length-1 ?
       getInterGroupEdges(t, currentSequence[i+1], graph).map(e => e.source) : []));
     console.log("blurs removed", blurs.length);
     currentSequence = currentSequence.map(t => t.filter(n => blurs.indexOf(n) < 0));
@@ -417,36 +417,58 @@ function addSegmentsAtBestSpots(segments: SegmentNode[],
       _.min(t.filter(m => m.version === n.version).map(m => m.time)));
     //console.log("times", JSON.stringify(times))
     //gaps filled
-    const filled = getCompletedNumberArray(times);
+    const filled = getCompletedNumberArray2(times);
     //console.log("filled", JSON.stringify(filled))
     const places = times.map((_,i) =>
       !times.slice(0,i+1).some(t => t > n.time)
       && !times.slice(i).some(t => t < n.time));
     //console.log("places", JSON.stringify(places))
-    const matches = sequence.map((t,i) => places[i] ?
-      graph.getDirectAdjacents(n).filter(a => t.indexOf(a) >= 0).length
-      //graph.getSubgraph(_.concat(t, n)).getDirectAdjacents(n).length
-        / (Math.abs(filled[i]-n.time)+1) : 0);
-    //console.log("matches", JSON.stringify(matches))
-    const max = _.max(matches);
-    if (max > 0) {
-      const index = matches.indexOf(max);
-      //if (sequence[index].map(n => n.version).indexOf(n.version) < 0) {
-        sequence[index].push(n);
-        added.push(n);
-      //}
-    } else {
-      //INSERT IF APPROPRIATE!!!
-      /*const next = sequence.find(t =>
-        t.find(m => m.version === n.version && m.time > n.time) != null);
-      if (next) {
-        sequence.splice(sequence.indexOf(next), 0, [n]);
+    const adjacents = sequence.map((t,i) => places[i] ?
+      graph.getDirectAdjacents(n).filter(a => t.indexOf(a) >= 0).length : 0);
+    const dists = sequence.map((_,i) => Math.abs(filled[i]-n.time));
+    const maxAdj = _.max(adjacents);
+    if (maxAdj > 0) {
+      const candidateIndexes = adjacents
+        .map((a,i) => a === maxAdj ? i : null).filter(i => i != null);
+      const ratings = sequence.map((t,i) =>
+        candidateIndexes.indexOf(i) >= 0 ? 1/(dists[i]+1) : 0);
+      //console.log("matches", JSON.stringify(matches))
+      const max = _.max(ratings);
+      if (max > 0) {
+        const index = ratings.indexOf(max);
+        //if (sequence[index].map(n => n.version).indexOf(n.version) < 0) {
+          sequence[index].push(n);
+          added.push(n);
+        //}
       } else {
-        sequence.push([n]);
-      }*/
+        //INSERT IF APPROPRIATE!!!
+        /*const next = sequence.find(t =>
+          t.find(m => m.version === n.version && m.time > n.time) != null);
+        if (next) {
+          sequence.splice(sequence.indexOf(next), 0, [n]);
+        } else {
+          sequence.push([n]);
+        }*/
+      }
     }
   });
   return added;
+}
+
+function getCompletedNumberArray2(nums: number[]) {
+  nums = _.clone(nums);
+  while (nums.findIndex(n => n == null) >= 0) {
+    const nextNullStart = nums.findIndex(n => n == null);
+    let nextNullEnd = nums.slice(nextNullStart).findIndex(n => n != null);
+    nextNullEnd = nextNullEnd >= 0 ? nextNullStart+nextNullEnd : nums.length;
+    const length = nextNullEnd - nextNullStart;
+    const low = nums[nextNullStart-1] != null ? nums[nextNullStart-1] : 0;
+    const high = nextNullEnd && nums[nextNullEnd] ?
+      nums[nextNullEnd] : low+length;
+    _.range(nextNullStart, nextNullEnd)
+      .forEach((n,i) => nums[n] = low+((i+1)*((high-low)/(length+1))));
+  }
+  return nums;
 }
 
 function getCompletedNumberArray(nums: number[]) {
