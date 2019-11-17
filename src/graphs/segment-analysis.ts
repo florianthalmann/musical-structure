@@ -117,7 +117,7 @@ function getSegmentGraphPartitions(graph: DirectedGraph<SegmentNode>,
 function iterativeGetIndexBasedPartition(graph: DirectedGraph<SegmentNode>,
     groupingCondition: GroupingCondition<SegmentNode>) {
   
-  const MIN_SIZE_FACTOR = 3;
+  let minSizeFactor = 3;
   let currentSequence: SegmentNode[][] = [];
   let bestSequence: SegmentNode[][] = [];
   let missing: SegmentNode[] = graph.getNodes();
@@ -125,9 +125,13 @@ function iterativeGetIndexBasedPartition(graph: DirectedGraph<SegmentNode>,
   let currentNodeCount = 0;
 
   while (previousNodeCounts.filter(m => m >= currentNodeCount).length <= 10) {
+    if (previousNodeCounts.filter(m => m >= currentNodeCount).length > 6) {
+      minSizeFactor++;
+      console.log("MIN SIZE FACTOR", minSizeFactor);
+    }
     //add new partitions
     let currentGraph = graph.getSubgraph(missing);
-    console.log("GRAPH", currentGraph.getSize(), currentGraph.getEdges().length)
+    console.log("graph", currentGraph.getSize(), currentGraph.getEdges().length)
     
     let addition: SegmentNode[][] = [];
     let lastAdded = currentSequence;
@@ -142,18 +146,19 @@ function iterativeGetIndexBasedPartition(graph: DirectedGraph<SegmentNode>,
       const predGs = pred.map(p => currentGraph.getSubgraph(p).pruneIsolatedNodes().getNodes())
         .filter(p => p.length > 1);
       let max = _.max(currentSequence.map(t => t.length));
-      lastAdded = _.concat(predGs, succGs).filter(s => s.length > max/(MIN_SIZE_FACTOR+1));
+      lastAdded = _.concat(predGs, succGs).filter(s => s.length > max/minSizeFactor);
       numLastAdded = lastAdded.length;
       if (numLastAdded) {
         addition.push(...lastAdded);
-        numLastAdded = 0; //(REVERT TO JUST ADDING SOME PER ITERATION)
+        //numLastAdded = 0; //(REVERT TO JUST ADDING SOME PER ITERATION)
         currentGraph = graph.getSubgraph(_.difference(missing, _.flatten(addition)));
       }
     }
     //else search graph
     if (!addition.length) {
       let max = _.max(currentSequence.map(t => t.length));
-      addition = getIndexBasedPartition(currentGraph, groupingCondition);
+      addition = getIndexBasedPartition(currentGraph, groupingCondition)
+        .filter(s => max ? s.length > max/minSizeFactor : s);
       //addition = getBestGroup(currentGraph, groupingCondition, max/(MIN_SIZE_FACTOR+1));
       //addition = getSuccessiveGroups(currentGraph, groupingCondition, currentSequence);
     }
@@ -198,13 +203,13 @@ function iterativeGetIndexBasedPartition(graph: DirectedGraph<SegmentNode>,
       const added = addSegmentsAtBestSpots(missing, currentSequence, graph);
       if (added.length > 0) {
         missing = _.difference(missing, added);
-        console.log("m", missing.length)
+        //console.log("m", missing.length)
       } else break;
     }
     console.log("still missing", missing.length);
     
     //remove all with connections to neighboring slices
-    /*const blurs = _.flatten(currentSequence.map((t,i) => i < currentSequence.length-1 ?
+    const blurs = _.flatten(currentSequence.map((t,i) => i < currentSequence.length-1 ?
       getInterGroupEdges(t, currentSequence[i+1], graph).map(e => e.source) : []));
     console.log("blurs removed", blurs.length);
     currentSequence = currentSequence.map(t => t.filter(n => blurs.indexOf(n) < 0));
@@ -219,7 +224,7 @@ function iterativeGetIndexBasedPartition(graph: DirectedGraph<SegmentNode>,
     //remove all time points with too few nodes
     let tempNodeCount = _.flatten(currentSequence).length;
     let max = _.max(currentSequence.map(t => t.length));
-    currentSequence = _.clone(currentSequence.filter(t => t.length > max/MIN_SIZE_FACTOR));
+    currentSequence = _.clone(currentSequence.filter(t => t.length > max/minSizeFactor));
     /*const smallest = _.sortBy(currentSequence, t => t.length).slice(0,currentSequence.length/4);
     currentSequence = currentSequence.filter(t => smallest.indexOf(t) < 0);*/
     currentNodeCount = _.flatten(currentSequence).length;
