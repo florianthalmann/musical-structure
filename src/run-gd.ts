@@ -13,7 +13,8 @@ import { FeatureConfig } from './files/feature-extractor';
 import { getPointsFromAudio, getQuantizedPoints, quantize } from './files/feature-parser';
 import { createSimilarityPatternGraph, getPatternGroupNFs, getNormalFormsMap,
   getConnectednessByVersion, PatternNode } from './graphs/pattern-stats';
-import { inferStructureFromAlignments } from './graphs/segment-analysis';
+import { inferStructureFromAlignments, SegmentNode } from './graphs/segment-analysis';
+import { inferStructureFromTimeline } from './graphs/structure-analysis';
 import { getTuningRatio } from './files/tunings';
 import { toHistogram, getMostCommonPoints } from './graphs/histograms';
 import { toIndexSeqMap } from './graphs/util';
@@ -96,6 +97,30 @@ export function getTunedSongs() {
     .filter(f => f !== 'temp' && f !== 'studio_reference' && f !== "dancin'_in_the_street")
 }
 
+export async function analyzeSavedTimeline(tlo: TimelineOptions) {
+  const MAX_LENGTH = 400;
+  const MAX_VERSIONS = 30;
+  const segmentsByType = inferStructureFromTimeline(tlo.filebase);
+  const options = getBestGdOptions(initDirRec(GD_PATTERNS));
+  const versions = await getGdVersions(tlo.song, MAX_VERSIONS, tlo.extension, MAX_LENGTH, options);
+  const points = await Promise.all(versions.map(v =>
+    getPointsFromAudio(v, options)));
+  const segments = points.map((v,i) => v.map((_p,j) =>
+    ({start: points[i][j][0][0],
+      duration: points[i][j+1] ? points[i][j+1][0][0]-points[i][j][0][0] : 1})));
+  const visuals: VisualsPoint[] = _.flatten(points.map((v,i) =>
+    v.map((_p,t) => {
+      const type = segmentsByType.findIndex(s =>
+        s.find(n => n.version === i && n.time === t) != null);
+      if (type >= 0) {
+        const n = segmentsByType[type].find(n => n.version === i && n.time === t);
+        return ({version:i, time:t, type:type+1, point:n.point, path: versions[i],
+          start: segments[i][n.time].start, duration: segments[i][n.time].duration});
+      }
+    }))).filter(p=>p);
+  saveJsonFile(tlo.filebase+'-visuals-types.json', visuals);
+}
+
 export async function saveMultiTimelineDecomposition(tlo: TimelineOptions) {
   if (!fs.existsSync(tlo.filebase+'-output.json')) {
     const MAX_LENGTH = 400;
@@ -107,12 +132,13 @@ export async function saveMultiTimelineDecomposition(tlo: TimelineOptions) {
       .map(c => getMultiConfig(tlo.song, 2, c, versions, MAX_LENGTH, MAX_VERSIONS)
       .map(pair => pair.map(s => versions.indexOf(s)))));
     if (tlo.algorithm === AlignmentAlgorithm.BOTH) tuples = _.concat(tuples, tuples);
-    const multis = tlo.algorithm === AlignmentAlgorithm.SIA ?
-      _.flatten(await getMultiCosiatecsForSong(tlo.song, tlo.extension, tlo.count, siaOptions, MAX_LENGTH, MAX_VERSIONS))
-      : tlo.algorithm === AlignmentAlgorithm.SW ?
-      _.flatten(await getMultiSWs(tlo.song, tlo.extension, tlo.count, swOptions, MAX_LENGTH, MAX_VERSIONS))
-      : _.concat<MultiStructureResult>(_.flatten(await getMultiSWs(tlo.song, tlo.extension, tlo.count, swOptions, MAX_LENGTH, MAX_VERSIONS)),
-      _.flatten(await getMultiCosiatecsForSong(tlo.song, tlo.extension, tlo.count, siaOptions, MAX_LENGTH, MAX_VERSIONS)));
+    const multis: MultiStructureResult[] = [];
+    if (tlo.algorithm === AlignmentAlgorithm.SIA || tlo.algorithm === AlignmentAlgorithm.BOTH) {
+      multis.push(..._.flatten(await getMultiCosiatecsForSong(tlo.song, tlo.extension, tlo.count, siaOptions, MAX_LENGTH, MAX_VERSIONS)));
+    }
+    if (tlo.algorithm === AlignmentAlgorithm.SW || tlo.algorithm === AlignmentAlgorithm.BOTH) {
+      multis.push(..._.flatten(await getMultiSWs(tlo.song, tlo.extension, tlo.count, swOptions, MAX_LENGTH, MAX_VERSIONS)));
+    }
     if (tlo.includeSelfAlignments) {
       if (tlo.algorithm === AlignmentAlgorithm.SIA || tlo.algorithm === AlignmentAlgorithm.BOTH) {
         const autos = await getCosiatecFromAudio(versions, siaOptions, MAX_LENGTH);

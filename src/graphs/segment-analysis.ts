@@ -101,12 +101,12 @@ function getSegmentGraphPartitions(graph: DirectedGraph<SegmentNode>,
 
   //partition connected components with more than one node per version
   components = _.flatten(components.map(c => !uniqueVersions(c) ? getPartition({
-    graph: graph.getSubgraph(c),
-    condition: groupingCondition,
-    ratingMethod: GROUP_RATING.INTERNAL,
-    maxDistance: 0
-  }).map(g => g.members)
-  : [c]));
+      graph: graph.getSubgraph(c),
+      condition: groupingCondition,
+      ratingMethod: GROUP_RATING.INTERNAL,
+      maxDistance: 0
+    }).map(g => g.members)
+    : [c]));
   console.log("split", components.filter(c => !uniqueVersions(c)).length);
   console.log(components.slice(0,20).map(c => c.length));
   saveGraph('plots/d3/latest/best.json', graph.getSubgraph(components[1]));
@@ -156,6 +156,7 @@ function iterativeGetIndexBasedPartition(graph: DirectedGraph<SegmentNode>,
     }
     //else search graph
     if (!addition.length) {
+      console.log("searching graph")
       let max = _.max(currentSequence.map(t => t.length));
       addition = getIndexBasedPartition(currentGraph, groupingCondition)
         .filter(s => max ? s.length > max/minSizeFactor : s);
@@ -194,7 +195,9 @@ function iterativeGetIndexBasedPartition(graph: DirectedGraph<SegmentNode>,
     currentSequence = unique;
     
     //merge neighboring slices where possible
+    const tempLength = currentSequence.length;
     currentSequence = mergeNeighboringPartitions(currentSequence);
+    console.log("partitions merged", tempLength-currentSequence.length);
     
     //add any other missing nodes wherever most appropriate
     missing = _.difference(graph.getNodes(), _.flatten(currentSequence));
@@ -270,7 +273,7 @@ function iterativeGetIndexBasedPartition(graph: DirectedGraph<SegmentNode>,
 }
 
 //returns all edges between the two given groups
-function getInterGroupEdges(group1: SegmentNode[], group2: SegmentNode[],
+export function getInterGroupEdges(group1: SegmentNode[], group2: SegmentNode[],
     graph: DirectedGraph<SegmentNode>) {
   return _.differenceBy(graph.getSubgraph(_.concat(group1, group2)).getEdges(),
     _.concat(graph.getSubgraph(group1).getEdges(), graph.getSubgraph(group2).getEdges()),
