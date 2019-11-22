@@ -1,4 +1,5 @@
 import * as fs from 'fs';
+import * as fse from 'fs-extra';
 import * as _ from 'lodash';
 import { FEATURES_DIR, RESULTS_DIR } from './config';
 import { audioPathToDirName } from './util';
@@ -13,6 +14,23 @@ export function initDirRec(path: string) {
     fs.existsSync(subdir) || fs.mkdirSync(subdir);
   });
   return dirNames.join('/')+'/';
+}
+
+export function importFeaturesFolder(audioPath: string, fromPath: string) {
+  const folder = audioPathToDirName(audioPath)+'/';
+  const source = fromPath+folder;
+  const wavSource = source.replace('mp3', 'wav');
+  if (fs.existsSync(source)) {
+    fse.copySync(source, FEATURES_DIR+folder);
+    console.log('copied', source);
+  } else if (fs.existsSync(wavSource)) {
+    fse.copySync(wavSource, FEATURES_DIR+folder);
+    fs.readdirSync(FEATURES_DIR+folder).forEach(f =>
+      fs.renameSync(FEATURES_DIR+folder+f, FEATURES_DIR+folder+f.replace('wav','mp3')));
+    console.log('copied wav as mp3', wavSource);
+  } else {
+    console.log('NOT FOUND', source);
+  }
 }
 
 export function moveToFeaturesDir(currentDir: string) {

@@ -51,6 +51,8 @@ function initPoints(filename: string, condition?: any): number[][] {
   if (filename.indexOf(FEATURES.MADMOM_BARS.name) >= 0) {
     return condition == '1' ? getMadmomDownbeats(filename).map(b => [b])
       : getMadmomBeats(filename).map(b => [b]);
+  } else if (filename.indexOf(FEATURES.MADHAN_BARS.file) >= 0) {
+    return getMadhanBars(filename).map(b => [b]);
   } else if (filename.indexOf(FEATURES.FLOHAN_BEATS.file) >= 0) {
     return getFlohanBeats(filename).map(b => [b]);
   }
@@ -197,6 +199,25 @@ interface Grid {
   offset: number,
   unit: number,
   points: number[]
+}
+
+function getMadhanBars(filename: string): number[] {
+  const chords = getJohanChordValues(filename);
+  const beats = getMadmomBeats(filename
+    .replace(FEATURES.MADHAN_BARS.file, FEATURES.MADMOM_BEATS.file));
+  const harmonicRhythm = chords.map(c => c.start);
+  const nearestBeats = harmonicRhythm.map(t => {
+    const dists = beats.map(b => Math.abs(b-t));
+    return dists.indexOf(_.min(dists));
+  });
+  //console.log(JSON.stringify(harmonicRhythm))
+  
+  //assume 4/4 for now but could be generalized!!!!
+  const METER = 4;
+  const bestDownbeats = _.range(0,METER).map(m =>
+    nearestBeats.filter(i => (i-m)%METER == 0).length);
+  const firstBarline = bestDownbeats.indexOf(_.max(bestDownbeats));
+  return beats.slice(firstBarline).filter((_b,i) => i%METER === 0);
 }
 
 function getFlohanBeats(filename: string): number[] {

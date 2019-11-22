@@ -49,6 +49,7 @@ export const FEATURES = {
   FLOHAN_BARS: {name:'flohanbeats', file: 'johan', isSegmentation: true},
   MADMOM_BARS: {name:'madbars', isSegmentation: true, subset:'1'},
   MADMOM_BEATS: {name:'madbeats', file: 'madbars', isSegmentation: true},
+  MADHAN_BARS: {name: 'madhanbars', file: 'johan', isSegmentation: true},
   SILVET: {name:'silvet', plugin:'vamp:silvet:silvet:notes', isSegmentation: false},
   TRANSCRIPTION: {name:'qmtrans', plugin:'vamp:qm-vamp-plugins:qm-transcription:transcription', isSegmentation: false}
 }
