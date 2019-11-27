@@ -41,7 +41,15 @@ export function inferStructureFromAlignments(versionPairs: [number,number][],
 
   const timeline = constructTimelineFromAlignments(versionPairs, results,
     DIFF_VERSIONS, false, filebase);
-  const fullGraph = createSegmentGraphFromAlignments(versionPairs, results, [0,1], false);
+  
+  let fullGraph: DirectedGraph<SegmentNode>;
+  if (filebase && fs.existsSync(filebase+'-graph.json')) {
+    fullGraph = loadGraph(filebase+'-graph.json');
+    console.log("loaded", fullGraph.getSize(), fullGraph.getEdges().length)
+  } else {
+    fullGraph = createSegmentGraphFromAlignments(versionPairs, results, false);
+    saveGraph(filebase+'-graph.json', fullGraph);
+  }
   const nodes = _.zipObject(fullGraph.getNodes().map(n => n.id), fullGraph.getNodes());
   const edges = fullGraph.getEdges();
 
@@ -54,7 +62,6 @@ export function inferStructureFromAlignments(versionPairs: [number,number][],
 
   if (filebase) {
     saveJsonFile(filebase+'-matrix.json', connectionMatrix);
-    saveGraph(filebase+'-graph.json', fullGraph);
     //saveGraph(filebase+'-graph-seg.json', fullGraph.getSubgraph(_.flatten(timeline.slice(75, 79))));
   }
   //console.log(timeline.slice(75, 79).map(t => t.map(n => n.id)));
@@ -73,7 +80,7 @@ export function constructTimelineFromAlignments(versionPairs: [number,number][],
     graph = loadGraph(filebase+'-tlgraph.json');
     console.log("loaded", graph.getSize(), graph.getEdges().length)
   } else {
-    graph = createSegmentGraphFromAlignments(versionPairs, results, [0,1], postprocess);
+    graph = createSegmentGraphFromAlignments(versionPairs, results, postprocess);
     saveGraph(filebase+'-tlgraph.json', graph);
   }
 
@@ -598,13 +605,16 @@ function getInconsistencies(timeline: SegmentNode[][], graph: DirectedGraph<Segm
 }
 
 export function createSegmentGraphFromAlignments(versionPairs: [number,number][],
-    results: MultiStructureResult[], patternIndexes: number[],
+    results: MultiStructureResult[],
     postprocessPatterns: boolean, path?: string) {
   //recover points for all versions from results
   const vIndexes: [number,number][] = [];
   versionPairs.forEach((vs,i) => vs.forEach((v,j) => vIndexes[v] = [i,j]));
   let versionsPoints = vIndexes.map(ij =>
     ij[1] == 0 ? results[ij[0]].points : results[ij[0]].points2)
+  /*const versions = _.sortBy(_.uniq(_.flatten(versionPairs)));
+  console.log(versions);
+  const versionsPoints = versions.map(v => )*/
   
   //create nodes and a map to find them quickly
   const nodes: SegmentNode[][] = versionsPoints.map((ps,i) =>
@@ -648,14 +658,14 @@ export function createSegmentGraphFromAlignments(versionPairs: [number,number][]
 
   //add alignment connections
   _.zip(versionPairs, patterns).forEach(([vs,ps]) =>
-    ps.filter((_,i) => patternIndexes.indexOf(i) >= 0).forEach(pn => pn.points.map((_,i) => {
+    ps.forEach(pn => pn.points.map((_,i) => {
       const nodes = vs.map((v,j) =>
         nodesByVersionByPoint[v] ?
         nodesByVersionByPoint[v][JSON.stringify(pn.occurrences[j][i])] : null);
       //console.log(JSON.stringify(nodes), JSON.stringify(vs))
-      //if (i < 20)
-      if (nodes[0] && nodes[1])
+      if (nodes[0] && nodes[1]) {
         graph.addEdge(nodes[0], nodes[1]);
+      }
     })));
 
   console.log("\nfull", graph.getSize(), graph.getEdges().length)

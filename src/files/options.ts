@@ -31,13 +31,16 @@ const STANDARD_OPTIONS: FullSIAOptions = {
 const SW_OPTIONS: FullSWOptions = {
   quantizerFunctions: null,
   selectedFeatures: null,
-  iterative: true,//true,
+  maxIterations: 3,//true,
   fillGaps: true, //turn off for similarity graphs!!
   //similarityThreshold: .99,
-  minSegmentLength: 5, //stop when segment length below this
+  minSegmentLength: 5, //only take segments longer than this
   maxThreshold: 50, //stop when max value below this
-  endThreshold: 0,
-  onlyDiagonals: true
+  //endThreshold: 0,
+  onlyDiagonals: true,
+  //nLongest: 10,
+  maxGapSize: 2
+  //maxGaps: 5
 }
 
 export function getVariations(minPatternLengths: number[]): [string, any[]][] {

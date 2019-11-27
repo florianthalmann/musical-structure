@@ -318,7 +318,7 @@ export class DirectedGraph<NodeType extends Node> {
   }
   
   private addNode(node: NodeType) {
-    if (!this.nodes.has(node.id)) this.nodes.set(node.id, node);
+    if (node && !this.nodes.has(node.id)) this.nodes.set(node.id, node);
   }
 
   private addEdgeClone(edge: Edge<NodeType>) {
