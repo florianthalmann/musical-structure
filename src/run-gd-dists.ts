@@ -3,7 +3,7 @@ import { OpsiatecResult, getCosiatec } from 'siafun';
 import { GD_PATTERNS, GD_GRAPHS, GD_RESULTS } from './files/config';
 import { mapSeries, updateStatus } from './files/util';
 import { loadJsonFile, saveJsonFile } from './files/file-manager';
-import { getPatternSimilarities } from './graphs/pattern-stats';
+import { getPatternSimilarities } from './analysis/pattern-analysis';
 import { getOptionsWithCaching, getBestGdOptions, getGdCompressionOptions } from './files/options';
 import { getPointsFromAudio } from './files/feature-parser';
 import { getSelectedTunedSongs, getMultiCacheDir, getCosiatecFromAudio } from './run-gd';

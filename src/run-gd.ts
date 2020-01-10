@@ -13,11 +13,11 @@ import { getOptionsWithCaching, getBestGdOptions, getGdSwOptions,
 import { FeatureConfig } from './files/feature-extractor';
 import { getPointsFromAudio, getQuantizedPoints, quantize } from './files/feature-parser';
 import { createSimilarityPatternGraph, getPatternGroupNFs, getNormalFormsMap,
-  getConnectednessByVersion, PatternNode } from './graphs/pattern-stats';
-import { inferStructureFromAlignments, SegmentNode } from './graphs/segment-analysis';
-import { inferStructureFromTimeline } from './graphs/structure-analysis';
+  getConnectednessByVersion, PatternNode } from './analysis/pattern-analysis';
+import { inferStructureFromAlignments } from './analysis/segment-analysis';
+import { inferStructureFromTimeline } from './analysis/structure-analysis';
 import { getTuningRatio } from './files/tunings';
-import { toHistogram, getMostCommonPoints } from './graphs/histograms';
+import { toHistogram, getMostCommonPoints } from './analysis/pattern-histograms';
 import { toIndexSeqMap } from './graphs/util';
 
 interface GdVersion {

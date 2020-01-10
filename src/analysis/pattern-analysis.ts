@@ -1,9 +1,9 @@
 import * as _ from 'lodash';
 import { StructureResult } from 'siafun';
-import { DirectedGraph, Node, saveGraph, loadGraph } from './graph-theory';
-import { NodeGroupingOptions, getBestGroups, GROUP_RATING } from './graph-analysis';
-import { SegmentNode } from './segment-analysis';
-import { toIndexSeqMap, toNormalForm, toVectorNormalForms } from './util';
+import { DirectedGraph, Node, saveGraph, loadGraph } from '../graphs/graph-theory';
+import { NodeGroupingOptions, getBestGroups, GROUP_RATING } from '../graphs/graph-analysis';
+import { toIndexSeqMap, toNormalForm, toVectorNormalForms } from '../graphs/util';
+import { SegmentNode } from './types';
 
 interface ProtoNode {
   protoId: any

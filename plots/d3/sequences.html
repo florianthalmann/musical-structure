@@ -13,7 +13,7 @@ async function draw() {
   //height = +svg.attr("height");
   
   const HEIGHT = 15;
-  const WIDTH = 8;
+  const WIDTH = 5;
   
   const tooltip = d3.select("body")
     .append("div")
@@ -23,7 +23,7 @@ async function draw() {
     .style("font-size", "10px")
     .text("");
   
-  let seqs = await d3.json("latest/meandmyuncle30c-visuals2.json")//box of rain-sw-seqs.json")//"graphs_jo4_min3/box of rain-seqs.json");
+  let seqs = await d3.json("latest/boxofrain30c-visuals-types.json")//box of rain-sw-seqs.json")//"graphs_jo4_min3/box of rain-seqs.json");
   seqs = seqs.filter(s => s.version < 80);
 
   const rect = svg.append("g")
@@ -34,8 +34,8 @@ async function draw() {
       .attr("y", s => s.version*HEIGHT)
       .attr("width", WIDTH)
       .attr("height", HEIGHT)
-      //.attr("fill", e => e.type > 0 && e.type < 10 ? d3.hsl((e.type+400)*40, 0.7, 0.5) : d3.rgb(230, 230, 230))
-      .attr("fill", e => d3.hsl((e.time+400)*40, 0.7, 0.5))
+      .attr("fill", e => e.type > 0 && e.type < 10 ? d3.hsl((e.type+400)*40, 0.7, 0.5) : d3.rgb(230, 230, 230))
+      //.attr("fill", e => d3.hsl((e.time+400)*40, 0.7, 0.5))
       .attr("opacity", n => 1)//n.version % 2 ? 0.5 : 1)
       .on("mouseover", n => { tooltip.style("visibility", "visible"); tooltip.text(n.point) })
       .on("mousemove", () => tooltip.style("top", (event.pageY-10)+"px").style("left",(event.pageX+10)+"px"))

@@ -87,8 +87,17 @@ export function getPartition<T extends Node>(options: NodeGroupingOptions<T>, gr
   return best;
 }
 
-function getUniqueMembers<T extends Node>(groups: NodeGroup<T>[]): T[] {
-  return _.uniq(_.flatten(groups.map(g => g.members)));
+export function getPartitionConnectionMatrix<N extends Node>(partition: N[][],
+    graph: DirectedGraph<N>): number[][] {
+  //assumes the nodes in the sequence may be clones of the nodes in the graph
+  const nodes = _.zipObject(graph.getNodes().map(n => n.id), graph.getNodes());
+  const edges = graph.getEdges();
+  return partition.map(t => partition.map(s => {
+    const tn = t.map(n => nodes[n.id]);
+    const sn = s.map(n => nodes[n.id]);
+    return edges.filter(e => (tn.indexOf(e.source) >= 0 && sn.indexOf(e.target) >= 0)
+      || (tn.indexOf(e.target) >= 0 && sn.indexOf(e.source) >= 0)).length;
+  }));
 }
 
 export function removeGroupAndNodes<T extends Node>(groups: NodeGroup<T>[],
@@ -120,9 +129,8 @@ export function getBestGroups<T extends Node>(options: NodeGroupingOptions<T>) {
   return groups;
 }
 
-//returns true if the two given sets have the same members
-function equalSets<T>(s1: T[], s2: T[]) {
-  return _.union(s1, s2).length === s1.length;
+function getUniqueMembers<T extends Node>(groups: NodeGroup<T>[]): T[] {
+  return _.uniq(_.flatten(groups.map(g => g.members)));
 }
 
 function getNodeGroups<T>(options: NodeGroupingOptions<T>): NodeGroup<T>[] {

@@ -1,6 +1,6 @@
 import * as _ from 'lodash';
-import { DirectedGraph, Node } from './graph-theory';
-import { SegmentNode } from './segment-analysis';
+import { DirectedGraph, Node } from '../graphs/graph-theory';
+import { SegmentNode } from './types';
 import { loadJsonFile } from '../files/file-manager';
 
 export function inferStructureFromTimeline(filebase: string): SegmentNode[][] {

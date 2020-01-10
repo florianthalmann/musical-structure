@@ -1,11 +1,11 @@
 import * as fs from 'fs';
 import * as _ from 'lodash';
-import { createHistogramGraph } from './pattern-stats';
+import { createHistogramGraph } from './pattern-analysis';
 
 export async function histsToGraph() {
   const file = 'hists3chSB.json';
-  let hists = JSON.parse(fs.readFileSync(file, 'utf8'));
-  hists = hists.map(h => simplifyHistograms(h, 4, true))
+  let hists: number[][][][] = JSON.parse(fs.readFileSync(file, 'utf8'));
+  hists = hists.map(h => simplifyHistograms(h, 4, true));
   //console.log(proj.slice(0,3));
   createHistogramGraph(hists, 'plots/d3/newest/'+file);
   //analyzePatternGraph("plots/d3/beats/good lovin'mf4be.json");

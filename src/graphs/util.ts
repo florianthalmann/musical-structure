@@ -24,3 +24,8 @@ export function toVectorNormalForms(points: number[][], vectors: number[][]): nu
   const norm = toNormalForm(points);
   return vectors.filter(v => v.some(c => c !== 0)).map(v => _.concat(norm, [v]));
 }
+
+//returns true if the two given sets have the same members
+export function equalSets<T>(s1: T[], s2: T[]) {
+  return _.union(s1, s2).length === s1.length;
+}

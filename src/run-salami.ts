@@ -6,7 +6,7 @@ import { getFeatures } from './files/feature-extractor';
 import { getVampValues, getPoints } from './files/feature-parser';
 import { Annotation, getAnnotations } from './files/salami-parser';
 import { mapSeries, printPatterns, cartesianProduct, updateStatus } from './files/util';
-import { mapToTimegrid, normalize } from './graphs/pattern-stats';
+import { mapToTimegrid, normalize } from './analysis/pattern-analysis';
 import { FullSIAOptions, getOptionsWithCaching, getJohanBarsOptions,
   getChromaBeatsOptions, getVariations } from './files/options';
 import { evaluate } from './eval';

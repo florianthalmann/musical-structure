@@ -5,7 +5,7 @@ import { saveMultiTimelineDecomposition, AlignmentAlgorithm,
 import { calculateCompressionDistances, calculatePatternSimilarities,
   sweep, saveSimilarities, sweep2} from './run-gd-dists';
 
-import { analyzePatternGraph } from './graphs/pattern-stats';
+import { analyzePatternGraph } from './analysis/pattern-analysis';
 import { cleanCaches, renameJohanChordFeatures, moveToFeaturesDir } from './files/file-manager';
 import { gatherTunings } from './files/tunings';
 
