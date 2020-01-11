@@ -1,7 +1,7 @@
 import * as _ from 'lodash';
 import { DirectedGraph } from '../graphs/graph-theory';
 import { getPartitionConnectionMatrix } from '../graphs/graph-analysis';
-import { SegmentNode, SequenceImprovementOptions, SeqConstImprovementOptions } from './types';
+import { SegmentNode, SequenceImprovementOptions } from './types';
 import { getCompletedNumberArray2 } from './util';
 
 export function improveSequence(sequence: SegmentNode[][],
@@ -10,10 +10,19 @@ export function improveSequence(sequence: SegmentNode[][],
   sequence = _.clone(sequence.map(t => _.clone(t)));
   
   if (options.merge) {
-    //merge neighboring slices where possible
     const tempLength = sequence.length;
     sequence = mergeNeighboringPartitions(sequence);
     console.log("partitions merged", tempLength-sequence.length);
+  }
+  
+  if (options.swap) {
+    const numSwapped = swapSegments(sequence, graph);
+    console.log("swapped", numSwapped);
+  }
+  
+  if (options.slide) {
+    const numSlid = slideSegments(sequence, graph, true);
+    console.log("nodes slid", numSlid);
   }
   
   //SEPARATE THIS OUT AT SOME POINT (RATHER TOGETHER WITH ADD SEGMENTS...)
@@ -57,106 +66,6 @@ export function improveSequence(sequence: SegmentNode[][],
   return sequence;
 }
 
-//constant cardinality
-export function improveSequenceConstant(sequence: SegmentNode[][],
-    graph: DirectedGraph<SegmentNode>, options: SeqConstImprovementOptions) {
-  
-  sequence = _.clone(sequence.map(t => _.clone(t)));
-  
-  if (options.swap) {
-    const matrix = getPartitionConnectionMatrix(sequence, graph);
-    const coords = matrix.map((r,i) => r.findIndex((v,j) => j > i && v > 0));
-    const replaced = [];
-    coords.forEach((j,i) => {
-      if (j >= 0) {
-        const ijc = sequence[i].map(n =>
-          graph.getAdjacents(n).filter(a => sequence[j].indexOf(a) >= 0));
-        const jjc = sequence[j].map(n =>
-          graph.getAdjacents(n).filter(a => sequence[j].indexOf(a) >= 0));
-        if (_.flatten(ijc).length == 1) {
-          const ii = ijc.findIndex(c => c.length > 0);
-          const jj = sequence[j].findIndex(n => n.version === sequence[i][ii].version);
-          //console.log(ii, jj, ijc[ii], jjc[jj]);
-          if (jj >= 0 && ijc[ii].length > jjc[jj].length) {
-            sequence[j][jj] = sequence[i][ii];
-            sequence[i].splice(ii, 1);
-            replaced.push(sequence[j][jj]);
-          } else if (jj < 0) {
-            sequence[j].push(sequence[i][ii]);
-            sequence[i].splice(ii, 1);
-          }
-        }
-      }
-    });
-    console.log("swapped", replaced.length)
-    addSegmentsAtBestSpots(replaced, sequence, graph, false, true);
-    addSegmentsAtBestSpots(replaced, sequence, graph, true, true);
-  }
-  
-  if (options.slide) {
-    const INCL_DISCONN = true;
-    const adjacents = sequence.map(s => s.map(n => graph.getDirectAdjacents(n)));
-    const connections = adjacents.map(as => as.map(a =>
-      sequence.map(s => s.filter(n => _.find(a, m => m.id === n.id)).length)));
-    const minMax = INCL_DISCONN ? 0 : 1;
-    const alts = _.flatten(_.flatten(connections.map((r,i) => r.map((cs,j) => {
-      const max = _.max(cs);
-      return cs.map((c,i2) => c === max && max >= minMax && i2 !== i ? i2 : -1)
-        .filter(i2 => i2 >= 0).map(i2 => [sequence[i][j].version,i,i2,i2-i]);
-    })))).filter(a=>a.length>0);
-    const maxVersion = _.max(_.flatten(sequence).map(n => n.version));
-    const altsByVersion = _.range(0, maxVersion+1).map(v =>
-      alts.filter(a => a[0] === v));
-    
-    const longest = altsByVersion.map((as,v) => {
-      const byVector = _.groupBy(as, a => a[3]);
-      const gaps = sequence.map((s,i) => !s.find(n => n.version === v) ? i : null).filter(i=>i);
-      //if (v == 28) console.log(JSON.stringify(gaps))
-      
-      const recMoveable = (as: number[][], x: number, gaps: number[]) => {
-        const target = as.find(a => a[1] === x);
-        return _.includes(gaps, x) ||
-          (target != null && recMoveable(as, target[2], gaps))
-      };
-      
-      const possible = _.values(byVector).map(as => {
-        /*const relevantGaps = gaps.filter(i => !as.find(a => a[1] === i))
-          .map(i => [v,i,i+as[0][3],as[0][3]]);
-        const all = _.sortBy(_.concat(as, relevantGaps), a => a[1]);
-        if (v == 0) console.log(JSON.stringify(all))*/
-        return as.filter(a => {
-          const range = a[1] < a[2] ? _.range(a[1]+1, a[2]+1) : _.range(a[1]-1, a[2]-1, -1);
-          return range.every(x => 
-            x+a[3] < 0 || x+a[3] > sequence.length //can be pushed out of range
-            || recMoveable(as, x, gaps) //empty or can be moved by the same vector
-          )
-      })})
-      //REMOVE ALL OUT OF BOUNDS....
-      .map(l =>
-        l.filter(a=>0 <= a[1] && a[1] < sequence.length && 0 <= a[2] && a[2] < sequence.length));
-      
-      //if (v == 28) console.log(JSON.stringify(possible))
-      
-      const max = _.max(possible.map(v => v.length));
-      return possible.find(s => s.length === max);
-    }).filter(l=>l && l.length > 0).map(l =>
-      ({first: _.first(l)[1], last: _.last(l)[1], delta: _.first(l)[3], version: _.first(l)[0]}));
-    console.log(JSON.stringify(longest.map(l=>l?l.last-l.first+1:0)))
-    
-    //NOW SLIDE!!!!
-    //const chosen = _.reverse(_.sortBy(longest, l => l.last-l.first)).slice(0, 2);
-    const chosen = _.sampleSize(longest, 2);
-    //console.log(chosen.map(c => c.version))
-    chosen.forEach(l => {
-      const range = l.delta < 0 ? _.range(l.first, l.last+1) : _.range(l.last, l.first-1, -1);
-      range.forEach(i => moveNode(sequence, l.version, i, i+l.delta));
-    });
-    console.log("nodes slid", _.sum(chosen.map(l => l.last-l.first+1)))
-  }
-  
-  return sequence;
-}
-
 function moveNode(sequence: SegmentNode[][], version: number, from: number, to: number) {
   if (0 <= to && to < sequence.length && 0 <= from && from < sequence.length) {
     const toIndex = sequence[to].findIndex(n => n.version === version);
@@ -173,6 +82,95 @@ function mergeNeighboringPartitions(partitions: SegmentNode[][]): SegmentNode[][
     i > 0 && _.last(p) && differentVersions(t, _.last(p)) ?
       p.map(s => s === _.last(p) ? _.concat(s, t) : s)
       : _.concat(p,[t]), []);
+}
+
+function slideSegments(sequence: SegmentNode[][], graph: DirectedGraph<SegmentNode>,
+    includeDisconnected: boolean) {
+  const adjacents = sequence.map(s => s.map(n => graph.getDirectAdjacents(n)));
+  const connections = adjacents.map(as => as.map(a =>
+    sequence.map(s => s.filter(n => _.find(a, m => m.id === n.id)).length)));
+  const minMax = includeDisconnected ? 0 : 1;
+  const alts = _.flatten(_.flatten(connections.map((r,i) => r.map((cs,j) => {
+    const max = _.max(cs);
+    return cs.map((c,i2) => c === max && max >= minMax && i2 !== i ? i2 : -1)
+      .filter(i2 => i2 >= 0).map(i2 => [sequence[i][j].version,i,i2,i2-i]);
+  })))).filter(a=>a.length>0);
+  const maxVersion = _.max(_.flatten(sequence).map(n => n.version));
+  const altsByVersion = _.range(0, maxVersion+1).map(v =>
+    alts.filter(a => a[0] === v));
+  
+  const longest = altsByVersion.map((as,v) => {
+    const byVector = _.groupBy(as, a => a[3]);
+    const gaps = sequence.map((s,i) => !s.find(n => n.version === v) ? i : null).filter(i=>i);
+    //if (v == 28) console.log(JSON.stringify(gaps))
+    
+    const recMoveable = (as: number[][], x: number, gaps: number[]) => {
+      const target = as.find(a => a[1] === x);
+      return _.includes(gaps, x) ||
+        (target != null && recMoveable(as, target[2], gaps))
+    };
+    
+    const possible = _.values(byVector).map(as => {
+      /*const relevantGaps = gaps.filter(i => !as.find(a => a[1] === i))
+        .map(i => [v,i,i+as[0][3],as[0][3]]);
+      const all = _.sortBy(_.concat(as, relevantGaps), a => a[1]);
+      if (v == 0) console.log(JSON.stringify(all))*/
+      return as.filter(a => {
+        const range = a[1] < a[2] ? _.range(a[1]+1, a[2]+1) : _.range(a[1]-1, a[2]-1, -1);
+        return range.every(x => 
+          x+a[3] < 0 || x+a[3] > sequence.length //can be pushed out of range
+          || recMoveable(as, x, gaps) //empty or can be moved by the same vector
+        )
+    })})
+    //REMOVE ALL OUT OF BOUNDS....
+    .map(l =>
+      l.filter(a=>0 <= a[1] && a[1] < sequence.length && 0 <= a[2] && a[2] < sequence.length));
+    
+    //if (v == 28) console.log(JSON.stringify(possible))
+    
+    const max = _.max(possible.map(v => v.length));
+    return possible.find(s => s.length === max);
+  }).filter(l=>l && l.length > 0).map(l =>
+    ({first: _.first(l)[1], last: _.last(l)[1], delta: _.first(l)[3], version: _.first(l)[0]}));
+  console.log(JSON.stringify(longest.map(l=>l?l.last-l.first+1:0)))
+  
+  //NOW SLIDE!!!!
+  const chosen = _.reverse(_.sortBy(longest, l => l.last-l.first)).slice(0, 3);
+  //const chosen = _.sampleSize(longest, 2);
+  //console.log(chosen.map(c => c.version))
+  chosen.forEach(l => {
+    const range = l.delta < 0 ? _.range(l.first, l.last+1) : _.range(l.last, l.first-1, -1);
+    range.forEach(i => moveNode(sequence, l.version, i, i+l.delta));
+  });
+  return _.sum(chosen.map(l => l.last-l.first+1));
+}
+
+export function swapSegments(sequence: SegmentNode[][], graph: DirectedGraph<SegmentNode>) {
+  const matrix = getPartitionConnectionMatrix(sequence, graph);
+  const coords = matrix.map((r,i) => r.findIndex((v,j) => j > i && v > 0));
+  const replaced = [];
+  coords.forEach((j,i) => {
+    if (j >= 0) {
+      const ijc = sequence[i].map(n =>
+        graph.getAdjacents(n).filter(a => sequence[j].indexOf(a) >= 0));
+      const jjc = sequence[j].map(n =>
+        graph.getAdjacents(n).filter(a => sequence[j].indexOf(a) >= 0));
+      if (_.flatten(ijc).length == 1) {
+        const ii = ijc.findIndex(c => c.length > 0);
+        const jj = sequence[j].findIndex(n => n.version === sequence[i][ii].version);
+        //console.log(ii, jj, ijc[ii], jjc[jj]);
+        if (jj >= 0 && ijc[ii].length > jjc[jj].length) {
+          sequence[j][jj] = sequence[i][ii];
+          sequence[i].splice(ii, 1);
+          replaced.push(sequence[j][jj]);
+        } else if (jj < 0) {
+          sequence[j].push(sequence[i][ii]);
+          sequence[i].splice(ii, 1);
+        }
+      }
+    }
+  });
+  return replaced.length;
 }
 
 export function addMissing(sequence: SegmentNode[][], graph: DirectedGraph<SegmentNode>,

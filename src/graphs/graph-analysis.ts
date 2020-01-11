@@ -91,6 +91,7 @@ export function getPartitionConnectionMatrix<N extends Node>(partition: N[][],
     graph: DirectedGraph<N>): number[][] {
   //assumes the nodes in the sequence may be clones of the nodes in the graph
   const nodes = _.zipObject(graph.getNodes().map(n => n.id), graph.getNodes());
+  console.log("zipped")
   const edges = graph.getEdges();
   return partition.map(t => partition.map(s => {
     const tn = t.map(n => nodes[n.id]);

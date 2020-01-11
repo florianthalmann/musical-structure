@@ -19,17 +19,13 @@ export interface SequenceValidityOptions {
 
 export interface SequenceImprovementOptions {
   merge?: boolean, //merge neighboring partitions with distinct versions
+  slide?: boolean,
+  swap?: boolean,
   missing?: boolean, //add any missing segments at best spots
   missingIgnore?: boolean,
   blurs?: boolean, //remove all nodes with connections to neighboring slices
   cycles?: boolean,
   minSizeFactor?: number
-}
-
-export interface SeqConstImprovementOptions {
-  merge?: boolean,
-  slide?: boolean,
-  swap?: boolean
 }
 
 export interface AddSegmentsOptions {
