@@ -137,6 +137,10 @@ export class DirectedGraph<NodeType extends Node> {
     return this.findEdges(n1, n2).concat(this.findEdges(n2, n1));
   }
   
+  findEdgesBetween(n1: NodeType, n2: NodeType) {
+    return this.findEdges(n1, n2).concat(this.findEdges(n2, n1));
+  }
+  
   private getNodesInPreorder() {
     const nodes = this.getNodes();
     const roots = this.getRoots();

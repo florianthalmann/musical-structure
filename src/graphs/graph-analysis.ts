@@ -91,14 +91,15 @@ export function getPartitionConnectionMatrix<N extends Node>(partition: N[][],
     graph: DirectedGraph<N>): number[][] {
   //assumes the nodes in the sequence may be clones of the nodes in the graph
   const nodes = _.zipObject(graph.getNodes().map(n => n.id), graph.getNodes());
-  console.log("zipped")
-  const edges = graph.getEdges();
-  return partition.map(t => partition.map(s => {
+  //const edges = graph.getEdges();
+  const halfMatrix = partition.map((t,i) => partition.map((s,j) => {
+    if (i > j) return 0;
     const tn = t.map(n => nodes[n.id]);
     const sn = s.map(n => nodes[n.id]);
-    return edges.filter(e => (tn.indexOf(e.source) >= 0 && sn.indexOf(e.target) >= 0)
-      || (tn.indexOf(e.target) >= 0 && sn.indexOf(e.source) >= 0)).length;
+    return _.flatten(_.flatten(tn.map(t => sn.map(s => graph.findEdgesBetween(t,s))))).length;
   }));
+  //copy below diagonal (symmetric)
+  return halfMatrix.map((t,i) => t.map((s,j) => i > j ? halfMatrix[j][i] : s));
 }
 
 export function removeGroupAndNodes<T extends Node>(groups: NodeGroup<T>[],
