@@ -87,21 +87,6 @@ export function getPartition<T extends Node>(options: NodeGroupingOptions<T>, gr
   return best;
 }
 
-export function getPartitionConnectionMatrix<N extends Node>(partition: N[][],
-    graph: DirectedGraph<N>): number[][] {
-  //assumes the nodes in the sequence may be clones of the nodes in the graph
-  const nodes = _.zipObject(graph.getNodes().map(n => n.id), graph.getNodes());
-  //const edges = graph.getEdges();
-  const halfMatrix = partition.map((t,i) => partition.map((s,j) => {
-    if (i > j) return 0;
-    const tn = t.map(n => nodes[n.id]);
-    const sn = s.map(n => nodes[n.id]);
-    return _.flatten(_.flatten(tn.map(t => sn.map(s => graph.findEdgesBetween(t,s))))).length;
-  }));
-  //copy below diagonal (symmetric)
-  return halfMatrix.map((t,i) => t.map((s,j) => i > j ? halfMatrix[j][i] : s));
-}
-
 export function removeGroupAndNodes<T extends Node>(groups: NodeGroup<T>[],
     group: NodeGroup<T>, options: NodeGroupingOptions<T>) {
   return _.difference(groups, [group])

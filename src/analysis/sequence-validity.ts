@@ -1,73 +1,59 @@
 import * as _ from 'lodash';
-import { DirectedGraph } from '../graphs/graph-theory';
+import { GraphPartition } from '../graphs/graph-partition';
 import { SegmentNode, SequenceValidityOptions } from './types';
 
 //make order of these constraints flexible at some point!
-export function ensureSequenceValidity(sequence: SegmentNode[][],
-    graph: DirectedGraph<SegmentNode>, options: SequenceValidityOptions) {
+export function ensureSequenceValidity(sequence: GraphPartition<SegmentNode>,
+    options: SequenceValidityOptions) {
   
   let messages: string[] = [];
   
   if (options.connected) {
     //then remove all nodes with no connections to their own slice
-    let nodeCount = _.flatten(sequence).length;
-    sequence = sequence.map(t => graph.getSubgraph(t).pruneIsolatedNodes().getNodes());
-    messages.push("disconnected removed " + (nodeCount-_.flatten(sequence).length));
+    const isolated = _.flatten(sequence.getPartitions().map(t =>
+      sequence.getGraph().getSubgraph(t).getIsolatedNodes()));
+    isolated.forEach(n => sequence.removeNode(n));
+    messages.push("disconnected removed " + isolated.length);
   }
   
   if (options.component) {
     //then keep only largest connected components per slice
-    const minorComponents = _.flatten(sequence.map(t =>
-      _.flatten(graph.getSubgraph(t).getConnectedComponents().slice(1))));
-    messages.push("minor components removed " + minorComponents.length);
-    sequence = sequence.map(t => t.filter(n => minorComponents.indexOf(n) < 0));
+    const nodesInMinorComponents = _.flatten(sequence.getPartitions().map(t =>
+      _.flatten(sequence.getGraph().getSubgraph(t).getConnectedComponents().slice(1))));
+    nodesInMinorComponents.forEach(n => sequence.removeNode(n));
+    messages.push("minor components removed " + nodesInMinorComponents.length);
   }
   
   if (options.affinity) {
     //then remove all nodes not in slices to which they have the most connections
-    const misplaced = getInconsistencies(sequence, graph);
-    messages.push("stray nodes removed " + misplaced.length);
-    sequence = sequence.map(t => t.filter(n => misplaced.indexOf(n) < 0));
+    const unaffine = getInconsistencies(sequence);
+    unaffine.forEach(n => sequence.removeNode(n));
+    messages.push("stray nodes removed " + unaffine.length);
   }
   
   if (options.versions) {
     //then remove all nodes in slices with more than one per version
-    const unique = sequence.map(t => _.uniqBy(t, n => n.version));
-    const multi = _.difference(_.flatten(sequence), _.flatten(unique));
-    messages.push("multiples removed " + multi.length);
-    sequence = unique;
+    const partitions = sequence.getPartitions();
+    const unique = partitions.map(t => _.uniqBy(t, n => n.version));
+    const multiples = _.difference(_.flatten(partitions), _.flatten(unique));
+    multiples.forEach(n => sequence.removeNode(n));
+    messages.push("multiples removed " + multiples.length);
   }
   
   if (options.uniqueness) {
     //remove all nodes reoccurring more than once
-    //works only if multiples removed before!
-    const unique = _.uniqBy(_.flatten(sequence), n => n.id);
-    const filtered = sequence.map(t => t.filter(n => {
-      const index = _.findIndex(unique, m => m.id === n.id);
-      if (index >= 0) {
-        unique.splice(index, 1);
-        return true;
-      }
-    }));
-    messages.push("non-unique removed " +
-      (_.flatten(sequence).length - _.flatten(filtered).length));
-    sequence = filtered;
+    const partitions = sequence.getPartitions();
+    const unique = _.uniqBy(_.flatten(partitions), n => n.id);
+    const multiples = _.difference(_.flatten(partitions), _.flatten(unique));
+    multiples.forEach(n => sequence.removeNode(n));
+    messages.push("non-unique removed " + multiples.length);
   }
   
   if (options.order) {
     //remove all nodes involved in contradictions (ensure strict order)
-    const removed = getContradictions(sequence, true);
-    messages.push("order contradictions removed " + removed.length);
-    sequence = sequence.map(t => t.filter(n => removed.indexOf(n) < 0));
-  }
-  
-  if (options.minSizeFactor) {
-    //remove all time points with too few nodes
-    let tempNodeCount = _.flatten(sequence).length;
-    let max = _.max(sequence.map(t => t.length));
-    sequence = _.clone(sequence.filter(t => t.length > max/options.minSizeFactor));
-    const currentNodeCount = _.flatten(sequence).length;
-    messages.push("small removed " + (tempNodeCount-currentNodeCount));
+    const disorder = getContradictions(sequence.getPartitions(), true);
+    disorder.forEach(n => sequence.removeNode(n));
+    messages.push("order contradictions removed " + disorder.length);
   }
   
   console.log(messages.join(", "));
@@ -95,11 +81,12 @@ function getContradictions(timeline: SegmentNode[][], includeAll: boolean): Segm
   })));
 }
 
-function getInconsistencies(timeline: SegmentNode[][], graph: DirectedGraph<SegmentNode>): SegmentNode[] {
-  return _.flatten(timeline.map((t,i) => t.filter(n => {
-    const adjacents = graph.getDirectAdjacents(n);
+function getInconsistencies(sequence: GraphPartition<SegmentNode>): SegmentNode[] {
+  const partitions = sequence.getPartitions();
+  return _.flatten(partitions.map((t,i) => t.filter(n => {
+    const adjacents = sequence.getGraph().getDirectAdjacents(n);
     const connections =
-      timeline.map(t => t.filter(n => _.includes(adjacents, n)).length);
+      partitions.map(t => t.filter(n => _.includes(adjacents, n)).length);
     return connections[i] < _.max(connections);
   })));
 }

@@ -40,6 +40,10 @@ export class DirectedGraph<NodeType extends Node> {
   getNodes(): NodeType[] {
     return [...this.nodes.values()];
   }
+  
+  getNode(id: string) {
+    return this.nodes.get(id);
+  }
 
   getEdges(): Edge<NodeType>[] {
     return _.flatten(
@@ -52,11 +56,11 @@ export class DirectedGraph<NodeType extends Node> {
   }
   
   getSubgraph(nodes: NodeType[]): DirectedGraph<NodeType> {
-    nodes = nodes.map(n => this.nodes.get(n.id));
     return new DirectedGraph(nodes, this.getAllEdges(nodes));
   }
   
   getAllEdges(nodes: NodeType[]): Edge<NodeType>[] {
+    nodes = nodes.map(n => this.nodes.get(n.id));
     return this.getEdges().filter(e =>
       nodes.indexOf(e.source) >= 0 && nodes.indexOf(e.target) >= 0);
   }
@@ -83,6 +87,10 @@ export class DirectedGraph<NodeType extends Node> {
     return new DirectedGraph(this.getNodesFromEdges(edges), edges);
   }
   
+  getIsolatedNodes(): NodeType[] {
+    return _.difference(this.getNodes(), this.getNodesFromEdges(this.getEdges()));
+  }
+  
   private getNodesFromEdges(edges: Edge<NodeType>[]) {
     return _.uniq(_.flatten(edges.map(e => [e.source, e.target])));
   }
@@ -90,6 +98,10 @@ export class DirectedGraph<NodeType extends Node> {
   pruneEdgesNotInCycles(): DirectedGraph<NodeType> {
     const decompEdges = _.flatten(this.getChainDecomposition());
     return new DirectedGraph(this.getNodes(), decompEdges);
+  }
+  
+  getNodesNotInCycles() {
+    return this.pruneEdgesNotInCycles().getIsolatedNodes();
   }
   
   getBridges(): Edge<NodeType>[] {

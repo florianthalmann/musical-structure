@@ -1,5 +1,13 @@
 import * as _ from 'lodash';
 
+export function allIndexesOf<T>(array: T[], value: T) {
+  return allIndexesWith(array, a => a === value);
+}
+
+export function allIndexesWith<T>(array: T[], condition: (t: T) => boolean) {
+  return array.map((a,i) => condition(a) ? i : null).filter(i => i != null);
+}
+
 export function getCompletedNumberArray2(nums: number[]) {
   nums = _.clone(nums);
   while (nums.findIndex(n => n == null) >= 0) {

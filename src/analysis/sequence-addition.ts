@@ -2,48 +2,56 @@ import * as _ from 'lodash';
 import { DirectedGraph } from '../graphs/graph-theory';
 import { GroupingCondition, GROUP_RATING, getBestGroups,
   removeGroupAndNodes } from '../graphs/graph-analysis';
+import { GraphPartition } from '../graphs/graph-partition';
 import { SegmentNode, AddSegmentsOptions } from './types';
 
 //adds new segments at the appropriate position in time
-export function addNewSegments(sequence: SegmentNode[][],
-    graph: DirectedGraph<SegmentNode>, options: AddSegmentsOptions) {
-  sequence = _.clone(sequence);
-  const maxSegSize = _.max(sequence.map(t => t.length));
-  const missing = _.difference(graph.getNodes(), _.flatten(sequence));
-  const graphOfMissing = graph.getSubgraph(missing);
-  console.log("graph", graphOfMissing.getSize(), graphOfMissing.getEdges().length)
+export function addNewSegments(sequence: GraphPartition<SegmentNode>,
+    options: AddSegmentsOptions) {
+  sequence = sequence.clone();
+  const partitions = sequence.getPartitions();
+  const maxSegSize = _.max(partitions.map(t => t.length));
+  const missing = _.difference(sequence.getGraph().getNodes(), _.flatten(partitions));
+  const graphOfMissing = sequence.getGraph().getSubgraph(missing);
+  console.log("graph", graphOfMissing.getSize(), graphOfMissing.getEdges().length);
   
-  let addition: SegmentNode[][];
+  let additions: SegmentNode[][];
   
   if (options.indexNeighborSearch) {
     console.log("quickly getting neighboring segments")
-    addition = getNeighboringGraphSegmentsForSequence(sequence, graphOfMissing,
+    additions = getNeighboringGraphSegmentsForSequence(partitions, graphOfMissing,
       options.minSizeFactor);
   }
   
   if (options.graphAdjacentsSearch) {
     console.log("searching graph for adjacents")
-    addition = getBestIndexBasedPartition(graphOfMissing, options.groupingCondition)
+    additions = getBestIndexBasedPartition(graphOfMissing, options.groupingCondition)
       .filter(s => maxSegSize ? s.length > maxSegSize/options.minSizeFactor : s);
   }
   
   if (options.graphBestRatedSearch) {
     console.log("searching graph for best rated")
-    addition = getBestDisjunctPartition(graphOfMissing, options.groupingCondition,
+    additions = getBestDisjunctPartition(graphOfMissing, options.groupingCondition,
       maxSegSize/options.minSizeFactor);
   }
   
-  if (options.maxNumSegments) addition = 
-    _.reverse(_.sortBy(addition, a => a.length)).slice(0, options.maxNumSegments);
+  if (options.maxNumSegments) {
+    additions = 
+      _.reverse(_.sortBy(additions, a => a.length)).slice(0, options.maxNumSegments);
+  }
   
-  console.log("added slices", JSON.stringify(addition.map(a => a.length)));
-  sequence.push(...addition);
-  sortPartitionsTemporally(sequence);
+  console.log("added slices", JSON.stringify(additions.map(a => a.length)));
+  
+  //maybe simple recalculation of matrix is quicker.... check!
+  const sorted = sortPartitionsTemporally(_.concat(partitions, additions));
+  const indexes = additions.map(a => sorted.indexOf(a));
+  additions.forEach((a,i) => sequence.insertPartition(a, indexes[i]));
+  
   return sequence;
 }
 
 //quick and dirty successive groups, not disjunct
-function getSuccessiveGroups(graph: DirectedGraph<SegmentNode>,
+/*function getSuccessiveGroups(graph: DirectedGraph<SegmentNode>,
     groupingCondition: GroupingCondition<SegmentNode>, existingSeq: SegmentNode[][] = []) {
   const options = {
     graph: graph,
@@ -59,7 +67,7 @@ function getSuccessiveGroups(graph: DirectedGraph<SegmentNode>,
   sequence = sequence.filter((_,i) => numSucc[i] > 1 || numSucc[i+1] > 1);
   numSucc = sequence.map((t,i) => i > 0 ?
     getDirectSuccessors(sequence[i-1], t).length : 0);
-  console.log(JSON.stringify(numSucc));*/
+  console.log(JSON.stringify(numSucc));*
   
   let sequence = sortPartitionsTemporally(_.concat(existingSeq, groups.map(g => g.members)));
   let numSucc = sequence.map((t,i) => i > 0 ?
@@ -77,7 +85,7 @@ function getSuccessiveGroups(graph: DirectedGraph<SegmentNode>,
   console.log("best", bbest.length, best.length)
   
   return best;
-}
+}*/
 
 function getBestDisjunctPartition(graph: DirectedGraph<SegmentNode>,
     groupingCondition: GroupingCondition<SegmentNode>, minSize: number,
