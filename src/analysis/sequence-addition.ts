@@ -45,7 +45,8 @@ export function addNewSegments(sequence: GraphPartition<SegmentNode>,
   //maybe simple recalculation of matrix is quicker.... check!
   const sorted = sortPartitionsTemporally(_.concat(partitions, additions));
   const indexes = additions.map(a => sorted.indexOf(a));
-  additions.forEach((a,i) => sequence.insertPartition(a, indexes[i]));
+  const zipped = _.sortBy(_.zip(additions, indexes), ([_a,i]) => i);
+  zipped.forEach(([a,i]) => sequence.insertPartition(a, i));
   
   return sequence;
 }

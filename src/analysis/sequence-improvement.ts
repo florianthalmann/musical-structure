@@ -5,9 +5,10 @@ import { SegmentNode, SequenceImprovementOptions } from './types';
 import { getCompletedNumberArray2, allIndexesOf, allIndexesWith } from './util';
 
 export function improveSequence(sequence: GraphPartition<SegmentNode>,
-    options: SequenceImprovementOptions) {
+    options: SequenceImprovementOptions): GraphPartition<SegmentNode>[] {
   
   sequence = sequence.clone();
+  let result: GraphPartition<SegmentNode>[] = [];
   
   if (options.merge) {
     const previousSize = sequence.getPartitionCount();
@@ -21,17 +22,21 @@ export function improveSequence(sequence: GraphPartition<SegmentNode>,
   }
   
   if (options.slide) {
-    const numSlid = slideSegments(sequence, true);
-    console.log("nodes slid", numSlid);
+    result = slideSegments(sequence, true);
+    //console.log("nodes slid", numSlid);
   }
   
   //SEPARATE THIS OUT AT SOME POINT (RATHER TOGETHER WITH ADD SEGMENTS...)
   if (options.missing) {
-    addMissing(sequence);
+    result = addMissing2(sequence);
   }
   
   if (options.missingIgnore) {
-    addMissing(sequence, false, true);
+    result = addMissing2(sequence, false, true);
+  }
+  
+  if (options.missingInsert) {
+    result = addMissing2(sequence, true, true);
   }
   
   if (options.blurs) {
@@ -56,11 +61,12 @@ export function improveSequence(sequence: GraphPartition<SegmentNode>,
     const minSize = sequence.getMaxPartitionSize()/options.minSizeFactor;
     const tooSmall =
       allIndexesWith(sequence.getPartitions(), p => p.length < minSize);
-    const removed = _.flatten(tooSmall.map(i => sequence.removePartition(i)));
+    const removed = sequence.removePartitions(tooSmall);
     console.log("small partitions removed", removed.length);
   }
   
-  return sequence;
+  if (!result) result = [sequence];
+  return result;
 }
 
 function moveNode(sequence: GraphPartition<SegmentNode>,
@@ -77,7 +83,7 @@ function mergeNeighboringPartitions(sequence: GraphPartition<SegmentNode>) {
 }
 
 function slideSegments(sequence: GraphPartition<SegmentNode>,
-    includeDisconnected: boolean) {
+    includeDisconnected: boolean): GraphPartition<SegmentNode>[] {
   const partitions = sequence.getPartitions();
   const adjacents = partitions.map(s => s.map(n =>
     sequence.getGraph().getDirectAdjacents(n)));
@@ -127,17 +133,19 @@ function slideSegments(sequence: GraphPartition<SegmentNode>,
     return possible.find(s => s.length === max);
   }).filter(l=>l && l.length > 0).map(l =>
     ({first: _.first(l)[1], last: _.last(l)[1], delta: _.first(l)[3], version: _.first(l)[0]}));
-  console.log(JSON.stringify(longest.map(l=>l?l.last-l.first+1:0)))
+  //console.log(JSON.stringify(longest.map(l=>l?l.last-l.first+1:0)))
   
   //NOW SLIDE!!!!
-  const chosen = _.reverse(_.sortBy(longest, l => l.last-l.first)).slice(0, 3);
+  //const chosen = _.reverse(_.sortBy(longest, l => l.last-l.first)).slice(0, 3);
   //const chosen = _.sampleSize(longest, 2);
   //console.log(chosen.map(c => c.version))
-  chosen.forEach(l => {
+  return longest.map(l => {
+    const seq = sequence.clone();
     const range = l.delta < 0 ? _.range(l.first, l.last+1) : _.range(l.last, l.first-1, -1);
-    range.forEach(i => moveNode(sequence, l.version, i, i+l.delta));
+    range.forEach(i => moveNode(seq, l.version, i, i+l.delta));
+    return seq;
   });
-  return _.sum(chosen.map(l => l.last-l.first+1));
+  //return _.sum(chosen.map(l => l.last-l.first+1));
 }
 
 export function swapSegments(sequence: GraphPartition<SegmentNode>) {
@@ -174,14 +182,36 @@ export function addMissing(sequence: GraphPartition<SegmentNode>,
   //add any other missing nodes wherever most appropriate
   const present = _.flatten(sequence.getPartitions());
   let missing = _.differenceBy(sequence.getGraph().getNodes(), present, n => n.id);
-  console.log("missing", missing.length);
+  //console.log("missing", missing.length);
   while (missing.length > 0) {
+    const chunks = _.chunk(missing, missing.length/10);
     const added = addSegmentsAtBestSpots(missing, sequence, insertSegments, ignoreAdjacents);
     if (added.length > 0) {
       missing = _.difference(missing, added);
     } else break;
   }
-  console.log("still missing", missing.length);
+  //console.log("still missing", missing.length);
+}
+
+export function addMissing2(sequence: GraphPartition<SegmentNode>,
+    insertSegments?: boolean, ignoreAdjacents?: boolean) {
+  //add any other missing nodes wherever most appropriate
+  const present = _.flatten(sequence.getPartitions());
+  let missing = _.differenceBy(sequence.getGraph().getNodes(), present, n => n.id);
+  //console.log("missing", missing.length);
+  return _.chunk(missing, missing.length/10).map(c => {
+    const seq = sequence.clone();
+    addSegmentsAtBestSpots(c, seq, insertSegments, ignoreAdjacents);
+    return seq;
+  });
+    
+    
+  //console.log("still missing", missing.length);
+}
+
+function add(segments: SegmentNode[], sequence: GraphPartition<SegmentNode>,
+    insertSegments?: boolean, ignoreAdjacents?: boolean) {
+  
 }
 
 //returns an array with all added segments

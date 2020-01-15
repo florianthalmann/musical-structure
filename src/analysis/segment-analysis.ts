@@ -7,9 +7,8 @@ import { getPartition, GROUP_RATING, GroupingCondition } from '../graphs/graph-a
 import { GraphPartition } from '../graphs/graph-partition';
 import { saveJsonFile, loadJsonFile } from '../files/file-manager';
 import { SegmentNode } from './types';
-import { addMissing } from './sequence-improvement';
 import { ensureSequenceValidity } from './sequence-validity';
-import { improveSequence } from './sequence-improvement';
+import { improveSequence, addMissing } from './sequence-improvement';
 import { addNewSegments } from './sequence-addition';
 
 const DIFF_VERSIONS: GroupingCondition<SegmentNode>
@@ -104,18 +103,18 @@ function constructFullPartition(graph: DirectedGraph<SegmentNode>,
   const path = filebase+'-timeline.json';
   let partition: GraphPartition<SegmentNode>;
   if (fs.existsSync(path)) {
-    const sequence = loadJsonFile(path);
+    const sequence: SegmentNode[][] = loadJsonFile(path);
     console.log(JSON.stringify(sequence.map(p => p.length)))
     partition = new GraphPartition(graph, sequence);
   } else {
-    partition = hillClimbConstructPartition(graph, groupingCondition);
-    //partition = iterativeGetIndexBasedPartition(graph, groupingCondition);
-    saveJsonFile(path, partition);
+    //partition = hillClimbConstructPartition(graph, groupingCondition);
+    partition = iterativeGetIndexBasedPartition(graph, groupingCondition);
+    saveJsonFile(path, partition.getPartitions());
   }
   partition = ensureSequenceValidity(partition, {uniqueness: true});
   //add all missing while maintaining validity
-  addMissing(partition, false, true);
-  //addMissing(partition, graph, true, true);
+  //addMissing(partition, false, true);
+  //addMissing(partition, true, true);
   
   //partition.forEach(printPartition);
   //printVersion(24, partition);
@@ -137,10 +136,13 @@ function hillClimbImprovePartition(sequence: GraphPartition<SegmentNode>) {
   while (pastRatings.filter(r => r >= _.last(pastRatings)).length <= 5) {
     let candidates: GraphPartition<SegmentNode>[] = [];
     
-    candidates.push(improveSequence(currentSequence, {merge: true}));
+    candidates.push(...improveSequence(currentSequence, {merge: true}));
     /*candidates.push(improveSequenceConstant(currentSequence, {swap: true}));*/
-    candidates.push(improveSequence(currentSequence, {slide: true}));
-    candidates.push(improveSequence(currentSequence, {missingIgnore: true}));
+    candidates.push(...improveSequence(currentSequence, {slide: true}));
+    candidates.push(...improveSequence(currentSequence, {missing: true}));
+    candidates.push(...improveSequence(currentSequence, {missingIgnore: true}));
+    candidates.push(...improveSequence(currentSequence, {missingInsert: true}));
+    candidates.push(...improveSequence(currentSequence, {blurs: true}));
     
     //should not be necessary!!!!!
     candidates = candidates.map(c => ensureSequenceValidity(c,
@@ -151,7 +153,7 @@ function hillClimbImprovePartition(sequence: GraphPartition<SegmentNode>) {
     //candidates = candidates.map(c => addSegmentsAtBestSpots(, sequence, graph, true, true));
     
     const ratings = candidates.map(c => getSequenceRating(c));
-    console.log(JSON.stringify(ratings))
+    //console.log(JSON.stringify(ratings))
     
     const max = _.max(ratings);
     if (max != null && max > bestRating) {
@@ -181,15 +183,15 @@ function hillClimbConstructPartition(graph: DirectedGraph<SegmentNode>,
   
   while (pastRatings.filter(r => r >= _.last(pastRatings)).length <= 5) {
     let candidates: GraphPartition<SegmentNode>[] = [];
-    candidates.push(improveSequence(currentSequence, {merge: true}));
-    candidates.push(improveSequence(currentSequence, {missing: true}));
-    candidates.push(improveSequence(currentSequence, {blurs: true}));
-    /*candidates.push(improveSequence(currentSequence, graph,
+    candidates.push(...improveSequence(currentSequence, {merge: true}));
+    candidates.push(...improveSequence(currentSequence, {missing: true}));
+    candidates.push(...improveSequence(currentSequence, {blurs: true}));
+    /*candidates.push(...improveSequence(currentSequence, graph,
       {blurs: true, missing: true}));*/
-    candidates.push(improveSequence(currentSequence, {cycles: true}));
-    candidates.push(improveSequence(currentSequence, {minSizeFactor: minSizeFactor}));
-    candidates.push(improveSequence(currentSequence, {slide: true}));
-    candidates.push(improveSequence(currentSequence, {missingIgnore: true}));
+    candidates.push(...improveSequence(currentSequence, {cycles: true}));
+    candidates.push(...improveSequence(currentSequence, {minSizeFactor: minSizeFactor}));
+    candidates.push(...improveSequence(currentSequence, {slide: true}));
+    candidates.push(...improveSequence(currentSequence, {missingIgnore: true}));
     /*candidates.push(ensureSequenceValidity(currentSequence, graph,
       {connected: true}));
     candidates.push(ensureSequenceValidity(currentSequence, graph,
@@ -222,11 +224,12 @@ function hillClimbConstructPartition(graph: DirectedGraph<SegmentNode>,
         candidates.push(addNewSegments(currentSequence,
           {indexNeighborSearch: true, minSizeFactor: minSizeFactor,
             groupingCondition: groupingCondition, maxNumSegments: 5}));
+        //console.log(candidates.length, previousLength, candidates.map(c => c.getPartitionCount()), minSizeFactor)
         if (!candidates.some(c => c.getPartitionCount() > previousLength)) minSizeFactor++;
       }
       const ratings = candidates.map(c =>
         c.getPartitionCount() > previousLength ? getSequenceRating(c) : 0);
-      console.log(JSON.stringify(ratings))
+      //console.log(JSON.stringify(ratings))
       currentSequence = candidates[ratings.indexOf(_.max(ratings))];
     }
     pastRatings.push(max);
@@ -258,7 +261,7 @@ function iterativeGetIndexBasedPartition(graph: DirectedGraph<SegmentNode>,
     
     //ADD IMPROVEMENTS
     currentSequence = improveSequence(currentSequence,
-      {merge: true, missing: true, blurs: true, minSizeFactor: minSizeFactor});
+      {merge: true, missing: true, blurs: true, minSizeFactor: minSizeFactor})[0];
     
     //ENSURE VALIDITY
     currentSequence = ensureSequenceValidity(currentSequence,
@@ -310,8 +313,8 @@ function getSequenceRating(sequence: GraphPartition<SegmentNode>) {
   const numNodes = sequence.getNodeCount();
   //const numSegs = sequence.length;
   const connectionMatrix = sequence.getConnectionMatrix();
-  console.log("2")
-  const nonEmptyBins = _.flatten(connectionMatrix).filter(b => b > 0);
+  const allBins = _.flatten(connectionMatrix);
+  const nonEmptyBins = allBins.filter(b => b > 0);
   /*const avgBinStrength = _.mean(nonEmptyBins);
   //proportion of horizontal adjacencies of nonzero bins
   const adjacentConns = _.flatten(connectionMatrix.map(r =>
@@ -344,8 +347,13 @@ function getSequenceRating(sequence: GraphPartition<SegmentNode>) {
   const gapEntropy = getEntropy(toDistribution(gapHisto.slice(1)));
   //console.log(JSON.stringify(hGaps));
   const adjProp = gapHisto[0]/_.sum(gapHisto);
-  console.log(JSON.stringify(gapHisto), numNodes, diaProp, gapEntropy, adjProp);
-  return Math.pow(numNodes, 0.7) * diaProp / (gapEntropy+1) / (adjProp+1) //* numNodes / (adjDiagonals+1); //* connectedness * compactness * cleanliness;
+  //console.log(JSON.stringify(gapHisto), numNodes, diaProp, gapEntropy, adjProp);
+  const nonEmptyProp = nonEmptyBins.length/allBins.length;
+  return Math.pow(numNodes, 0)
+    * diaProp
+    / (gapEntropy+1)
+    / (adjProp+1)
+    // nonEmptyProp  //* numNodes / (adjDiagonals+1); //* connectedness * compactness * cleanliness;
 }
 
 function toHistogram(vals: number[]) {

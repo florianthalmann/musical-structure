@@ -104,6 +104,11 @@ export class GraphPartition<NodeType extends Node> {
     }
   }
   
+  removePartitions(indexes: number[]) {
+    indexes = _.reverse(_.sortBy(indexes));
+    return _.flatten(indexes.map(i => this.removePartition(i)));
+  }
+  
   removePartition(index: number) {
     const removed = this.partitions[index];
     removed.forEach(n => this.nodeLocations.delete(n.id));
@@ -115,7 +120,7 @@ export class GraphPartition<NodeType extends Node> {
   
   insertPartition(partition: NodeType[], index: number) {
     partition = partition.filter(n => !this.nodeLocations.has(n.id));
-    if (partition.length > 0 && this.inRange(index)) {
+    if (partition.length > 0 && 0 <= index && index <= this.getPartitionCount()) {
       this.incrementNodeLocations(index);
       partition.forEach(n => this.nodeLocations.set(n.id, index));
       this.partitions.splice(index, 0, _.clone(partition));
@@ -138,12 +143,12 @@ export class GraphPartition<NodeType extends Node> {
   
   private incrementConnections(i: number, j: number) {
     this.connections[i][j]++;
-    this.connections[j][i]++;
+    if (i != j) this.connections[j][i]++;
   }
   
   private decrementConnections(i: number, j: number) {
     this.connections[i][j]--;
-    this.connections[j][i]--;
+    if (i != j) this.connections[j][i]--;
   }
   
   private removeConnectionsAt(index: number) {
@@ -177,7 +182,8 @@ function calculateConnectionMatrix<NodeType extends Node>(
     if (i > j) return 0;
     const tn = t.map(n => nodes[n.id]);
     const sn = s.map(n => nodes[n.id]);
-    return _.flatten(_.flatten(tn.map(t => sn.map(s => graph.findEdgesBetween(t,s))))).length;
+    return _.uniq(_.flatten(_.flatten(
+      tn.map(t => sn.map(s => graph.findEdgesBetween(t,s)))))).length;
   }));
   //copy below diagonal (symmetric)
   return halfMatrix.map((t,i) => t.map((s,j) => i > j ? halfMatrix[j][i] : s));

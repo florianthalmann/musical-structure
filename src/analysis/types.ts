@@ -22,6 +22,7 @@ export interface SequenceImprovementOptions {
   swap?: boolean,
   missing?: boolean, //add any missing segments at best spots
   missingIgnore?: boolean,
+  missingInsert?: boolean,
   blurs?: boolean, //remove all nodes with connections to neighboring slices
   cycles?: boolean,
   minSizeFactor?: number

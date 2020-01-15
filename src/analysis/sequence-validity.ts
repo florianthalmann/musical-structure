@@ -56,7 +56,7 @@ export function ensureSequenceValidity(sequence: GraphPartition<SegmentNode>,
     messages.push("order contradictions removed " + disorder.length);
   }
   
-  console.log(messages.join(", "));
+  //console.log(messages.join(", "));
   return sequence;
 }
 
