@@ -10,6 +10,7 @@ export class GraphPartition<NodeType extends Node> {
       private connections = calculateConnectionMatrix(graph, partitions)) {
     partitions.forEach((p,i) =>
       p.forEach(n => this.nodeLocations.set(n.id, i)));
+    partitions = partitions.map(p => p.map(n => graph.getNode(n.id)));
   }
   
   clone() {

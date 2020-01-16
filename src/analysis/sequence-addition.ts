@@ -11,7 +11,7 @@ export function addNewSegments(sequence: GraphPartition<SegmentNode>,
   sequence = sequence.clone();
   const partitions = sequence.getPartitions();
   const maxSegSize = _.max(partitions.map(t => t.length));
-  const missing = _.difference(sequence.getGraph().getNodes(), _.flatten(partitions));
+  const missing = _.differenceBy(sequence.getGraph().getNodes(), _.flatten(partitions), n => n.id);
   const graphOfMissing = sequence.getGraph().getSubgraph(missing);
   console.log("graph", graphOfMissing.getSize(), graphOfMissing.getEdges().length);
   

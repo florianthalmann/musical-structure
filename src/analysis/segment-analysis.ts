@@ -59,8 +59,6 @@ function constructTimelineFromAlignments(versionPairs: [number,number][],
   const path = filebase ? (postprocess ? filebase+'-procgraph.json' : filebase+'-graph.json'): null;
   const graph = createSegmentGraphFromAlignments(versionPairs, results, postprocess, path);
   
-  console.log(graph.getSize())
-
   //divide graph into connected components
   //let components = getSegmentGraphPartitions(graph, MIN_COMPONENT_SIZE, groupingCondition);
   const partition = constructFullPartition(graph, groupingCondition, filebase);//iterativeGetIndexBasedPartition(graph, groupingCondition);
@@ -107,8 +105,8 @@ function constructFullPartition(graph: DirectedGraph<SegmentNode>,
     console.log(JSON.stringify(sequence.map(p => p.length)))
     partition = new GraphPartition(graph, sequence);
   } else {
-    //partition = hillClimbConstructPartition(graph, groupingCondition);
-    partition = iterativeGetIndexBasedPartition(graph, groupingCondition);
+    partition = hillClimbConstructOrImproveSequence(graph, groupingCondition);
+    //partition = iterativeGetIndexBasedPartition(graph, groupingCondition);
     saveJsonFile(path, partition.getPartitions());
   }
   partition = ensureSequenceValidity(partition, {uniqueness: true});
@@ -119,23 +117,27 @@ function constructFullPartition(graph: DirectedGraph<SegmentNode>,
   //partition.forEach(printPartition);
   //printVersion(24, partition);
   
-  partition = hillClimbImprovePartition(partition);
+  //partition = hillClimbConstructOrImproveSequence(graph, groupingCondition, partition);
   //console.log(graph.getAdjacents(partition[i2][0]))
   return partition;
 }
 
-//without removing any nodes
-function hillClimbImprovePartition(sequence: GraphPartition<SegmentNode>) {
-  console.log(JSON.stringify(sequence.getPartitions().map(p => p.length)))
-  let bestSequence: GraphPartition<SegmentNode> = sequence.clone();
-  let currentSequence: GraphPartition<SegmentNode> = sequence.clone();
-  let bestRating = getSequenceRating(sequence);
+function hillClimbConstructOrImproveSequence(graph: DirectedGraph<SegmentNode>,
+    groupingCondition: GroupingCondition<SegmentNode>,
+    initialSequence?: GraphPartition<SegmentNode>): GraphPartition<SegmentNode> {
+  
+  graph = initialSequence ? initialSequence.getGraph() : graph;
+  let currentSequence = initialSequence ? initialSequence.clone() : new GraphPartition(graph, []);
+  let bestSequence = currentSequence;
+  let bestRating = getSequenceRating(currentSequence);
   let pastRatings = [bestRating];
-  console.log(bestRating)
+  let minSizeFactor = 3;
+  
   
   while (pastRatings.filter(r => r >= _.last(pastRatings)).length <= 5) {
     let candidates: GraphPartition<SegmentNode>[] = [];
     
+    //improve
     candidates.push(...improveSequence(currentSequence, {merge: true}));
     /*candidates.push(improveSequenceConstant(currentSequence, {swap: true}));*/
     candidates.push(...improveSequence(currentSequence, {slide: true}));
@@ -144,50 +146,12 @@ function hillClimbImprovePartition(sequence: GraphPartition<SegmentNode>) {
     candidates.push(...improveSequence(currentSequence, {missingInsert: true}));
     candidates.push(...improveSequence(currentSequence, {blurs: true}));
     
-    //should not be necessary!!!!!
-    candidates = candidates.map(c => ensureSequenceValidity(c,
-      {versions: true, uniqueness: true, order: true}))
-    
-    //console.log(JSON.stringify(candidates.map(c => _.uniq(_.flatten(c)).length)))
-    
-    //candidates = candidates.map(c => addSegmentsAtBestSpots(, sequence, graph, true, true));
-    
-    const ratings = candidates.map(c => getSequenceRating(c));
-    //console.log(JSON.stringify(ratings))
-    
-    const max = _.max(ratings);
-    if (max != null && max > bestRating) {
-      currentSequence = candidates[ratings.indexOf(max)];
-      bestSequence = currentSequence.clone();
-      bestRating = max;
-      console.log(_.flatten(currentSequence.getPartitions()).length,
-        getSequenceRating(currentSequence));
-      console.log(JSON.stringify(currentSequence.getPartitions().map(t => t.length)));
-      //console.log(JSON.stringify(currentSequence.map(t => graph.getSubgraph(t).getEdges().length)))
-    } else if (max != null) { //&& max > _.last(pastRatings)) {
-      currentSequence = candidates[ratings.indexOf(max)];
-    }
-    pastRatings.push(max);
-  }
-  return bestSequence;
-}
-
-function hillClimbConstructPartition(graph: DirectedGraph<SegmentNode>,
-    groupingCondition: GroupingCondition<SegmentNode>): GraphPartition<SegmentNode> {
-  
-  let currentSequence = new GraphPartition(graph, []);
-  let bestSequence: GraphPartition<SegmentNode>;
-  let bestRating = -Infinity;
-  let pastRatings = [0];
-  let minSizeFactor = 3;
-  
-  while (pastRatings.filter(r => r >= _.last(pastRatings)).length <= 5) {
-    let candidates: GraphPartition<SegmentNode>[] = [];
-    candidates.push(...improveSequence(currentSequence, {merge: true}));
+    //construct
+    /*candidates.push(...improveSequence(currentSequence, {merge: true}));
     candidates.push(...improveSequence(currentSequence, {missing: true}));
     candidates.push(...improveSequence(currentSequence, {blurs: true}));
     /*candidates.push(...improveSequence(currentSequence, graph,
-      {blurs: true, missing: true}));*/
+      {blurs: true, missing: true}));*
     candidates.push(...improveSequence(currentSequence, {cycles: true}));
     candidates.push(...improveSequence(currentSequence, {minSizeFactor: minSizeFactor}));
     candidates.push(...improveSequence(currentSequence, {slide: true}));
@@ -201,7 +165,7 @@ function hillClimbConstructPartition(graph: DirectedGraph<SegmentNode>,
       {versions: true, uniqueness: true, order: true}))//{connected: true, affinity: true, multiples: true, order: true }));
     
     const ratings = candidates.map(c => getSequenceRating(c));
-    console.log(JSON.stringify(ratings))
+    //console.log(JSON.stringify(ratings))
     
     const max = _.max(ratings);
     if (max != null && max > bestRating) {
@@ -212,9 +176,9 @@ function hillClimbConstructPartition(graph: DirectedGraph<SegmentNode>,
       console.log(JSON.stringify(currentSequence.getPartitions().map(t => t.length)));
       console.log(JSON.stringify(currentSequence.getPartitions().map(t =>
         graph.getSubgraph(t).getEdges().length)))
-    } else if (max != null && max > _.last(pastRatings)) {
+    } else if (max != null && max > _.last(pastRatings)) {//&& !initialSequence
       currentSequence = candidates[ratings.indexOf(max)];
-    } else {
+    } else {//if (!initialSequence) { //remove this at some point of course...
       const previousLength = currentSequence.getPartitionCount();
       candidates = [];
       while (!candidates.some(c => c.getPartitionCount() > previousLength)) {
@@ -350,10 +314,12 @@ function getSequenceRating(sequence: GraphPartition<SegmentNode>) {
   //console.log(JSON.stringify(gapHisto), numNodes, diaProp, gapEntropy, adjProp);
   const nonEmptyProp = nonEmptyBins.length/allBins.length;
   return Math.pow(numNodes, 0)
-    * diaProp
-    / (gapEntropy+1)
-    / (adjProp+1)
-    // nonEmptyProp  //* numNodes / (adjDiagonals+1); //* connectedness * compactness * cleanliness;
+      * diaProp
+      / (gapEntropy+1)
+      / (adjProp+1)
+      //* _.mean(nonEmptyBins)/_.max(nonEmptyBins)
+      // nonEmptyProp  //* numNodes / (adjDiagonals+1); //* connectedness * compactness * cleanliness;
+    || 0; //0 if NaN...
 }
 
 function toHistogram(vals: number[]) {

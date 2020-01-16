@@ -28,15 +28,15 @@ export function improveSequence(sequence: GraphPartition<SegmentNode>,
   
   //SEPARATE THIS OUT AT SOME POINT (RATHER TOGETHER WITH ADD SEGMENTS...)
   if (options.missing) {
-    result = addMissing2(sequence);
+    result = addMissing(sequence);
   }
   
   if (options.missingIgnore) {
-    result = addMissing2(sequence, false, true);
+    result = addMissing(sequence, false, true);
   }
   
   if (options.missingInsert) {
-    result = addMissing2(sequence, true, true);
+    result = addMissing(sequence, true, true);
   }
   
   if (options.blurs) {
@@ -179,27 +179,12 @@ export function swapSegments(sequence: GraphPartition<SegmentNode>) {
 
 export function addMissing(sequence: GraphPartition<SegmentNode>,
     insertSegments?: boolean, ignoreAdjacents?: boolean) {
+  const NUM_CHUNKS = 10;
   //add any other missing nodes wherever most appropriate
   const present = _.flatten(sequence.getPartitions());
   let missing = _.differenceBy(sequence.getGraph().getNodes(), present, n => n.id);
   //console.log("missing", missing.length);
-  while (missing.length > 0) {
-    const chunks = _.chunk(missing, missing.length/10);
-    const added = addSegmentsAtBestSpots(missing, sequence, insertSegments, ignoreAdjacents);
-    if (added.length > 0) {
-      missing = _.difference(missing, added);
-    } else break;
-  }
-  //console.log("still missing", missing.length);
-}
-
-export function addMissing2(sequence: GraphPartition<SegmentNode>,
-    insertSegments?: boolean, ignoreAdjacents?: boolean) {
-  //add any other missing nodes wherever most appropriate
-  const present = _.flatten(sequence.getPartitions());
-  let missing = _.differenceBy(sequence.getGraph().getNodes(), present, n => n.id);
-  //console.log("missing", missing.length);
-  return _.chunk(missing, missing.length/10).map(c => {
+  return _.chunk(missing, missing.length/NUM_CHUNKS).map(c => {
     const seq = sequence.clone();
     addSegmentsAtBestSpots(c, seq, insertSegments, ignoreAdjacents);
     return seq;
