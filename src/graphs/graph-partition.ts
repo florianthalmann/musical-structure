@@ -44,6 +44,10 @@ export class GraphPartition<NodeType extends Node> {
     return _.max(this.partitions.map(t => t.length));
   }
   
+  toString() {
+    return JSON.stringify(this.partitions.map(p => p.length));
+  }
+  
   addNode(node: NodeType, index: number) {
     if (!this.nodeLocations.has(node.id) && this.inRange(index)) {
       this.partitions[index].push(node);

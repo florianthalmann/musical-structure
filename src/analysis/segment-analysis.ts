@@ -10,6 +10,7 @@ import { SegmentNode } from './types';
 import { ensureSequenceValidity } from './sequence-validity';
 import { improveSequence, addMissing } from './sequence-improvement';
 import { addNewSegments } from './sequence-addition';
+import { BeamSearch } from '../graphs/beam-search';
 
 const DIFF_VERSIONS: GroupingCondition<SegmentNode>
   = (n, os) => os.every(o => o.version !== n.version);
@@ -105,8 +106,8 @@ function constructFullPartition(graph: DirectedGraph<SegmentNode>,
     console.log(JSON.stringify(sequence.map(p => p.length)))
     partition = new GraphPartition(graph, sequence);
   } else {
-    partition = hillClimbConstructOrImproveSequence(graph, groupingCondition);
-    //partition = iterativeGetIndexBasedPartition(graph, groupingCondition);
+    //partition = hillClimbConstructOrImproveSequence(graph, groupingCondition);
+    partition = iterativeGetIndexBasedPartition(graph, groupingCondition);
     saveJsonFile(path, partition.getPartitions());
   }
   partition = ensureSequenceValidity(partition, {uniqueness: true});
@@ -117,9 +118,37 @@ function constructFullPartition(graph: DirectedGraph<SegmentNode>,
   //partition.forEach(printPartition);
   //printVersion(24, partition);
   
-  //partition = hillClimbConstructOrImproveSequence(graph, groupingCondition, partition);
+  partition = beamSearchGenerateSequence(graph, groupingCondition, partition);
   //console.log(graph.getAdjacents(partition[i2][0]))
   return partition;
+}
+
+function beamSearchGenerateSequence(graph: DirectedGraph<SegmentNode>,
+    groupingCondition: GroupingCondition<SegmentNode>,
+    initialSequence?: GraphPartition<SegmentNode>): GraphPartition<SegmentNode> {
+  
+  graph = initialSequence ? initialSequence.getGraph() : graph;
+  initialSequence = initialSequence ? initialSequence.clone() : new GraphPartition(graph, []);
+  
+  return new BeamSearch(generateSolutions, validateSolution, getSequenceRating)
+    .searchFrom(initialSequence).value;
+}
+
+function generateSolutions(sequence: GraphPartition<SegmentNode>) {
+  return _.concat(
+    improveSequence(sequence, {merge: true}),
+    /*improveSequenceConstant(sequence, {swap: true}),*/
+    improveSequence(sequence, {slide: true}),
+    improveSequence(sequence, {missing: true}),
+    improveSequence(sequence, {missingIgnore: true}),
+    improveSequence(sequence, {missingInsert: true}),
+    improveSequence(sequence, {blurs: true})
+  );
+}
+
+function validateSolution(sequence: GraphPartition<SegmentNode>) {
+  return ensureSequenceValidity(sequence,
+    {versions: true, uniqueness: true, order: true});
 }
 
 function hillClimbConstructOrImproveSequence(graph: DirectedGraph<SegmentNode>,
@@ -138,8 +167,8 @@ function hillClimbConstructOrImproveSequence(graph: DirectedGraph<SegmentNode>,
     let candidates: GraphPartition<SegmentNode>[] = [];
     
     //improve
-    candidates.push(...improveSequence(currentSequence, {merge: true}));
-    /*candidates.push(improveSequenceConstant(currentSequence, {swap: true}));*/
+    /*candidates.push(...improveSequence(currentSequence, {merge: true}));
+    /*candidates.push(improveSequenceConstant(currentSequence, {swap: true}));*
     candidates.push(...improveSequence(currentSequence, {slide: true}));
     candidates.push(...improveSequence(currentSequence, {missing: true}));
     candidates.push(...improveSequence(currentSequence, {missingIgnore: true}));
@@ -225,7 +254,7 @@ function iterativeGetIndexBasedPartition(graph: DirectedGraph<SegmentNode>,
     
     //ADD IMPROVEMENTS
     currentSequence = improveSequence(currentSequence,
-      {merge: true, missing: true, blurs: true, minSizeFactor: minSizeFactor})[0];
+      {merge: true, missing: true, blurs: true, minSizeFactor: minSizeFactor})[0].value;
     
     //ENSURE VALIDITY
     currentSequence = ensureSequenceValidity(currentSequence,

@@ -3,40 +3,45 @@ import { DirectedGraph } from '../graphs/graph-theory';
 import { GraphPartition } from '../graphs/graph-partition';
 import { SegmentNode, SequenceImprovementOptions } from './types';
 import { getCompletedNumberArray2, allIndexesOf, allIndexesWith } from './util';
+import { GeneratorOutput } from '../graphs/beam-search';
 
 export function improveSequence(sequence: GraphPartition<SegmentNode>,
-    options: SequenceImprovementOptions): GraphPartition<SegmentNode>[] {
+    options: SequenceImprovementOptions): GeneratorOutput<GraphPartition<SegmentNode>>[] {
   
   sequence = sequence.clone();
   let result: GraphPartition<SegmentNode>[] = [];
+  let infos: string[] = [];
   
   if (options.merge) {
     const previousSize = sequence.getPartitionCount();
     mergeNeighboringPartitions(sequence);
-    console.log("partitions merged", previousSize-sequence.getPartitionCount());
+    infos.push("partitions merged " + (previousSize-sequence.getPartitionCount()));
   }
   
   if (options.swap) {
     const numSwapped = swapSegments(sequence);
-    console.log("swapped", numSwapped);
+    infos.push("swapped " + numSwapped);
   }
   
   if (options.slide) {
     result = slideSegments(sequence, true);
-    //console.log("nodes slid", numSlid);
+    infos.push("nodes slid ");// + numSlid);
   }
   
   //SEPARATE THIS OUT AT SOME POINT (RATHER TOGETHER WITH ADD SEGMENTS...)
   if (options.missing) {
     result = addMissing(sequence);
+    infos.push("added missing ");
   }
   
   if (options.missingIgnore) {
     result = addMissing(sequence, false, true);
+    infos.push("added missing ignore ");
   }
   
   if (options.missingInsert) {
     result = addMissing(sequence, true, true);
+    infos.push("added missing insert ");
   }
   
   if (options.blurs) {
@@ -45,7 +50,7 @@ export function improveSequence(sequence: GraphPartition<SegmentNode>,
     const blurs = _.flatten(partitions.slice(0, -1).map((t,i) =>
       getInterGroupEdges(t, partitions[i+1], sequence.getGraph()).map(e => e.source)));
     blurs.forEach(b => sequence.removeNode(b));
-    console.log("blurs removed", blurs.length);
+    infos.push("blurs removed " + blurs.length);
   }
   
   if (options.cycles) {
@@ -53,7 +58,7 @@ export function improveSequence(sequence: GraphPartition<SegmentNode>,
     const noncyc = _.flatten(sequence.getPartitions()
       .map(t => sequence.getGraph().getSubgraph(t).getNodesNotInCycles()));
     noncyc.forEach(b => sequence.removeNode(b));
-    console.log("non-cycles removed", noncyc.length);
+    infos.push("non-cycles removed " + noncyc.length);
   }
   
   if (options.minSizeFactor) {
@@ -62,11 +67,11 @@ export function improveSequence(sequence: GraphPartition<SegmentNode>,
     const tooSmall =
       allIndexesWith(sequence.getPartitions(), p => p.length < minSize);
     const removed = sequence.removePartitions(tooSmall);
-    console.log("small partitions removed", removed.length);
+    infos.push("small partitions removed " + removed.length);
   }
   
   if (!result) result = [sequence];
-  return result;
+  return result.map(r => ({value: r, info: infos.join(', ')}));
 }
 
 function moveNode(sequence: GraphPartition<SegmentNode>,
