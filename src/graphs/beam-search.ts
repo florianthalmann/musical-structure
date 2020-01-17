@@ -13,11 +13,12 @@ export interface GeneratorOutput<T> {
 
 export class BeamSearch<T> {
   
-  private BEAM_WIDTH = 5;
+  private BEAM_WIDTH = 2;
   private beam: Solution<T>[] = [];
   
   constructor(private generator: (t: T) => GeneratorOutput<T>[],
-    private validator: (t: T) => T, private evaluator: (t: T) => number) { }
+    private validator: (t: T) => T, private evaluator: (t: T) => number,
+    private extraGenerator?: (t: T) => GeneratorOutput<T>[]) { }
   
   searchFrom(initial: T): Solution<T> {
     this.beam.push({
@@ -29,22 +30,34 @@ export class BeamSearch<T> {
   }
   
   private recursiveSearch(): Solution<T> {
-    const newSolutions = _.flatten(this.beam.map(s => this.getSolutions(s)));
-    const newBeam = _.reverse(
-        _.sortBy(_.concat(this.beam, newSolutions), s => s.rating))
-      .slice(0, this.BEAM_WIDTH);
-    console.log(JSON.stringify(newBeam.map(b => b.rating)))
-    if (_.meanBy(newBeam, b => b.rating) != _.meanBy(this.beam, b => b.rating)) {
-      this.beam = newBeam;
-      console.log("current best", this.beam[0].rating, this.beam[0].value.toString());
+    if (this.searchAndUpdateBeam(this.generator)
+        || (this.extraGenerator && this.searchAndUpdateBeam(this.extraGenerator))) {
       return this.recursiveSearch();
     }
     return this.beam[0];
   }
   
-  private getSolutions(solution: Solution<T>): Solution<T>[] {
-    const generated = this.generator(solution.value);
+  private searchAndUpdateBeam(generator: (t: T) => GeneratorOutput<T>[],
+      onlyFirst?: boolean) {
+    const newSolutions = onlyFirst ? this.getSolutions(this.beam[0], generator)
+      : _.flatten(this.beam.map(s => this.getSolutions(s, generator)));
+    const newBeam = _.reverse(
+        _.sortBy(_.concat(this.beam, newSolutions), s => s.rating))
+      .slice(0, this.BEAM_WIDTH);
+    if (_.meanBy(newBeam, b => b.rating) != _.meanBy(this.beam, b => b.rating)) {
+      this.beam = newBeam;
+      console.log("current best:", _.last(this.beam[0].process),
+        this.beam[0].rating, this.beam[0].value.toString());
+      return true;
+    }
+  }
+  
+  private getSolutions(solution: Solution<T>,
+      generator: (t: T) => GeneratorOutput<T>[]): Solution<T>[] {
+    const generated = generator(solution.value);
+    //console.log(JSON.stringify(generated.map(g => g.value.toString())));
     const validated = generated.map(g => this.validator(g.value));
+    //console.log(JSON.stringify(validated.map(g => g.toString())));
     const ratings = validated.map(this.evaluator);
     return validated.map((v,i) => ({
       value: v,

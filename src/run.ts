@@ -41,7 +41,7 @@ import { gatherTunings } from './files/tunings';
 //saveHybridSWPatternGraph("plots/d3/latest/box of rain-sw", "box of rain", ".m4a", 1)
 
 //saveMultiTimelineDecomposition({filebase: "results/timeline-test3/boxofrain30", song: "box of rain", extension: ".m4a",  //[ 156, 178, 154, 156, 157, 156, 155, 155, 163, 163 ]
-saveMultiTimelineDecomposition({filebase: "results/timeline-test6/meandmyuncle30", song: "me and my uncle", //[ 135, 92, 90, 99, 99, 171, 87, 89, 89, 87 ]
+saveMultiTimelineDecomposition({filebase: "results/timeline-test7/meandmyuncle30", song: "me and my uncle", //[ 135, 92, 90, 99, 99, 171, 87, 89, 89, 87 ]
 //saveMultiTimelineDecomposition({filebase: "results/timeline-test3/goodlovin30", song: "good lovin'", extension: ".mp3", 
 //saveMultiTimelineDecomposition({filebase: "results/cosmiccharlie30", song: "cosmic charlie", extension: ".mp3", 
 //saveMultiTimelineDecomposition({filebase: "results/timeline-test3/darkstar30", song: "dark star", extension: ".mp3", 

@@ -6,6 +6,7 @@ import { SegmentNode, SequenceValidityOptions } from './types';
 export function ensureSequenceValidity(sequence: GraphPartition<SegmentNode>,
     options: SequenceValidityOptions) {
   
+  sequence = sequence.clone();
   let messages: string[] = [];
   
   if (options.connected) {
@@ -55,6 +56,8 @@ export function ensureSequenceValidity(sequence: GraphPartition<SegmentNode>,
     disorder.forEach(n => sequence.removeNode(n));
     messages.push("order contradictions removed " + disorder.length);
   }
+  
+  sequence.removeEmptyPartitions();
   
   //console.log(messages.join(", "));
   return sequence;

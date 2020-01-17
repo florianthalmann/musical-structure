@@ -10,7 +10,7 @@ import { SegmentNode } from './types';
 import { ensureSequenceValidity } from './sequence-validity';
 import { improveSequence, addMissing } from './sequence-improvement';
 import { addNewSegments } from './sequence-addition';
-import { BeamSearch } from '../graphs/beam-search';
+import { BeamSearch, GeneratorOutput } from '../graphs/beam-search';
 
 const DIFF_VERSIONS: GroupingCondition<SegmentNode>
   = (n, os) => os.every(o => o.version !== n.version);
@@ -106,8 +106,8 @@ function constructFullPartition(graph: DirectedGraph<SegmentNode>,
     console.log(JSON.stringify(sequence.map(p => p.length)))
     partition = new GraphPartition(graph, sequence);
   } else {
-    //partition = hillClimbConstructOrImproveSequence(graph, groupingCondition);
-    partition = iterativeGetIndexBasedPartition(graph, groupingCondition);
+    partition = beamSearchGenerateSequence(graph);
+    //partition = iterativeGetIndexBasedPartition(graph, groupingCondition);
     saveJsonFile(path, partition.getPartitions());
   }
   partition = ensureSequenceValidity(partition, {uniqueness: true});
@@ -118,20 +118,23 @@ function constructFullPartition(graph: DirectedGraph<SegmentNode>,
   //partition.forEach(printPartition);
   //printVersion(24, partition);
   
-  partition = beamSearchGenerateSequence(graph, groupingCondition, partition);
+  //partition = beamSearchGenerateSequence(graph, partition);
   //console.log(graph.getAdjacents(partition[i2][0]))
   return partition;
 }
 
 function beamSearchGenerateSequence(graph: DirectedGraph<SegmentNode>,
-    groupingCondition: GroupingCondition<SegmentNode>,
     initialSequence?: GraphPartition<SegmentNode>): GraphPartition<SegmentNode> {
   
   graph = initialSequence ? initialSequence.getGraph() : graph;
   initialSequence = initialSequence ? initialSequence.clone() : new GraphPartition(graph, []);
   
-  return new BeamSearch(generateSolutions, validateSolution, getSequenceRating)
-    .searchFrom(initialSequence).value;
+  const result = new BeamSearch(generateSolutions, validateSolution,
+      getSequenceRating, generateSolutionsByAdding)
+    .searchFrom(initialSequence);
+  
+  console.log(result.process)
+  return result.value;
 }
 
 function generateSolutions(sequence: GraphPartition<SegmentNode>) {
@@ -142,94 +145,39 @@ function generateSolutions(sequence: GraphPartition<SegmentNode>) {
     improveSequence(sequence, {missing: true}),
     improveSequence(sequence, {missingIgnore: true}),
     improveSequence(sequence, {missingInsert: true}),
-    improveSequence(sequence, {blurs: true})
+    improveSequence(sequence, {blurs: true}),
+    improveSequence(sequence, {cycles: true}),
+    improveSequence(sequence, {minSizeFactor: 3}),
+    {value: ensureSequenceValidity(sequence, {affinity: true}), info: 'affinity'},
+    {value: ensureSequenceValidity(sequence, {connected: true}), info: 'connected'},
+    {value: ensureSequenceValidity(sequence, {component: true}), info: 'component'}
   );
 }
 
 function validateSolution(sequence: GraphPartition<SegmentNode>) {
   return ensureSequenceValidity(sequence,
-    {versions: true, uniqueness: true, order: true});
+    {versions: true, uniqueness: true, order: true});//affinity, connected, component
 }
 
-function hillClimbConstructOrImproveSequence(graph: DirectedGraph<SegmentNode>,
-    groupingCondition: GroupingCondition<SegmentNode>,
-    initialSequence?: GraphPartition<SegmentNode>): GraphPartition<SegmentNode> {
-  
-  graph = initialSequence ? initialSequence.getGraph() : graph;
-  let currentSequence = initialSequence ? initialSequence.clone() : new GraphPartition(graph, []);
-  let bestSequence = currentSequence;
-  let bestRating = getSequenceRating(currentSequence);
-  let pastRatings = [bestRating];
+function generateSolutionsByAdding(sequence: GraphPartition<SegmentNode>) {
   let minSizeFactor = 3;
-  
-  
-  while (pastRatings.filter(r => r >= _.last(pastRatings)).length <= 5) {
-    let candidates: GraphPartition<SegmentNode>[] = [];
-    
-    //improve
-    /*candidates.push(...improveSequence(currentSequence, {merge: true}));
-    /*candidates.push(improveSequenceConstant(currentSequence, {swap: true}));*
-    candidates.push(...improveSequence(currentSequence, {slide: true}));
-    candidates.push(...improveSequence(currentSequence, {missing: true}));
-    candidates.push(...improveSequence(currentSequence, {missingIgnore: true}));
-    candidates.push(...improveSequence(currentSequence, {missingInsert: true}));
-    candidates.push(...improveSequence(currentSequence, {blurs: true}));
-    
-    //construct
-    /*candidates.push(...improveSequence(currentSequence, {merge: true}));
-    candidates.push(...improveSequence(currentSequence, {missing: true}));
-    candidates.push(...improveSequence(currentSequence, {blurs: true}));
-    /*candidates.push(...improveSequence(currentSequence, graph,
-      {blurs: true, missing: true}));*
-    candidates.push(...improveSequence(currentSequence, {cycles: true}));
-    candidates.push(...improveSequence(currentSequence, {minSizeFactor: minSizeFactor}));
-    candidates.push(...improveSequence(currentSequence, {slide: true}));
-    candidates.push(...improveSequence(currentSequence, {missingIgnore: true}));
-    /*candidates.push(ensureSequenceValidity(currentSequence, graph,
-      {connected: true}));
-    candidates.push(ensureSequenceValidity(currentSequence, graph,
-      {affinity: true}));*/
-    
-    candidates = candidates.map(c => ensureSequenceValidity(c,
-      {versions: true, uniqueness: true, order: true}))//{connected: true, affinity: true, multiples: true, order: true }));
-    
-    const ratings = candidates.map(c => getSequenceRating(c));
-    //console.log(JSON.stringify(ratings))
-    
-    const max = _.max(ratings);
-    if (max != null && max > bestRating) {
-      currentSequence = candidates[ratings.indexOf(max)];
-      bestSequence = currentSequence.clone();
-      bestRating = max;
-      console.log(currentSequence.getNodeCount(), getSequenceRating(currentSequence));
-      console.log(JSON.stringify(currentSequence.getPartitions().map(t => t.length)));
-      console.log(JSON.stringify(currentSequence.getPartitions().map(t =>
-        graph.getSubgraph(t).getEdges().length)))
-    } else if (max != null && max > _.last(pastRatings)) {//&& !initialSequence
-      currentSequence = candidates[ratings.indexOf(max)];
-    } else {//if (!initialSequence) { //remove this at some point of course...
-      const previousLength = currentSequence.getPartitionCount();
-      candidates = [];
-      while (!candidates.some(c => c.getPartitionCount() > previousLength)) {
-        candidates.push(addNewSegments(currentSequence,
-          {graphAdjacentsSearch: true, minSizeFactor: minSizeFactor,
-            groupingCondition: groupingCondition, maxNumSegments: 5}));
-        candidates.push(addNewSegments(currentSequence,
-          {indexNeighborSearch: true, minSizeFactor: minSizeFactor,
-            groupingCondition: groupingCondition, maxNumSegments: 5}));
-        //console.log(candidates.length, previousLength, candidates.map(c => c.getPartitionCount()), minSizeFactor)
-        if (!candidates.some(c => c.getPartitionCount() > previousLength)) minSizeFactor++;
-      }
-      const ratings = candidates.map(c =>
-        c.getPartitionCount() > previousLength ? getSequenceRating(c) : 0);
-      //console.log(JSON.stringify(ratings))
-      currentSequence = candidates[ratings.indexOf(_.max(ratings))];
-    }
-    pastRatings.push(max);
+  const previousLength = sequence.getPartitionCount();
+  let candidates: GeneratorOutput<GraphPartition<SegmentNode>>[] = [];
+  while (!candidates.length) {
+    candidates.push(addNewSegments(sequence,
+      {graphAdjacentsSearch: true, minSizeFactor: minSizeFactor,
+        groupingCondition: DIFF_VERSIONS, maxNumSegments: 5}));
+    candidates.push(addNewSegments(sequence,
+      {indexNeighborSearch: true, minSizeFactor: minSizeFactor,
+        groupingCondition: DIFF_VERSIONS, maxNumSegments: 5}));
+    candidates.filter(c => c.value.getPartitionCount() > previousLength);
+    if (!candidates.length) minSizeFactor++;
   }
-  return bestSequence;
+  console.log("ADDED", JSON.stringify(candidates.map(c => getSequenceRating(c.value))))
+  return candidates;
 }
 
+//baseline: handcrafted and works really well for some material
 function iterativeGetIndexBasedPartition(graph: DirectedGraph<SegmentNode>,
     groupingCondition: GroupingCondition<SegmentNode>) {
   
@@ -250,7 +198,7 @@ function iterativeGetIndexBasedPartition(graph: DirectedGraph<SegmentNode>,
       && _.last(previousNodeCounts) !== currentNodeCount;
     currentSequence = addNewSegments(currentSequence,
       {graphAdjacentsSearch: !quickSearch, indexNeighborSearch: quickSearch,
-        minSizeFactor: minSizeFactor, groupingCondition: groupingCondition});
+        minSizeFactor: minSizeFactor, groupingCondition: groupingCondition}).value;
     
     //ADD IMPROVEMENTS
     currentSequence = improveSequence(currentSequence,
@@ -304,6 +252,7 @@ function iterativeGetIndexBasedPartition(graph: DirectedGraph<SegmentNode>,
 //assumes that the sequence is a valid one (no double occs, no double versions, lin ordered)
 function getSequenceRating(sequence: GraphPartition<SegmentNode>) {
   const numNodes = sequence.getNodeCount();
+  const nodesPerSegment = _.mean(sequence.getPartitions().map(p => p.length));
   //const numSegs = sequence.length;
   const connectionMatrix = sequence.getConnectionMatrix();
   const allBins = _.flatten(connectionMatrix);
@@ -342,12 +291,14 @@ function getSequenceRating(sequence: GraphPartition<SegmentNode>) {
   const adjProp = gapHisto[0]/_.sum(gapHisto);
   //console.log(JSON.stringify(gapHisto), numNodes, diaProp, gapEntropy, adjProp);
   const nonEmptyProp = nonEmptyBins.length/allBins.length;
-  return Math.pow(numNodes, 0)
+  return 1 
+      * Math.pow(numNodes, 0.5)
       * diaProp
       / (gapEntropy+1)
       / (adjProp+1)
+      * Math.pow(nodesPerSegment, 0.1)
       //* _.mean(nonEmptyBins)/_.max(nonEmptyBins)
-      // nonEmptyProp  //* numNodes / (adjDiagonals+1); //* connectedness * compactness * cleanliness;
+      * nonEmptyProp  //* numNodes / (adjDiagonals+1); //* connectedness * compactness * cleanliness;
     || 0; //0 if NaN...
 }
 

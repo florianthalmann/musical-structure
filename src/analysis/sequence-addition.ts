@@ -3,11 +3,13 @@ import { DirectedGraph } from '../graphs/graph-theory';
 import { GroupingCondition, GROUP_RATING, getBestGroups,
   removeGroupAndNodes } from '../graphs/graph-analysis';
 import { GraphPartition } from '../graphs/graph-partition';
+import { GeneratorOutput } from '../graphs/beam-search';
 import { SegmentNode, AddSegmentsOptions } from './types';
 
 //adds new segments at the appropriate position in time
 export function addNewSegments(sequence: GraphPartition<SegmentNode>,
-    options: AddSegmentsOptions) {
+    options: AddSegmentsOptions): GeneratorOutput<GraphPartition<SegmentNode>> {
+  
   sequence = sequence.clone();
   const partitions = sequence.getPartitions();
   const maxSegSize = _.max(partitions.map(t => t.length));
@@ -16,21 +18,22 @@ export function addNewSegments(sequence: GraphPartition<SegmentNode>,
   console.log("graph", graphOfMissing.getSize(), graphOfMissing.getEdges().length);
   
   let additions: SegmentNode[][];
+  let info: string;
   
   if (options.indexNeighborSearch) {
-    console.log("quickly getting neighboring segments")
+    info = "quickly got neighboring segments"
     additions = getNeighboringGraphSegmentsForSequence(partitions, graphOfMissing,
       options.minSizeFactor);
   }
   
   if (options.graphAdjacentsSearch) {
-    console.log("searching graph for adjacents")
+    info = "searched graph for adjacents"
     additions = getBestIndexBasedPartition(graphOfMissing, options.groupingCondition)
       .filter(s => maxSegSize ? s.length > maxSegSize/options.minSizeFactor : s);
   }
   
   if (options.graphBestRatedSearch) {
-    console.log("searching graph for best rated")
+    info = "searched graph for best rated"
     additions = getBestDisjunctPartition(graphOfMissing, options.groupingCondition,
       maxSegSize/options.minSizeFactor);
   }
@@ -47,8 +50,9 @@ export function addNewSegments(sequence: GraphPartition<SegmentNode>,
   const indexes = additions.map(a => sorted.indexOf(a));
   const zipped = _.sortBy(_.zip(additions, indexes), ([_a,i]) => i);
   zipped.forEach(([a,i]) => sequence.insertPartition(a, i));
+  //console.log(JSON.stringify(sequence.getPartitions().map(a => a.length)));
   
-  return sequence;
+  return {value: sequence, info: info};
 }
 
 //quick and dirty successive groups, not disjunct

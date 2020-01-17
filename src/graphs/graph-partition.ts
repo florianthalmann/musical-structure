@@ -1,5 +1,6 @@
 import * as _ from 'lodash';
 import { DirectedGraph, Node } from './graph-theory';
+import { allIndexesWith } from './util';
 
 export class GraphPartition<NodeType extends Node> {
   
@@ -121,6 +122,15 @@ export class GraphPartition<NodeType extends Node> {
     this.partitions.splice(index, 1);
     this.removeConnectionsAt(index);
     return removed;
+  }
+  
+  removeEmptyPartitions() {
+    return this.removeSmallPartitions(1);
+  }
+  
+  removeSmallPartitions(minSize: number) {
+    const tooSmall = allIndexesWith(this.partitions, p => p.length < minSize);
+    return this.removePartitions(tooSmall);
   }
   
   insertPartition(partition: NodeType[], index: number) {

@@ -1,6 +1,10 @@
 import * as _ from 'lodash';
 import { compareArrays } from 'arrayutils';
 
+export function allIndexesWith<T>(array: T[], condition: (t: T) => boolean) {
+  return array.map((a,i) => condition(a) ? i : null).filter(i => i != null);
+}
+
 export function toIndexSeqMap<T>(mdArray: T[][], func: (t: T) => string): _.Dictionary<number[][]> {
   const indexSeq = _.flatten(mdArray.map((a,i) => a.map((_,j) => [i, j])));
   return _.groupBy(indexSeq, ([i,j]) => func(mdArray[i][j]));

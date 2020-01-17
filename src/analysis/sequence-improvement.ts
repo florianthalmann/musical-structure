@@ -2,7 +2,7 @@ import * as _ from 'lodash';
 import { DirectedGraph } from '../graphs/graph-theory';
 import { GraphPartition } from '../graphs/graph-partition';
 import { SegmentNode, SequenceImprovementOptions } from './types';
-import { getCompletedNumberArray2, allIndexesOf, allIndexesWith } from './util';
+import { getCompletedNumberArray2, allIndexesOf } from './util';
 import { GeneratorOutput } from '../graphs/beam-search';
 
 export function improveSequence(sequence: GraphPartition<SegmentNode>,
@@ -64,9 +64,7 @@ export function improveSequence(sequence: GraphPartition<SegmentNode>,
   if (options.minSizeFactor) {
     //remove all time points with too few nodes
     const minSize = sequence.getMaxPartitionSize()/options.minSizeFactor;
-    const tooSmall =
-      allIndexesWith(sequence.getPartitions(), p => p.length < minSize);
-    const removed = sequence.removePartitions(tooSmall);
+    const removed = sequence.removeSmallPartitions(minSize);
     infos.push("small partitions removed " + removed.length);
   }
   

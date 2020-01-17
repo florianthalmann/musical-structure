@@ -1,11 +1,8 @@
 import * as _ from 'lodash';
+import { allIndexesWith } from '../graphs/util';
 
 export function allIndexesOf<T>(array: T[], value: T) {
   return allIndexesWith(array, a => a === value);
-}
-
-export function allIndexesWith<T>(array: T[], condition: (t: T) => boolean) {
-  return array.map((a,i) => condition(a) ? i : null).filter(i => i != null);
 }
 
 export function getCompletedNumberArray2(nums: number[]) {
