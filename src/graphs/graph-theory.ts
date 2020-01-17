@@ -11,7 +11,7 @@ export interface Edge<NodeType extends Node> {
   id?: string
 }
 
-function edge<NodeType extends Node>(source: NodeType, target: NodeType, id?: string): Edge<NodeType> {
+export function edge<NodeType extends Node>(source: NodeType, target: NodeType, id?: string): Edge<NodeType> {
   const edge = {source: source, target: target};
   return id ? Object.assign(edge, {id: id}): edge;
 }
@@ -131,7 +131,7 @@ export class DirectedGraph<NodeType extends Node> {
         const cycle = _.uniq(back.concat(front));
         let path = [e];
         cycle.forEach((u,i) =>
-          i === 0 || path.push(...this.findUndirectedEdges(u, cycle[i-1])));
+          i === 0 || path.push(...this.findEdgesBetween(u, cycle[i-1])));
         path = _.difference(path, _.flatten(chains));
         chains.push(path);
       });
@@ -142,11 +142,6 @@ export class DirectedGraph<NodeType extends Node> {
   
   private parallel(edges: Edge<NodeType>[]) {
     return _.uniq(_.flatten(edges.map(e => [e.source, e.target]))).length === 2;
-  }
-  
-  //zettai dame: make undirected graph class anyway...
-  private findUndirectedEdges(n1: NodeType, n2: NodeType) {
-    return this.findEdges(n1, n2).concat(this.findEdges(n2, n1));
   }
   
   findEdgesBetween(n1: NodeType, n2: NodeType) {

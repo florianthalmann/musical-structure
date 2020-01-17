@@ -6,7 +6,7 @@
   "scripts": {
     "batch2": "node -r ts-node/register --max-old-space-size=65536 src/run.ts",
     "batch": "ts-node -O '{\"target\": \"es2015\"}' --max-old-space-size=8192 src/run.ts",
-    "test": "echo \"Error: no test specified\" && exit 1",
+    "test": "ts-node node_modules/jasmine/bin/jasmine",
     "visuals": "browser-sync plots/d3 -b \"Google Chrome\" -w"
   },
   "repository": {
@@ -27,9 +27,11 @@
   },
   "devDependencies": {
     "@types/fs-extra": "^8.0.1",
+    "@types/jasmine": "^3.5.0",
     "@types/lodash": "^4.14.119",
     "@types/node": "^10.12.12",
     "browser-sync": "^2.26.5",
+    "jasmine": "^3.5.0",
     "ts-node": "^7.0.1",
     "typescript": "^3.2.2"
   }

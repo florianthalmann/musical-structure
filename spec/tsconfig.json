@@ -1,0 +1,12 @@
+{
+    "compilerOptions": {
+        "module": "commonjs",
+        "target": "es2015",
+        "moduleResolution": "node",
+        "noImplicitAny": false,
+        "typeRoots": ["../node_modules/@types", "../types"]
+    },
+    "include": [
+        "**/*"
+    ]
+}

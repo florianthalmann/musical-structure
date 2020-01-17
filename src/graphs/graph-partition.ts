@@ -53,8 +53,7 @@ export class GraphPartition<NodeType extends Node> {
     if (!this.nodeLocations.has(node.id) && this.inRange(index)) {
       this.partitions[index].push(node);
       this.nodeLocations.set(node.id, index);
-      this.getLocationsOfAdjacents(node)
-        .forEach(i => this.incrementConnections(index, i));
+      this.incrementConnections(node, index);
       return true;
     }
   }
@@ -64,8 +63,7 @@ export class GraphPartition<NodeType extends Node> {
       const index = this.nodeLocations.get(node.id);
       this.nodeLocations.delete(node.id);
       this.partitions[index].splice(this.partitions[index].indexOf(node), 1);
-      this.getLocationsOfAdjacents(node)
-        .forEach(i => this.decrementConnections(index, i));
+      this.decrementConnections(node, index);
       return true;
     }
   }
@@ -140,8 +138,8 @@ export class GraphPartition<NodeType extends Node> {
       partition.forEach(n => this.nodeLocations.set(n.id, index));
       this.partitions.splice(index, 0, _.clone(partition));
       this.insertConnectionsAt(index);
-      partition.forEach(n => this.getLocationsOfAdjacents(n)
-        .forEach(i => this.incrementConnections(index, i)));
+      partition.forEach(n => this.incrementConnections(n, index));
+      this.connections[index][index] /= 2; //self-connections were added twice
       return true;
     }
   }
@@ -156,16 +154,6 @@ export class GraphPartition<NodeType extends Node> {
       if (v >= min) this.nodeLocations.set(k, v-1); });
   }
   
-  private incrementConnections(i: number, j: number) {
-    this.connections[i][j]++;
-    if (i != j) this.connections[j][i]++;
-  }
-  
-  private decrementConnections(i: number, j: number) {
-    this.connections[i][j]--;
-    if (i != j) this.connections[j][i]--;
-  }
-  
   private removeConnectionsAt(index: number) {
     this.connections.forEach(r => r.splice(index, 1));
     this.connections.splice(index, 1);
@@ -177,10 +165,28 @@ export class GraphPartition<NodeType extends Node> {
     this.connections.splice(index, 0, newRow);
   }
   
-  private getLocationsOfAdjacents(node: NodeType) {
-    const adjacents = this.graph.getAdjacents(this.graph.getNode(node.id));
-    return adjacents.map(a => this.nodeLocations.get(a.id))
-      .filter(i => i != null);
+  private incrementConnections(node: NodeType, index: number) {
+    this.getConnectionIndexes(node).forEach(j => {
+      this.connections[index][j]++;
+      if (index != j) this.connections[j][index]++;
+    });
+  }
+  
+  private decrementConnections(node: NodeType, index: number) {
+    this.getConnectionIndexes(node).forEach(j => {
+      this.connections[index][j]--;
+      if (index != j) this.connections[j][index]--;
+    });
+  }
+  
+  private getConnectionIndexes(node: NodeType) {
+    node = this.graph.getNode(node.id);
+    const adjacents = this.graph.getDirectAdjacents(node);
+    const connections = adjacents.map(a =>
+      _.uniq(this.graph.findEdgesBetween(node, a)).length);
+    const locations = adjacents.map(a => this.nodeLocations.get(a.id));
+    return _.flatten(locations.map((l,i) =>
+      _.times(connections[i], _.constant(l)))).filter(i => i != null);
   }
   
   private inRange(index: number) {
