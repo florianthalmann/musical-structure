@@ -84,6 +84,10 @@ export class GraphPartition<NodeType extends Node> {
     }
   }
   
+  getNodePartitionIndex(node: NodeType) {
+    return this.nodeLocations.get(node.id);
+  }
+  
   mergeNeighboringPartitions(condition: (n1: NodeType[], n2: NodeType[]) => boolean) {
     if (this.partitions.length > 1) {
       _.range(this.partitions.length-1, 0, -1).forEach(i => {
@@ -101,7 +105,8 @@ export class GraphPartition<NodeType extends Node> {
       this.decrementNodeLocations(index2+1);
       this.partitions[index1].push(...moved);
       this.partitions.splice(index2, 1);
-      this.connections[index2].forEach((v,j) => this.connections[index1][j] += v);
+      this.connections[index2].forEach((v,j) =>
+        this.incrementConnectionsBy(index1, j, v));
       this.connections[index1][index1] += this.connections[index2][index2];
       this.removeConnectionsAt(index2);
       return this.partitions;
@@ -166,10 +171,13 @@ export class GraphPartition<NodeType extends Node> {
   }
   
   private incrementConnections(node: NodeType, index: number) {
-    this.getConnectionIndexes(node).forEach(j => {
-      this.connections[index][j]++;
-      if (index != j) this.connections[j][index]++;
-    });
+    this.getConnectionIndexes(node).forEach(j =>
+      this.incrementConnectionsBy(index, j));
+  }
+  
+  private incrementConnectionsBy(i: number, j: number, increment = 1) {
+    this.connections[i][j] += increment;
+    if (i != j) this.connections[j][i] += increment;
   }
   
   private decrementConnections(node: NodeType, index: number) {

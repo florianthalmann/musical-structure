@@ -13,11 +13,11 @@ describe("a graph", () => {
   ];
   let graph: DirectedGraph<Node>;
 
-  beforeEach(async () => {
+  beforeEach(() => {
     graph = new DirectedGraph(nodes, edges);
   });
 
-  it("offers basic functions", async () => {
+  it("offers basic functions", () => {
     expect(graph.getSize()).toBe(6);
     expect(graph.getNodes().length).toBe(6);
     expect(graph.getEdges().length).toBe(4);
@@ -35,7 +35,7 @@ describe("a graph", () => {
     expect(graph.getAdjacents(nodes[0], 0).length).toBe(2);
   });
   
-  it("can be cloned", async () => {
+  it("can be cloned", () => {
     const clone = graph.clone();
     //equivalent
     expect(clone.getNodes().toString()).toEqual(graph.getNodes().toString());
@@ -49,7 +49,7 @@ describe("a graph", () => {
   });
   
   //TODO should be checked, somehow gets rid of multi edges...
-  it("can be contracted", async () => {
+  it("can be contracted", () => {
     graph.contract([nodes[0], nodes[1]]);
     expect(graph.getNodes().length).toBe(5);
     expect(graph.getEdges().length).toBe(3);
