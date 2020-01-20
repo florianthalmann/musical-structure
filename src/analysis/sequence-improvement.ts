@@ -24,24 +24,17 @@ export function improveSequence(sequence: GraphPartition<SegmentNode>,
   }
   
   if (options.slide) {
-    result = slideSegments(sequence, true);
-    infos.push("nodes slid ");// + numSlid);
+    const slid = slideSegments(sequence, true);
+    result = slid.result;
+    infos.push("nodes slid "+_.round(_.mean(slid.sizes)));
   }
   
-  //SEPARATE THIS OUT AT SOME POINT (RATHER TOGETHER WITH ADD SEGMENTS...)
-  if (options.missing) {
-    result = addMissing(sequence);
-    infos.push("added missing ");
-  }
-  
-  if (options.missingIgnore) {
-    result = addMissing(sequence, false, true);
-    infos.push("added missing ignore ");
-  }
-  
-  if (options.missingInsert) {
-    result = addMissing(sequence, true, true);
-    infos.push("added missing insert ");
+  if (options.missing || options.missingIgnore || options.missingInsert) {
+    const added = addMissing(sequence, options.missingInsert, !options.missing);
+    result = added.results;
+    const postfix = options.missingIgnore ? "ignore " :
+      options.missingInsert ? "insert " : "";
+    infos.push("added missing "+postfix + added.size);
   }
   
   if (options.blurs) {
@@ -68,7 +61,7 @@ export function improveSequence(sequence: GraphPartition<SegmentNode>,
     infos.push("small partitions removed " + removed.length);
   }
   
-  if (!result) result = [sequence];
+  if (result.length == 0) result = [sequence];
   return result.map(r => ({value: r, info: infos.join(', ')}));
 }
 
@@ -86,7 +79,7 @@ function mergeNeighboringPartitions(sequence: GraphPartition<SegmentNode>) {
 }
 
 function slideSegments(sequence: GraphPartition<SegmentNode>,
-    includeDisconnected: boolean): GraphPartition<SegmentNode>[] {
+    includeDisconnected: boolean) {
   const partitions = sequence.getPartitions();
   const adjacents = partitions.map(s => s.map(n =>
     sequence.getGraph().getDirectAdjacents(n)));
@@ -139,16 +132,12 @@ function slideSegments(sequence: GraphPartition<SegmentNode>,
   //console.log(JSON.stringify(longest.map(l=>l?l.last-l.first+1:0)))
   
   //NOW SLIDE!!!!
-  //const chosen = _.reverse(_.sortBy(longest, l => l.last-l.first)).slice(0, 3);
-  //const chosen = _.sampleSize(longest, 2);
-  //console.log(chosen.map(c => c.version))
-  return longest.map(l => {
+  return {result: longest.map(l => {
     const seq = sequence.clone();
     const range = l.delta < 0 ? _.range(l.first, l.last+1) : _.range(l.last, l.first-1, -1);
     range.forEach(i => moveNode(seq, l.version, i, i+l.delta));
     return seq;
-  });
-  //return _.sum(chosen.map(l => l.last-l.first+1));
+  }), sizes: longest.map(l => l.last-l.first+1)};
 }
 
 export function swapSegments(sequence: GraphPartition<SegmentNode>) {
@@ -182,24 +171,18 @@ export function swapSegments(sequence: GraphPartition<SegmentNode>) {
 
 export function addMissing(sequence: GraphPartition<SegmentNode>,
     insertSegments?: boolean, ignoreAdjacents?: boolean) {
-  const NUM_CHUNKS = 10;
+  const NUM_CHUNKS = 50;
   //add any other missing nodes wherever most appropriate
   const present = _.flatten(sequence.getPartitions());
   let missing = _.differenceBy(sequence.getGraph().getNodes(), present, n => n.id);
   //console.log("missing", missing.length);
-  return _.chunk(missing, missing.length/NUM_CHUNKS).map(c => {
+  const chunkLength = Math.max(_.round(missing.length/NUM_CHUNKS), 20);
+  const chunks = _.chunk(missing, chunkLength);
+  return {results: chunks.map(c => {
     const seq = sequence.clone();
     addSegmentsAtBestSpots(c, seq, insertSegments, ignoreAdjacents);
     return seq;
-  });
-    
-    
-  //console.log("still missing", missing.length);
-}
-
-function add(segments: SegmentNode[], sequence: GraphPartition<SegmentNode>,
-    insertSegments?: boolean, ignoreAdjacents?: boolean) {
-  
+  }), size: chunkLength};
 }
 
 //returns an array with all added segments

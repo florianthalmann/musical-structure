@@ -101,15 +101,15 @@ function constructFullPartition(graph: DirectedGraph<SegmentNode>,
     groupingCondition: GroupingCondition<SegmentNode>, filebase: string) {
   const path = filebase+'-timeline.json';
   let partition: GraphPartition<SegmentNode>;
-  if (fs.existsSync(path)) {
+  /*if (fs.existsSync(path)) {
     const sequence: SegmentNode[][] = loadJsonFile(path);
     console.log(JSON.stringify(sequence.map(p => p.length)))
     partition = new GraphPartition(graph, sequence);
-  } else {
+  } else {*/
     partition = beamSearchGenerateSequence(graph);
     //partition = iterativeGetIndexBasedPartition(graph, groupingCondition);
     saveJsonFile(path, partition.getPartitions());
-  }
+  //}
   partition = ensureSequenceValidity(partition, {uniqueness: true});
   //add all missing while maintaining validity
   //addMissing(partition, false, true);
@@ -130,7 +130,7 @@ function beamSearchGenerateSequence(graph: DirectedGraph<SegmentNode>,
   initialSequence = initialSequence ? initialSequence.clone() : new GraphPartition(graph, []);
   
   const result = new BeamSearch(generateSolutions, validateSolution,
-      getSequenceRating, generateSolutionsByAdding)
+      getSequenceRating)//, generateSolutionsByAdding)
     .searchFrom(initialSequence);
   
   console.log(result.process)
@@ -140,7 +140,7 @@ function beamSearchGenerateSequence(graph: DirectedGraph<SegmentNode>,
 function generateSolutions(sequence: GraphPartition<SegmentNode>) {
   return _.concat(
     improveSequence(sequence, {merge: true}),
-    /*improveSequenceConstant(sequence, {swap: true}),*/
+    //improveSequence(sequence, {swap: true}),
     improveSequence(sequence, {slide: true}),
     improveSequence(sequence, {missing: true}),
     improveSequence(sequence, {missingIgnore: true}),
@@ -150,7 +150,8 @@ function generateSolutions(sequence: GraphPartition<SegmentNode>) {
     improveSequence(sequence, {minSizeFactor: 3}),
     {value: ensureSequenceValidity(sequence, {affinity: true}), info: 'affinity'},
     {value: ensureSequenceValidity(sequence, {connected: true}), info: 'connected'},
-    {value: ensureSequenceValidity(sequence, {component: true}), info: 'component'}
+    {value: ensureSequenceValidity(sequence, {component: true}), info: 'component'},
+    generateSolutionsByAdding(sequence)
   );
 }
 
@@ -173,7 +174,7 @@ function generateSolutionsByAdding(sequence: GraphPartition<SegmentNode>) {
     candidates.filter(c => c.value.getPartitionCount() > previousLength);
     if (!candidates.length) minSizeFactor++;
   }
-  console.log("ADDED", JSON.stringify(candidates.map(c => getSequenceRating(c.value))))
+  //console.log("ADDED", JSON.stringify(candidates.map(c => getSequenceRating(c.value))))
   return candidates;
 }
 
@@ -252,10 +253,10 @@ function iterativeGetIndexBasedPartition(graph: DirectedGraph<SegmentNode>,
 //assumes that the sequence is a valid one (no double occs, no double versions, lin ordered)
 function getSequenceRating(sequence: GraphPartition<SegmentNode>) {
   const numNodes = sequence.getNodeCount();
-  const nodesPerSegment = _.mean(sequence.getPartitions().map(p => p.length));
-  //const numSegs = sequence.length;
+  const numSegs = sequence.getPartitionCount();
   const connectionMatrix = sequence.getConnectionMatrix();
   const allBins = _.flatten(connectionMatrix);
+  const allConnections = _.sum(allBins);
   const nonEmptyBins = allBins.filter(b => b > 0);
   /*const avgBinStrength = _.mean(nonEmptyBins);
   //proportion of horizontal adjacencies of nonzero bins
@@ -266,6 +267,12 @@ function getSequenceRating(sequence: GraphPartition<SegmentNode>) {
   const adjacentConnsTotal = _.sum(_.flatten(connectionMatrix.map(r =>
       r.map((v,i) => i > 0 && v > 0 && r[i-1] > 0 ? Math.min(v, r[i-1]) : 0)))
     .filter(n => n));*/
+  const adjMin = _.sum(allBins.map((v,i) =>
+    i > 0 && v > 0 && allBins[i-1] > 0 ? Math.min(v, allBins[i-1]) : 0));
+    const adjMax = _.sum(allBins.map((v,i) =>
+      i > 0 && v > 0 && allBins[i-1] > 0 ? Math.max(v, allBins[i-1]) : 0));
+  const adjMinProp = adjMin / allConnections;
+  const adjMaxProp = adjMax / allConnections;
   const diaProp = _.flatten(connectionMatrix.map((r,i) =>
       r.map((v,j) => i > 0 && j > 0 && v > 0 && connectionMatrix[i-1][j-1] > 0)))
     .filter(v => v).length/(1+nonEmptyBins.length);
@@ -274,31 +281,38 @@ function getSequenceRating(sequence: GraphPartition<SegmentNode>) {
     .filter(v => v).length/(1+nonEmptyBins.length);
   const adjDiagonals = _.flatten(connectionMatrix.map((r,i) =>
       r.map((v,j) => i > 0 && j > 0 && v > 0 && connectionMatrix[i-1][j-1] > 0 && r[i-1] > 0)))
-    .filter(v => v).length/(1+nonEmptyBins.length);
+    .filter(v => v).length/(1+nonEmptyBins.length);*/
   const mainDiagonal = connectionMatrix.map((r,i) => r.filter((_v,j) => i == j));
   //console.log(diagonals, loneDiagonals, adjacentBins, numNodes*loneDiagonals/(adjacentBins+1))
-  const cleanliness = loneDiagonals / (adjacentConnsTotal / binsTotal + 1);
-  const compactness = numNodes / numSegs;
+  //const cleanliness = loneDiagonals / (adjacentConnsTotal / binsTotal + 1);
+  const compactness = numNodes / Math.pow(numSegs, 0.5);
   const connectedness = _.sum(mainDiagonal) / numSegs;
-  const maxesPerLine = _.sum(_.reverse(_.sortBy(connectionMatrix.map(r => r.filter(c => c).length))).slice(0,5));
-  const maxPerLine = _.max(connectionMatrix.map(r => r.filter(c => c).length));*/
-  const hIndexes =
-    _.flatten(connectionMatrix).map((v,i) => v ? i : null).filter(i => i);
+  //const maxesPerLine = _.sum(_.reverse(_.sortBy(connectionMatrix.map(r => r.filter(c => c).length))).slice(0,5));
+  //const maxPerLine = _.max(connectionMatrix.map(r => r.filter(c => c).length));
+  const hIndexes = allBins.map((v,i) => v ? i : null).filter(i => i);
   const hGaps = hIndexes.map((v,i) => i > 0 ? v-hIndexes[i-1] : 0).slice(1);
+  const meanGap = _.mean(hGaps);
+  const medianGap = _.sortBy(hGaps)[_.round(hGaps.length/2)];
+  const maxGap = _.max(hGaps);
   const gapHisto = toHistogram(hGaps);
   const gapEntropy = getEntropy(toDistribution(gapHisto.slice(1)));
+  const largeGaps = meanGap/maxGap;
   //console.log(JSON.stringify(hGaps));
   const adjProp = gapHisto[0]/_.sum(gapHisto);
   //console.log(JSON.stringify(gapHisto), numNodes, diaProp, gapEntropy, adjProp);
   const nonEmptyProp = nonEmptyBins.length/allBins.length;
-  return 1 
+  return 1
       * Math.pow(numNodes, 0.5)
-      * diaProp
-      / (gapEntropy+1)
-      / (adjProp+1)
-      * Math.pow(nodesPerSegment, 0.1)
-      //* _.mean(nonEmptyBins)/_.max(nonEmptyBins)
-      * nonEmptyProp  //* numNodes / (adjDiagonals+1); //* connectedness * compactness * cleanliness;
+      //* diaProp
+      / Math.pow((gapEntropy+1), 0.1)
+      /// (adjProp+1)
+      / Math.pow((adjMinProp+1), 0.1)
+      * Math.pow(meanGap/numSegs, 0.1)
+      * Math.pow(compactness, 0.2)
+      //* Math.pow(connectedness, 0.1)
+      //* _.mean(nonEmptyBins)/_.max(nonEmptyBins) //high avg bin value
+      /// nonEmptyProp 
+      //* numNodes / (adjDiagonals+1); //* connectedness * compactness * cleanliness;
     || 0; //0 if NaN...
 }
 

@@ -13,7 +13,7 @@ export interface GeneratorOutput<T> {
 
 export class BeamSearch<T> {
   
-  private BEAM_WIDTH = 2;
+  private BEAM_WIDTH = 1;
   private beam: Solution<T>[] = [];
   
   constructor(private generator: (t: T) => GeneratorOutput<T>[],

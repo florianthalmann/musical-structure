@@ -46,7 +46,8 @@ export class GraphPartition<NodeType extends Node> {
   }
   
   toString() {
-    return JSON.stringify(this.partitions.map(p => p.length));
+    return JSON.stringify(this.partitions.map(p => p.length))
+      + " (" + this.getNodeCount() + "/" + this.graph.getSize() + ")";
   }
   
   addNode(node: NodeType, index: number) {

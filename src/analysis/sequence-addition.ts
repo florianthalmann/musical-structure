@@ -15,25 +15,25 @@ export function addNewSegments(sequence: GraphPartition<SegmentNode>,
   const maxSegSize = _.max(partitions.map(t => t.length));
   const missing = _.differenceBy(sequence.getGraph().getNodes(), _.flatten(partitions), n => n.id);
   const graphOfMissing = sequence.getGraph().getSubgraph(missing);
-  console.log("graph", graphOfMissing.getSize(), graphOfMissing.getEdges().length);
+  //console.log("graph", graphOfMissing.getSize(), graphOfMissing.getEdges().length);
   
   let additions: SegmentNode[][];
   let info: string;
   
   if (options.indexNeighborSearch) {
-    info = "quickly got neighboring segments"
+    info = "quickly got neighboring segments "
     additions = getNeighboringGraphSegmentsForSequence(partitions, graphOfMissing,
       options.minSizeFactor);
   }
   
   if (options.graphAdjacentsSearch) {
-    info = "searched graph for adjacents"
+    info = "searched graph for adjacents "
     additions = getBestIndexBasedPartition(graphOfMissing, options.groupingCondition)
       .filter(s => maxSegSize ? s.length > maxSegSize/options.minSizeFactor : s);
   }
   
   if (options.graphBestRatedSearch) {
-    info = "searched graph for best rated"
+    info = "searched graph for best rated "
     additions = getBestDisjunctPartition(graphOfMissing, options.groupingCondition,
       maxSegSize/options.minSizeFactor);
   }
@@ -43,7 +43,7 @@ export function addNewSegments(sequence: GraphPartition<SegmentNode>,
       _.reverse(_.sortBy(additions, a => a.length)).slice(0, options.maxNumSegments);
   }
   
-  console.log("added slices", JSON.stringify(additions.map(a => a.length)));
+  info += JSON.stringify(additions.map(a => a.length));
   
   //maybe simple recalculation of matrix is quicker.... check!
   const sorted = sortPartitionsTemporally(_.concat(partitions, additions));
