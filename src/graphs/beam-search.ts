@@ -39,8 +39,8 @@ export class BeamSearch<T> {
   
   private searchAndUpdateBeam(generator: (t: T) => GeneratorOutput<T>[],
       onlyFirst?: boolean) {
-    const newSolutions = onlyFirst ? this.getSolutions(this.beam[0], generator)
-      : _.flatten(this.beam.map(s => this.getSolutions(s, generator)));
+    const input = onlyFirst ? this.beam.slice(0) : this.beam;
+    const newSolutions = _.flatten(input.map(s => this.getSolutions(s, generator)));
     const newBeam = _.reverse(
         _.sortBy(_.concat(this.beam, newSolutions), s => s.rating))
       .slice(0, this.BEAM_WIDTH);
@@ -54,10 +54,13 @@ export class BeamSearch<T> {
   
   private getSolutions(solution: Solution<T>,
       generator: (t: T) => GeneratorOutput<T>[]): Solution<T>[] {
+    //console.log("generating")
     const generated = generator(solution.value);
     //console.log(JSON.stringify(generated.map(g => g.value.toString())));
+    //console.log("validating")
     const validated = generated.map(g => this.validator(g.value));
     //console.log(JSON.stringify(validated.map(g => g.toString())));
+    //console.log("rating")
     const ratings = validated.map(this.evaluator);
     return validated.map((v,i) => ({
       value: v,

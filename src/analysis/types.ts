@@ -24,6 +24,7 @@ export interface SequenceImprovementOptions {
   missingIgnore?: boolean,
   missingInsert?: boolean,
   blurs?: boolean, //remove all nodes with connections to neighboring slices
+  minor?: boolean, //remove nodes with connections not shared with others
   cycles?: boolean,
   minSizeFactor?: number
 }

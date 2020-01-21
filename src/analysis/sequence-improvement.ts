@@ -42,8 +42,33 @@ export function improveSequence(sequence: GraphPartition<SegmentNode>,
     const partitions = sequence.getPartitions();
     const blurs = _.flatten(partitions.slice(0, -1).map((t,i) =>
       getInterGroupEdges(t, partitions[i+1], sequence.getGraph()).map(e => e.source)));
-    blurs.forEach(b => sequence.removeNode(b));
-    infos.push("blurs removed " + blurs.length);
+    const chunks = _.chunk(blurs, 10) //Math.max(1, _.round(blurs.length/NUM_CHUNKS)));
+    result = chunks.map(c => {
+      const seq = sequence.clone();
+      c.forEach(b => seq.removeNode(b));
+      return seq;
+    });
+    infos.push("blurs removed " + (chunks.length ? chunks[0].length : 0));
+  }
+  
+  if (options.minor) {
+    //remove all with connections to neighboring slices
+    const partitions = sequence.getPartitions();
+    const edges = _.flatten(partitions.map((t,i) => partitions.slice(i+1).map(r =>
+      getInterGroupEdges(t, r, sequence.getGraph())))).filter(e => e.length > 0);
+    //const sorted = _.sortBy(edges, ee => ee.length);
+    const smallest = _.sortBy(edges, ee => ee.length)
+      .slice(0, edges.length/10)
+      //.filter(ee => ee.length == sorted[0].length)
+      .map(ee => ee.map(e => e.source)); //all connections of the smallest size
+    //const chunks = _.chunk(smallest, 1)
+      //Math.max(1, _.round(smallest.length/NUM_CHUNKS)));
+    result = smallest.map(c => {
+      const seq = sequence.clone();
+      c.forEach(b => seq.removeNode(b));
+      return seq;
+    });
+    infos.push("minor connections removed " + (smallest.length ? smallest[0].length : 0));
   }
   
   if (options.cycles) {
