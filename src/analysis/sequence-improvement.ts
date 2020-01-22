@@ -6,8 +6,6 @@ import { SegmentNode, SequenceImprovementOptions } from './types';
 import { getCompletedNumberArray2, allIndexesOf } from './util';
 import { getInconsistencies } from './sequence-validity';
 
-const CHUNK_SIZE = 10;
-
 export function improveSequence(sequence: GraphPartition<SegmentNode>,
     options: SequenceImprovementOptions): GeneratorOutput<GraphPartition<SegmentNode>>[] {
   
@@ -45,8 +43,8 @@ export function improveSequence(sequence: GraphPartition<SegmentNode>,
     const partitions = sequence.getPartitions();
     const blurs = _.flatten(partitions.slice(0, -1).map((t,i) =>
       getInterGroupEdges(t, partitions[i+1], sequence.getGraph()).map(e => e.source)));
-    result = removeInChunks(blurs, sequence);
-    infos.push("blurs removed " + CHUNK_SIZE);
+    result = removeInChunks(blurs, sequence, options.blurs);
+    infos.push("blurs removed " + options.blurs);
   }
   
   if (options.minor) {
@@ -68,15 +66,15 @@ export function improveSequence(sequence: GraphPartition<SegmentNode>,
     //remove all nodes not in cycles
     const noncyc = _.flatten(sequence.getPartitions()
       .map(t => sequence.getGraph().getSubgraph(t).getNodesNotInCycles()));
-    result = removeInChunks(noncyc, sequence);
-    infos.push("non-cycles removed " + CHUNK_SIZE);
+    result = removeInChunks(noncyc, sequence, options.cycles);
+    infos.push("non-cycles removed " + options.cycles);
   }
   
   if (options.affinity) {
     //then remove all nodes not in slices to which they have the most connections
     const unaffine = getInconsistencies(sequence);
-    result = removeInChunks(unaffine, sequence);
-    infos.push("stray nodes removed " + unaffine.length);
+    result = removeInChunks(unaffine, sequence, options.affinity);
+    infos.push("stray nodes removed " + options.affinity);
   }
   
   if (options.minSizeFactor) {
@@ -91,7 +89,7 @@ export function improveSequence(sequence: GraphPartition<SegmentNode>,
 }
 
 function removeInChunks(nodes: SegmentNode[],
-    sequence: GraphPartition<SegmentNode>, chunkSize = CHUNK_SIZE) {
+    sequence: GraphPartition<SegmentNode>, chunkSize: number) {
   return _.chunk(nodes, chunkSize).map(c => {
     const seq = sequence.clone();
     c.forEach(b => seq.removeNode(b));

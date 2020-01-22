@@ -150,11 +150,12 @@ function generateSolutions(sequence: GraphPartition<SegmentNode>) {
     improveSequence(sequence, {missing: true}),
     improveSequence(sequence, {missingIgnore: true}),
     improveSequence(sequence, {missingInsert: true}),
-    improveSequence(sequence, {blurs: true}),
+    improveSequence(sequence, {blurs: 10}),
+    improveSequence(sequence, {blurs: 50}),
     improveSequence(sequence, {minor: 1}),
     improveSequence(sequence, {minor: 5}),
-    improveSequence(sequence, {cycles: true}),
-    improveSequence(sequence, {affinity: true}),
+    improveSequence(sequence, {cycles: 10}),
+    improveSequence(sequence, {affinity: 10}),
     improveSequence(sequence, {minSizeFactor: 3}),
     {value: ensureSequenceValidity(sequence, {connected: true}), info: 'connected'},
     {value: ensureSequenceValidity(sequence, {component: true}), info: 'component'},
@@ -210,7 +211,7 @@ function iterativeGetIndexBasedPartition(graph: DirectedGraph<SegmentNode>,
     
     //ADD IMPROVEMENTS
     currentSequence = improveSequence(currentSequence,
-      {merge: true, missing: true, blurs: true, minSizeFactor: minSizeFactor})[0].value;
+      {merge: true, missing: true, blurs: 10000, minSizeFactor: minSizeFactor})[0].value;
     
     //ENSURE VALIDITY
     currentSequence = ensureSequenceValidity(currentSequence,

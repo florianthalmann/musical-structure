@@ -24,10 +24,10 @@ export interface SequenceImprovementOptions {
   missing?: boolean, //add any missing segments at best spots
   missingIgnore?: boolean,
   missingInsert?: boolean,
-  blurs?: boolean, //remove all nodes with connections to neighboring slices
-  affinity?: boolean, //all nodes in segment to which they are most connected
+  blurs?: number, //remove all nodes with connections to neighboring slices
+  affinity?: number, //all nodes in segment to which they are most connected
   minor?: number, //remove nodes with connections not shared with others
-  cycles?: boolean,
+  cycles?: number,
   minSizeFactor?: number
 }
 
