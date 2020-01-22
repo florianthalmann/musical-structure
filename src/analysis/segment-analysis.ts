@@ -10,6 +10,7 @@ import { SegmentNode } from './types';
 import { ensureSequenceValidity } from './sequence-validity';
 import { improveSequence, addMissing } from './sequence-improvement';
 import { addNewSegments } from './sequence-addition';
+import { getSequenceRating } from './sequence-heuristics';
 import { BeamSearch, GeneratorOutput } from '../graphs/beam-search';
 
 const DIFF_VERSIONS: GroupingCondition<SegmentNode>
@@ -253,103 +254,6 @@ function iterativeGetIndexBasedPartition(graph: DirectedGraph<SegmentNode>,
   }*/
 
   return bestSequence;
-}
-
-//assumes that the sequence is a valid one (no double occs, no double versions, lin ordered)
-function getSequenceRating(sequence: GraphPartition<SegmentNode>) {
-  const numNodes = sequence.getNodeCount();
-  const numSegs = sequence.getPartitionCount();
-  const connectionMatrix = sequence.getConnectionMatrix();
-  const allBins = _.flatten(connectionMatrix);
-  const allConnections = _.sum(allBins);
-  const nonEmptyBins = allBins.filter(b => b > 0);
-  /*const avgBinStrength = _.mean(nonEmptyBins);
-  //proportion of horizontal adjacencies of nonzero bins
-  const adjacentConns = _.flatten(connectionMatrix.map(r =>
-      r.map((v,i) => i > 0 && v > 0 && r[i-1] > 0)))
-    .filter(n => n).length/(1+nonEmptyBins.length);
-  const binsTotal = _.sum(_.flatten(connectionMatrix));
-  const adjacentConnsTotal = _.sum(_.flatten(connectionMatrix.map(r =>
-      r.map((v,i) => i > 0 && v > 0 && r[i-1] > 0 ? Math.min(v, r[i-1]) : 0)))
-    .filter(n => n));*/
-  const adjMin = _.sum(allBins.map((v,i) =>
-    i > 0 && v > 0 && allBins[i-1] > 0 ? Math.min(v, allBins[i-1]) : 0));
-    const adjMax = _.sum(allBins.map((v,i) =>
-      i > 0 && v > 0 && allBins[i-1] > 0 ? Math.max(v, allBins[i-1]) : 0));
-  const adjMinProp = adjMin / allConnections;
-  const adjMaxProp = adjMax / allConnections;
-  const totalDia = _.flatten(connectionMatrix.map((r,i) =>
-      r.map((v,j) => i > 0 && j > 0 && v > 0 && connectionMatrix[i-1][j-1] > 0)))
-    .filter(v => v).length;
-  const loneDia = _.flatten(connectionMatrix.map((r,i) =>
-      r.map((v,j) => i > 0 && j > 0 && v > 0 && connectionMatrix[i-1][j-1] > 0
-      && r[i-1] == 0)))
-    .filter(v => v).length;
-  const loneDia2 = _.flatten(connectionMatrix.map((r,i) =>
-      r.map((v,j) => i > 0 && j > 0 && v > 0 && connectionMatrix[i-1][j-1] > 0
-      && r[i-1] == 0 && r[i+1] == 0)))
-    .filter(v => v).length;
-  const diaProp = loneDia2/Math.pow(1+nonEmptyBins.length, 0.8);
-  /*const adjDiagonals = _.flatten(connectionMatrix.map((r,i) =>
-      r.map((v,j) => i > 0 && j > 0 && v > 0 && connectionMatrix[i-1][j-1] > 0 && r[i-1] > 0)))
-    .filter(v => v).length/(1+nonEmptyBins.length);*/
-  const mainDiagonal = connectionMatrix.map((r,i) => r.filter((_v,j) => i == j));
-  //console.log(diagonals, loneDiagonals, adjacentBins, numNodes*loneDiagonals/(adjacentBins+1))
-  //const cleanliness = loneDiagonals / (adjacentConnsTotal / binsTotal + 1);
-  //const compactness = numNodes / Math.pow(numSegs, 0.5);
-  const partitionSizes = sequence.getPartitions().map(p => p.length);
-  const compactness = numNodes / Math.pow(numSegs+1, 0.8);
-  const connectedness = _.sum(mainDiagonal) / numSegs;
-  //const maxesPerLine = _.sum(_.reverse(_.sortBy(connectionMatrix.map(r => r.filter(c => c).length))).slice(0,5));
-  //const maxPerLine = _.max(connectionMatrix.map(r => r.filter(c => c).length));
-  const hIndexes = allBins.map((v,i) => v ? i : null).filter(i => i);
-  const hGaps = hIndexes.map((v,i) => i > 0 ? v-hIndexes[i-1] : 0).slice(1);
-  const meanGap = _.mean(hGaps);
-  const medianGap = _.sortBy(hGaps)[_.round(hGaps.length/2)];
-  const maxGap = _.max(hGaps);
-  const gapHisto = toHistogram(hGaps);
-  const gapEntropy = getEntropy(toDistribution(gapHisto.slice(1)));
-  const largeGaps = meanGap/maxGap;
-  //console.log(JSON.stringify(hGaps));
-  const adjProp = gapHisto[0]/_.sum(gapHisto);
-  //console.log(JSON.stringify(gapHisto), numNodes, diaProp, gapEntropy, adjProp);
-  const nonEmptyProp = nonEmptyBins.length/allBins.length;
-  return 1
-      * Math.pow(numNodes, 0.5)
-      * Math.pow(diaProp+1, 0.3)
-      / Math.pow((gapEntropy+1), 0.7)
-      /// (adjProp+1)
-      / Math.pow((adjMinProp+1), 0.7)
-      //* Math.pow(largeGaps, 0.1)
-      * Math.pow(compactness, 0.1)
-      //* Math.pow(connectedness, 0.1)
-      //* _.mean(nonEmptyBins)/_.max(nonEmptyBins) //high avg bin value
-      /// nonEmptyProp 
-      //* numNodes / (adjDiagonals+1); //* connectedness * compactness * cleanliness;
-    || 0; //0 if NaN...
-}
-
-/* works well:
-    1
-    * Math.pow(numNodes, 0.5)
-    / Math.pow((gapEntropy+1), 0.2)
-    / Math.pow((adjMinProp+1), 0.2)
-    * Math.pow(compactness, 0.2) // numNodes / Math.pow(numSegs, 0.5);
-*/
-
-function toHistogram(vals: number[]) {
-  const grouped = _.groupBy(vals);
-  return _.range(_.min(vals), _.max(vals)+1)
-    .map(v => grouped[v] ? grouped[v].length : 0);
-}
-
-function toDistribution(histo: number[]) {
-  const total = _.sum(histo);
-  return histo.map(h => h/total);
-}
-
-function getEntropy(data: number[]) {
-  return -1 * _.sum(data.map(d => d ? d*Math.log(d) : 0));
 }
 
 function printVersion(v: number, g: SegmentNode[][]) {
