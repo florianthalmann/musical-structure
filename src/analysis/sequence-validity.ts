@@ -84,7 +84,7 @@ function getContradictions(timeline: SegmentNode[][], includeAll: boolean): Segm
   })));
 }
 
-function getInconsistencies(sequence: GraphPartition<SegmentNode>): SegmentNode[] {
+export function getInconsistencies(sequence: GraphPartition<SegmentNode>): SegmentNode[] {
   const partitions = sequence.getPartitions();
   return _.flatten(partitions.map((t,i) => t.filter(n => {
     const adjacents = sequence.getGraph().getDirectAdjacents(n);

@@ -16,6 +16,7 @@ export interface SequenceValidityOptions {
   order?: boolean, //segments are strictly ordered in time
 }
 
+//some number values determine size of processed chunks
 export interface SequenceImprovementOptions {
   merge?: boolean, //merge neighboring partitions with distinct versions
   slide?: boolean,
@@ -24,7 +25,8 @@ export interface SequenceImprovementOptions {
   missingIgnore?: boolean,
   missingInsert?: boolean,
   blurs?: boolean, //remove all nodes with connections to neighboring slices
-  minor?: boolean, //remove nodes with connections not shared with others
+  affinity?: boolean, //all nodes in segment to which they are most connected
+  minor?: number, //remove nodes with connections not shared with others
   cycles?: boolean,
   minSizeFactor?: number
 }

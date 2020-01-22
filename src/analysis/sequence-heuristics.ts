@@ -33,13 +33,15 @@ const BEST: SequenceRatingOptions = {
   diagonals: 0.3
 }
 
+const size = 0.7;
+const quality = 1;
 const TEST: SequenceRatingOptions = {
-  nodeCount: 0.5,
-  compactness: 0.2,
-  connectedness: 0.1,
-  gapEntropy: -0.7,
-  adjacentsMin: -0.7,
-  diagonals: 0.7
+  nodeCount: size,
+  compactness: 0.1*size,
+  //connectedness: 0.3,
+  gapEntropy: -0.7*quality,
+  adjacentsMin: -0.7*quality,
+  diagonals: quality
 }
 
 const options = TEST;

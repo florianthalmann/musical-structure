@@ -1,9 +1,12 @@
 import * as _ from 'lodash';
 import { DirectedGraph } from '../graphs/graph-theory';
 import { GraphPartition } from '../graphs/graph-partition';
+import { GeneratorOutput } from '../graphs/beam-search';
 import { SegmentNode, SequenceImprovementOptions } from './types';
 import { getCompletedNumberArray2, allIndexesOf } from './util';
-import { GeneratorOutput } from '../graphs/beam-search';
+import { getInconsistencies } from './sequence-validity';
+
+const CHUNK_SIZE = 10;
 
 export function improveSequence(sequence: GraphPartition<SegmentNode>,
     options: SequenceImprovementOptions): GeneratorOutput<GraphPartition<SegmentNode>>[] {
@@ -42,13 +45,8 @@ export function improveSequence(sequence: GraphPartition<SegmentNode>,
     const partitions = sequence.getPartitions();
     const blurs = _.flatten(partitions.slice(0, -1).map((t,i) =>
       getInterGroupEdges(t, partitions[i+1], sequence.getGraph()).map(e => e.source)));
-    const chunks = _.chunk(blurs, 10) //Math.max(1, _.round(blurs.length/NUM_CHUNKS)));
-    result = chunks.map(c => {
-      const seq = sequence.clone();
-      c.forEach(b => seq.removeNode(b));
-      return seq;
-    });
-    infos.push("blurs removed " + (chunks.length ? chunks[0].length : 0));
+    result = removeInChunks(blurs, sequence);
+    infos.push("blurs removed " + CHUNK_SIZE);
   }
   
   if (options.minor) {
@@ -61,22 +59,24 @@ export function improveSequence(sequence: GraphPartition<SegmentNode>,
       .slice(0, edges.length/10)
       //.filter(ee => ee.length == sorted[0].length)
       .map(ee => ee.map(e => e.source)); //all connections of the smallest size
-    //const chunks = _.chunk(smallest, 1)
-      //Math.max(1, _.round(smallest.length/NUM_CHUNKS)));
-    result = smallest.map(c => {
-      const seq = sequence.clone();
-      c.forEach(b => seq.removeNode(b));
-      return seq;
-    });
-    infos.push("minor connections removed " + (smallest.length ? smallest[0].length : 0));
+    
+    result = removeInChunks(_.flatten(smallest), sequence, options.minor);
+    infos.push("minor connections removed " + options.minor);
   }
   
   if (options.cycles) {
     //remove all nodes not in cycles
     const noncyc = _.flatten(sequence.getPartitions()
       .map(t => sequence.getGraph().getSubgraph(t).getNodesNotInCycles()));
-    noncyc.forEach(b => sequence.removeNode(b));
-    infos.push("non-cycles removed " + noncyc.length);
+    result = removeInChunks(noncyc, sequence);
+    infos.push("non-cycles removed " + CHUNK_SIZE);
+  }
+  
+  if (options.affinity) {
+    //then remove all nodes not in slices to which they have the most connections
+    const unaffine = getInconsistencies(sequence);
+    result = removeInChunks(unaffine, sequence);
+    infos.push("stray nodes removed " + unaffine.length);
   }
   
   if (options.minSizeFactor) {
@@ -88,6 +88,15 @@ export function improveSequence(sequence: GraphPartition<SegmentNode>,
   
   if (result.length == 0) result = [sequence];
   return result.map(r => ({value: r, info: infos.join(', ')}));
+}
+
+function removeInChunks(nodes: SegmentNode[],
+    sequence: GraphPartition<SegmentNode>, chunkSize = CHUNK_SIZE) {
+  return _.chunk(nodes, chunkSize).map(c => {
+    const seq = sequence.clone();
+    c.forEach(b => seq.removeNode(b));
+    return seq;
+  });
 }
 
 function moveNode(sequence: GraphPartition<SegmentNode>,

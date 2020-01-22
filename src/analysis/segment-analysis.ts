@@ -151,10 +151,11 @@ function generateSolutions(sequence: GraphPartition<SegmentNode>) {
     improveSequence(sequence, {missingIgnore: true}),
     improveSequence(sequence, {missingInsert: true}),
     improveSequence(sequence, {blurs: true}),
-    improveSequence(sequence, {minor: true}),
+    improveSequence(sequence, {minor: 1}),
+    improveSequence(sequence, {minor: 5}),
     improveSequence(sequence, {cycles: true}),
+    improveSequence(sequence, {affinity: true}),
     improveSequence(sequence, {minSizeFactor: 3}),
-    {value: ensureSequenceValidity(sequence, {affinity: true}), info: 'affinity'},
     {value: ensureSequenceValidity(sequence, {connected: true}), info: 'connected'},
     {value: ensureSequenceValidity(sequence, {component: true}), info: 'component'},
     generateSolutionsByAdding(sequence)
