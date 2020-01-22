@@ -175,10 +175,10 @@ function generateSolutionsByAdding(sequence: GraphPartition<SegmentNode>) {
   while (!candidates.length) {
     candidates.push(addNewSegments(sequence,
       {graphAdjacentsSearch: true, minSizeFactor: minSizeFactor,
-        groupingCondition: DIFF_VERSIONS, maxNumSegments: 10}));
+        groupingCondition: DIFF_VERSIONS, maxNumSegments: 5}));
     candidates.push(addNewSegments(sequence,
       {indexNeighborSearch: true, minSizeFactor: minSizeFactor,
-        groupingCondition: DIFF_VERSIONS, maxNumSegments: 10}));
+        groupingCondition: DIFF_VERSIONS, maxNumSegments: 5}));
     candidates.filter(c => c.value.getPartitionCount() > previousLength);
     if (!candidates.length) minSizeFactor++;
   }

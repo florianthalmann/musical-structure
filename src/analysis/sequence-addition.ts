@@ -23,24 +23,20 @@ export function addNewSegments(sequence: GraphPartition<SegmentNode>,
   if (options.indexNeighborSearch) {
     info = "quickly got neighboring segments "
     additions = getNeighboringGraphSegmentsForSequence(partitions, graphOfMissing,
-      options.minSizeFactor);
+      options.minSizeFactor, options.maxNumSegments);
   }
   
   if (options.graphAdjacentsSearch) {
     info = "searched graph for adjacents "
-    additions = getBestIndexBasedPartition(graphOfMissing, options.groupingCondition)
+    additions = getBestIndexBasedPartition(graphOfMissing,
+        options.groupingCondition, options.maxNumSegments)
       .filter(s => maxSegSize ? s.length > maxSegSize/options.minSizeFactor : s);
   }
   
   if (options.graphBestRatedSearch) {
     info = "searched graph for best rated "
     additions = getBestDisjunctPartition(graphOfMissing, options.groupingCondition,
-      maxSegSize/options.minSizeFactor);
-  }
-  
-  if (options.maxNumSegments) {
-    additions = 
-      _.reverse(_.sortBy(additions, a => a.length)).slice(0, options.maxNumSegments);
+      maxSegSize/options.minSizeFactor, options.maxNumSegments);
   }
   
   info += JSON.stringify(additions.map(a => a.length));
@@ -123,7 +119,7 @@ function getBestDisjunctPartition(graph: DirectedGraph<SegmentNode>,
 }
 
 function getBestIndexBasedPartition(graph: DirectedGraph<SegmentNode>,
-    groupingCondition: GroupingCondition<SegmentNode>) {
+    groupingCondition: GroupingCondition<SegmentNode>, count?: number) {
   const options = {
     graph: graph,
     condition: groupingCondition,
@@ -140,7 +136,7 @@ function getBestIndexBasedPartition(graph: DirectedGraph<SegmentNode>,
   let remainingGroups = _.clone(groups);
   let lastAdded = groups[currentStart];
   sequence.push(lastAdded.members);
-  while (lastAdded) {
+  while (lastAdded && (!count || sequence.length < count)) {
     remainingGroups = removeGroupAndNodes(remainingGroups, lastAdded, options)
       .filter(g => g.members.length > 1);
     if (remainingGroups.length > 0) {
@@ -188,7 +184,6 @@ function getBestIndexBasedPartition(graph: DirectedGraph<SegmentNode>,
       lastAdded = null;
     }
   }
-
   return sequence;
 }
 
@@ -199,11 +194,11 @@ function getDirectSuccessors(before: SegmentNode[], after: SegmentNode[]) {
 }
 
 function getNeighboringGraphSegmentsForSequence(sequence: SegmentNode[][],
-    graph: DirectedGraph<SegmentNode>, minSizeFactor: number) {
+    graph: DirectedGraph<SegmentNode>, minSizeFactor: number, count?: number) {
   let addition: SegmentNode[][] = [];
   let lastAdded = sequence;
   let numLastAdded = Infinity;
-  while (numLastAdded) {
+  while (numLastAdded && (!count || addition.length < count)) {
     const succ = lastAdded.map(t => t.map(n => graph.getNodes()
       .find(m => m.version === n.version && m.time === n.time+1)).filter(m=>m));
     const pred = lastAdded.map(t => t.map(n => graph.getNodes()
