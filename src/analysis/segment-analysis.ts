@@ -107,9 +107,10 @@ function constructFullPartition(graph: DirectedGraph<SegmentNode>,
     console.log(JSON.stringify(sequence.map(p => p.length)))
     partition = new GraphPartition(graph, sequence);
   } else {*/
-    const initial = addNewSegments(new GraphPartition(graph, []),
-      {graphAdjacentsSearch: true, minSizeFactor: 3,
-        groupingCondition: DIFF_VERSIONS, maxNumSegments: 5}).value
+  
+  /*const initial = addNewSegments(new GraphPartition(graph, []),
+    {graphAdjacentsSearch: true, minSizeFactor: 3,
+      groupingCondition: DIFF_VERSIONS, maxNumSegments: 5}).value*/
     
     partition = beamSearchGenerateSequence(graph)//, initial);
     //partition = iterativeGetIndexBasedPartition(graph, groupingCondition);
@@ -179,6 +180,12 @@ function generateSolutionsByAdding(sequence: GraphPartition<SegmentNode>) {
     candidates.push(addNewSegments(sequence,
       {indexNeighborSearch: true, minSizeFactor: minSizeFactor,
         groupingCondition: DIFF_VERSIONS, maxNumSegments: 5}));
+    candidates.push(addNewSegments(sequence,
+      {indexNeighborSearch: true, minSizeFactor: minSizeFactor,
+        groupingCondition: DIFF_VERSIONS, maxNumSegments: 2}));
+    candidates.push(addNewSegments(sequence,
+      {indexNeighborSearch: true, minSizeFactor: minSizeFactor,
+        groupingCondition: DIFF_VERSIONS, maxNumSegments: 10}));
     candidates.filter(c => c.value.getPartitionCount() > previousLength);
     if (!candidates.length) minSizeFactor++;
   }

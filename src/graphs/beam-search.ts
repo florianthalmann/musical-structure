@@ -62,6 +62,8 @@ export class BeamSearch<T> {
     //console.log(JSON.stringify(validated.map(g => g.toString())));
     //console.log("rating")
     const ratings = validated.map(this.evaluator);
+    /*console.log(JSON.stringify(validated[validated.length-4].toString())
+      + " " + ratings[ratings.length-4])*/
     return validated.map((v,i) => ({
       value: v,
       process: _.concat(solution.process, generated[i].info),

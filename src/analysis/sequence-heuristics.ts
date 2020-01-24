@@ -24,20 +24,21 @@ const GOOD: SequenceRatingOptions = {
   adjacentsMin: -0.2
 }
 
-//best found so far, using diagonals
-const BEST: SequenceRatingOptions = {
-  nodeCount: 0.5,
-  compactness: 0.1,
-  gapEntropy: -0.7,
-  adjacentsMin: -0.7,
-  diagonals: 0.3
-}
-
+//me and my uncle
 const quantity = 1;
-const quality = 1;
-const TEST: SequenceRatingOptions = {
+const quality = 0.5;
+const BEST: SequenceRatingOptions = {
   nodeCount: quantity,
   compactness: 0.1*quantity,
+  //connectedness: 0.3,
+  gapEntropy: -0.7*quality,
+  adjacentsMin: -0.7*quality,
+  diagonals: quality
+}
+
+const TEST: SequenceRatingOptions = {
+  nodeCount: quantity,
+  compactness: 0.2*quantity,
   //connectedness: 0.3,
   gapEntropy: -0.7*quality,
   adjacentsMin: -0.7*quality,
@@ -62,9 +63,10 @@ export function getSequenceRating(sequence: GraphPartition<SegmentNode>) {
   }
   
   if (options.compactness) {
-    const numSegs = sequence.getPartitionCount();
-    const compactness = numNodes / numSegs;//Math.pow(numSegs+1, 0.8);
-    factors.push(Math.pow(compactness, options.compactness));
+    //const numSegs = sequence.getPartitionCount();
+    const partitionSizes = sequence.getPartitions().map(p => p.length);
+    const compactness = _.mean(partitionSizes) / (1+getStandardDeviation(partitionSizes)); //numNodes / numSegs;//Math.pow(numSegs+1, 0.8);
+    factors.push(Math.pow(compactness, 1*options.compactness));
   }
   
   if (options.selfconnectedness) {
@@ -154,6 +156,11 @@ function getEntropy(data: number[]) {
 
 function getMedian(data: number[]) {
   return _.sortBy(data)[_.round(data.length/2)];
+}
+
+function getStandardDeviation(data: number[]) {
+  const mean = _.mean(data);
+  return Math.sqrt(_.sum(data.map(d => Math.pow(d-mean, 2))) / (data.length-1));
 }
 
 function getMainDiagonal(matrix: number[][]) {

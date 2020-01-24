@@ -208,7 +208,8 @@ export function addMissing(sequence: GraphPartition<SegmentNode>,
   const present = _.flatten(sequence.getPartitions());
   let missing = _.differenceBy(sequence.getGraph().getNodes(), present, n => n.id);
   //console.log("missing", missing.length);
-  const chunkLength = Math.max(_.round(missing.length/NUM_CHUNKS), 20);
+  //chunk length between 20 and 50
+  const chunkLength = Math.min(50, Math.max(_.round(missing.length/NUM_CHUNKS), 20));
   const chunks = _.chunk(missing, chunkLength);
   return {results: chunks.map(c => {
     const seq = sequence.clone();

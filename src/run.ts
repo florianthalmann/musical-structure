@@ -40,12 +40,12 @@ import { gatherTunings } from './files/tunings';
 //saveSWPatternAndVectorSequences("plots/d3/latest/box of rain-sw", false, "box of rain", ".m4a");
 //saveHybridSWPatternGraph("plots/d3/latest/box of rain-sw", "box of rain", ".m4a", 1)
 
-//saveMultiTimelineDecomposition({filebase: "results/timeline-test3/boxofrain30", song: "box of rain", extension: ".m4a",  //[ 156, 178, 154, 156, 157, 156, 155, 155, 163, 163 ]
-saveMultiTimelineDecomposition({filebase: "results/timeline-test7/meandmyuncle30", song: "me and my uncle", //[ 135, 92, 90, 99, 99, 171, 87, 89, 89, 87 ]
-//saveMultiTimelineDecomposition({filebase: "results/timeline-test3/goodlovin30", song: "good lovin'", extension: ".mp3", 
+//saveMultiTimelineDecomposition({filebase: "results/timeline-test7/boxofrain30", song: "box of rain", extension: ".m4a",  //[ 156, 178, 154, 156, 157, 156, 155, 155, 163, 163 ]
+//saveMultiTimelineDecomposition({filebase: "results/timeline-test7/meandmyuncle30", song: "me and my uncle", //[ 135, 92, 90, 99, 99, 171, 87, 89, 89, 87 ]
+//saveMultiTimelineDecomposition({filebase: "results/timeline-test7/goodlovin30", song: "good lovin'", extension: ".mp3", 
 //saveMultiTimelineDecomposition({filebase: "results/cosmiccharlie30", song: "cosmic charlie", extension: ".mp3", 
-//saveMultiTimelineDecomposition({filebase: "results/timeline-test3/darkstar30", song: "dark star", extension: ".mp3", 
-  count: 5, algorithm: AlignmentAlgorithm.SW, includeSelfAlignments: false});
+saveMultiTimelineDecomposition({filebase: "results/timeline-test7/darkstar30", song: "dark star", extension: ".mp3", 
+  count: 20, algorithm: AlignmentAlgorithm.SW, includeSelfAlignments: false});
 
 //analyzeSavedTimeline({filebase: "results/timeline-test/boxofrain30c", song: "box of rain", extension: ".m4a",
 //analyzeSavedTimeline({filebase: "results/timeline-test/meandmyuncle30c", song: "me and my uncle", extension: ".mp3",
