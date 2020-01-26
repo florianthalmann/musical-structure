@@ -1,7 +1,8 @@
 import * as _ from 'lodash';
 //import { saveGdHists } from './histograms';
 import { saveMultiTimelineDecomposition, AlignmentAlgorithm,
-  saveThomasSongAlignments, analyzeSavedTimeline, moveFeatures } from './run-gd';
+  saveThomasSongAlignments, analyzeSavedTimeline, moveFeatures,
+  saveGdSequences } from './run-gd';
 import { calculateCompressionDistances, calculatePatternSimilarities,
   sweep, saveSimilarities, sweep2} from './run-gd-dists';
 
@@ -44,8 +45,14 @@ import { gatherTunings } from './files/tunings';
 //saveMultiTimelineDecomposition({filebase: "results/timeline-test7/meandmyuncle30", song: "me and my uncle", //[ 135, 92, 90, 99, 99, 171, 87, 89, 89, 87 ]
 //saveMultiTimelineDecomposition({filebase: "results/timeline-test7/goodlovin30", song: "good lovin'", extension: ".mp3", 
 //saveMultiTimelineDecomposition({filebase: "results/cosmiccharlie30", song: "cosmic charlie", extension: ".mp3", 
-saveMultiTimelineDecomposition({filebase: "results/timeline-test7/darkstar30", song: "dark star", extension: ".mp3", 
+/*saveMultiTimelineDecomposition({filebase: "results/timeline-test7/darkstar30", song: "dark star", extension: ".mp3", 
+  count: 20, algorithm: AlignmentAlgorithm.SW, includeSelfAlignments: false});*/
+
+//saveGdSequences({filebase: "results/timeline-test7/boxofrain30", song: "box of rain", extension: ".m4a",
+//saveGdSequences({filebase: "results/timeline-test7/meandmyuncle30", song: "me and my uncle",
+saveGdSequences({filebase: "results/timeline-test7/darkstar30", song: "dark star", extension: ".mp3",
   count: 20, algorithm: AlignmentAlgorithm.SW, includeSelfAlignments: false});
+
 
 //analyzeSavedTimeline({filebase: "results/timeline-test/boxofrain30c", song: "box of rain", extension: ".m4a",
 //analyzeSavedTimeline({filebase: "results/timeline-test/meandmyuncle30c", song: "me and my uncle", extension: ".mp3",

@@ -127,6 +127,17 @@ export async function moveFeatures(tlo: TimelineOptions) {
   versions.forEach(v => importFeaturesFolder(v, '/Volumes/FastSSD/gd_tuned/features/'));
 }
 
+export async function saveGdSequences(tlo: TimelineOptions) {
+  const MAX_LENGTH = undefined;
+  const MAX_VERSIONS = 100;
+  const swOptions = getGdSwOptions(initDirRec(GD_PATTERNS));
+  const versions = await getGdVersions(tlo.song, MAX_VERSIONS, tlo.extension, MAX_LENGTH, swOptions);
+  const points = await Promise.all(versions.map(v => getPointsFromAudio(v, swOptions)));
+  const chordLabels = points.map(s => s.map(p => JSON.stringify(p[1])));
+  console.log(_.uniq(_.flatten(chordLabels)).length)
+  saveJsonFile(tlo.filebase+'-points.json', chordLabels);
+}
+
 export async function saveMultiTimelineDecomposition(tlo: TimelineOptions) {
   //if (!fs.existsSync(tlo.filebase+'-output.json')) {
     const MAX_LENGTH = undefined;
