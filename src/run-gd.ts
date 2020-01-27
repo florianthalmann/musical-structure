@@ -133,9 +133,10 @@ export async function saveGdSequences(tlo: TimelineOptions) {
   const swOptions = getGdSwOptions(initDirRec(GD_PATTERNS));
   const versions = await getGdVersions(tlo.song, MAX_VERSIONS, tlo.extension, MAX_LENGTH, swOptions);
   const points = await Promise.all(versions.map(v => getPointsFromAudio(v, swOptions)));
-  const chordLabels = points.map(s => s.map(p => JSON.stringify(p[1])));
-  console.log(_.uniq(_.flatten(chordLabels)).length)
-  saveJsonFile(tlo.filebase+'-points.json', chordLabels);
+  const values = points.map(s => s.map(p => JSON.stringify(p[1])));
+  const distinct = _.uniq(_.flatten(values));
+  const data = values.map(vs => vs.map(v => distinct.indexOf(v)));
+  saveJsonFile(tlo.filebase+'-points.json', {data: data, labels: distinct});
 }
 
 export async function saveMultiTimelineDecomposition(tlo: TimelineOptions) {
