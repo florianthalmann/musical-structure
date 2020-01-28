@@ -1,7 +1,6 @@
 import numpy as np
 import itertools
-from hmmlearn import hmm
-#np.random.seed(42)
+from pomegranate import HiddenMarkovModel, DiscreteDistribution
 
 class ProfileHMM(object):
     """docstring for ProfileHMM."""
@@ -9,14 +8,14 @@ class ProfileHMM(object):
     def __init__(self, length, n_features):
         super(ProfileHMM, self).__init__()
         n_states = 3*length+1
-        self.model = hmm.MultinomialHMM(n_components=n_states)
-        self.model.n_features = n_features
-        self.model.startprob_ = self.get_startprob(n_states)
-        self.model.transmat_ = self.get_transmat(n_states)
-        self.model.emissionprob_ = self.get_emission_prob(n_states, n_features)
+        self.model = HiddenMarkovModel.from_matrix(
+            self.get_transmat(n_states),
+            self.get_emission_dists(n_states, n_features),
+            self.get_startprob(n_states))
+        # self.model.bake()
     
-    def fit(self, data, lengths):
-        return self.model.fit(data, lengths)
+    def fit(self, data):
+        return self.model.fit(data)
     
     def get_startprob(self, n_states):
         return np.array([1/3 if i < 3 else 0 for i in range(n_states)])
@@ -51,5 +50,7 @@ class ProfileHMM(object):
     #   [  0,  0,  0,  0,  0,  0,  1], //I
     # ]
     
-    def get_emission_prob(self, n_components, n_features):
-        return np.full((n_components, n_features), 1/n_features)
+    def get_emission_dists(self, n_states, n_features):
+        return [DiscreteDistribution.from_samples(range(n_features))
+            #if i % 3 != 2 else None for i in range(n_states)]
+            if i % 3 != 2 else None for i in range(n_states)]
