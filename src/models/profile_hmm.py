@@ -1,17 +1,17 @@
+import itertools, math
 import numpy as np
-import itertools
 from pomegranate import HiddenMarkovModel, State, DiscreteDistribution, NormalDistribution
 
 class ProfileHMM(object):
     """docstring for ProfileHMM."""
 
-    def __init__(self, length, n_features):
+    def __init__(self, length, n_features, initial):
         super(ProfileHMM, self).__init__()
         n_states = 3*length+1
         
         self.model = HiddenMarkovModel.from_matrix(
             transition_probabilities = self.get_transmat(n_states),
-            distributions = self.get_emission_dists(n_states, n_features),
+            distributions = self.get_emission_dists(n_states, n_features, initial),
             starts = self.get_startprob(n_states),
             ends = self.get_endprob(n_states),
             state_names = self.get_state_names(length))
@@ -55,6 +55,11 @@ class ProfileHMM(object):
     #   [  0,  0,  0,  0,  0,  0,.33], //I
     # ]
     
-    def get_emission_dists(self, n_states, n_features):
+    def get_emission_dists(self, n_states, n_features, initial_seq):
+        emphasis = 10 #emphasis of values of initializing sequence
+        initial_dists = [DiscreteDistribution.from_samples(
+            np.concatenate((np.repeat(i, emphasis), range(n_features)))
+        ) for i in initial_seq]
         return [DiscreteDistribution.from_samples(range(n_features))
-            if i % 3 != 2 else None for i in range(n_states)]
+            if i % 3 == 0 else initial_dists[int(math.floor(i/3))] if i % 3 == 1
+            else None for i in range(n_states)]
