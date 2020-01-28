@@ -12,8 +12,19 @@ with open(path) as ofile:
 
 length = int(round(np.mean(lengths)))
 print('length', length)
-model = ProfileHMM(6, 24)
+
+for sequence in map(list, data[:5]):
+    print(''.join(str(s) for s in sequence))
+
+model = ProfileHMM(20, 24)
 model = model.fit(data)
-logp, path = model.viterbi(data[0])
-print(data[0])
-print(logp, [s.name for idx, s in path])
+# logp, path = model.viterbi(data[0])
+# print(data[0])
+# print(logp, [s.name for idx, s in path])
+
+for sequence in map(list, data[:5]):
+    logp, path = model.viterbi( sequence )
+    #print(str(sequence), logp)
+    print(''.join( '-' if state.name[0] == 'I' else state.name[0]
+        for idx, state in path[1:-1] ))
+
