@@ -12,7 +12,7 @@ def create_model_from_data(data):
     median_length = int(np.median(lengths))
     init_sequence = [d for d in data if len(d) == median_length][0]
     training_data = np.array(np.delete(data, data.index(init_sequence), 0))
-    print('model length', median_length, len(init_sequence))
+    print('model length', median_length)
     model = ProfileHMM(median_length, 24, init_sequence)
     print('fitting model')
     before = time.time()
@@ -41,11 +41,12 @@ def save_results(data, model, filepath):
     with open(filepath, 'w') as f:
         json.dump(msa, f)
 
-data, labels = load_data("results/timeline-test7/meandmyuncle30-points.json")
+filebase = "results/hmm-test/goodlovin100"
+data, labels = load_data(filebase+"-points.json")
 for sequence in map(list, data[:10]):
     print(''.join(str(s) for s in sequence))
 model = create_model_from_data(data)
 #model.save_to_json("results/timeline-test7/meandmyuncle30-hmm.json")
 #model = ProfileHMM().load_from_json("results/timeline-test7/meandmyuncle30-hmm.json")
 print_viterbi_paths(data, model.model)
-save_results(data, model.model, "results/timeline-test7/meandmyuncle30-msa.json")
+save_results(data, model.model, filebase+"-msa.json")
