@@ -1,23 +1,34 @@
-import itertools, math
+import itertools, math, json
 import numpy as np
-from pomegranate import HiddenMarkovModel, State, DiscreteDistribution, NormalDistribution
+from pomegranate import HiddenMarkovModel, State, DiscreteDistribution, NormalDistribution, from_json
 
 class ProfileHMM(object):
     """docstring for ProfileHMM."""
 
-    def __init__(self, length, n_features, initial):
+    def __init__(self, length=None, n_features=None, initial=None):
         super(ProfileHMM, self).__init__()
-        n_states = 3*length+1
-        
-        self.model = HiddenMarkovModel.from_matrix(
-            transition_probabilities = self.get_transmat(n_states),
-            distributions = self.get_emission_dists(n_states, n_features, initial),
-            starts = self.get_startprob(n_states),
-            ends = self.get_endprob(n_states),
-            state_names = self.get_state_names(length))
+        if length is not None:
+            n_states = 3*length+1
+            self.model = HiddenMarkovModel.from_matrix(
+                transition_probabilities = self.get_transmat(n_states),
+                distributions = self.get_emission_dists(n_states, n_features, initial),
+                starts = self.get_startprob(n_states),
+                ends = self.get_endprob(n_states),
+                state_names = self.get_state_names(length))
+        #else:
+        #    self.model = HiddenMarkovModel()
     
     def fit(self, data):
-        return self.model.fit(data)
+        return self.model.fit(data, return_history=True)[1]#, inertia=0.1, n_jobs=-1)
+    
+    def save_to_json(self, path):
+        with open(path, 'w') as f:
+            f.write(self.model.to_json())
+    
+    def load_from_json(self, path):
+        with open(path) as f:
+            self.model = from_json(f.read())
+        return self
     
     def get_startprob(self, n_states):
         return np.array([1/3 if i < 3 else 0 for i in range(n_states)])
