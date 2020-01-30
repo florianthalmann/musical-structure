@@ -35,6 +35,20 @@ const DIFF_VERSIONS_MAX_EDGES: GroupingCondition<SegmentNode>
     return false;
   }
 
+export function inferStructureFromMSA(msa: string[][], points: number[][][],
+    versionPairs: [number,number][], results: MultiStructureResult[], filebase: string) {
+  //const graph = createSegmentGraphFromMSA(msa, points);
+  const graph = createSegmentGraphFromAlignments(versionPairs, results, false)//, filebase+'-graph.json');
+  const nodesByVersion = toSegmentNodes(points).map(v => v.map(n => graph.getNode(n.id)));
+  
+  const partition = new GraphPartition(graph, toPartitions(msa, nodesByVersion));
+  //const partition = constructFullPartition(graph, DIFF_VERSIONS, filebase);
+  const connectionMatrix = partition.getConnectionMatrix();
+  if (filebase) {
+    saveJsonFile(filebase+'-matrix.json', connectionMatrix);
+  }
+  return partition.getPartitions();
+}
 
 export function inferStructureFromAlignments(versionPairs: [number,number][],
     results: MultiStructureResult[], filebase?: string): SegmentNode[][] {
@@ -282,6 +296,31 @@ function printPartition(partition: SegmentNode[]) {
   console.log(versions.map(v => v == 1 ? "." : " ").join(''));
 }
 
+export function createSegmentGraphFromMSA(msa: string[][], points: number[][][]) {
+  const nodesByVersion = toSegmentNodes(points);
+  let graph = new DirectedGraph(_.flatten(nodesByVersion), []);
+  
+  const partitions = toPartitions(msa, nodesByVersion);
+  partitions.forEach(p => p.forEach(n => p.forEach(m =>
+    m != n ? graph.addEdge(n, m) : null)))
+  console.log("full", graph.getSize(), graph.getEdges().length)
+
+  graph = graph.pruneIsolatedNodes();
+  console.log("pruned", graph.getSize(), graph.getEdges().length)
+  return graph;
+}
+
+function toPartitions(msa: string[][], nodesByVersion: SegmentNode[][]): SegmentNode[][] {
+  const matchStates = _.uniq(_.flatten(msa));
+  return matchStates.map(m => msa.map((v,i) =>
+    nodesByVersion[i][v.indexOf(m)]).filter(n => n));
+}
+
+function toSegmentNodes(points: number[][][]): SegmentNode[][] {
+  return points.map((ps,i) => ps.map((p,j) =>
+    ({id: i+"."+j, point: p, version: i, time: j})));
+}
+
 export function createSegmentGraphFromAlignments(versionPairs: [number,number][],
     results: MultiStructureResult[],
     postprocessPatterns: boolean, path?: string): DirectedGraph<SegmentNode> {
@@ -300,8 +339,7 @@ export function createSegmentGraphFromAlignments(versionPairs: [number,number][]
   const versionsPoints = versions.map(v => )*/
   
   //create nodes and a map to find them quickly
-  const nodes: SegmentNode[][] = versionsPoints.map((ps,i) =>
-    ps.map((p,j) => ({id: i+"."+j, point: p, version: i, time: j})));
+  const nodes = toSegmentNodes(versionsPoints);
   console.log("made nodes")
   const nodesByVersionByPoint = nodes.map(v =>
     _.zipObject(v.map(n => JSON.stringify(n.point)), v));
@@ -351,7 +389,7 @@ export function createSegmentGraphFromAlignments(versionPairs: [number,number][]
       }
     })));
 
-  console.log("\nfull", graph.getSize(), graph.getEdges().length)
+  console.log("full", graph.getSize(), graph.getEdges().length)
 
   graph = graph.pruneIsolatedNodes();
   console.log("pruned", graph.getSize(), graph.getEdges().length)

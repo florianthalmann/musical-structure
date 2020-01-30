@@ -23,7 +23,7 @@ async function draw() {
     .style("font-size", "10px")
     .text("");
   
-  let seqs = await d3.json("latest/boxofrain30c-visuals-types.json")//box of rain-sw-seqs.json")//"graphs_jo4_min3/box of rain-seqs.json");
+  let seqs = await d3.json("hmm/boxofrain30-visuals2.json")//"latest/boxofrain30c-visuals-types.json")//box of rain-sw-seqs.json")//"graphs_jo4_min3/box of rain-seqs.json");
   seqs = seqs.filter(s => s.version < 80);
 
   const rect = svg.append("g")

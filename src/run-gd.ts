@@ -14,7 +14,8 @@ import { FeatureConfig } from './files/feature-extractor';
 import { getPointsFromAudio, getQuantizedPoints, quantize } from './files/feature-parser';
 import { createSimilarityPatternGraph, getPatternGroupNFs, getNormalFormsMap,
   getConnectednessByVersion, PatternNode } from './analysis/pattern-analysis';
-import { inferStructureFromAlignments } from './analysis/segment-analysis';
+import { inferStructureFromAlignments, inferStructureFromMSA } from './analysis/segment-analysis';
+import { SegmentNode } from './analysis/types';
 import { inferStructureFromTimeline } from './analysis/structure-analysis';
 import { getTuningRatio } from './files/tunings';
 import { toHistogram, getMostCommonPoints } from './analysis/pattern-histograms';
@@ -55,7 +56,9 @@ interface TimelineOptions {
   extension?: string,
   count: number,
   algorithm: AlignmentAlgorithm,
-  includeSelfAlignments: boolean
+  includeSelfAlignments: boolean,
+  maxVersions?: number,
+  maxLength?: number
 }
 
 export async function saveAllSongSequences(offset = 0, skip = 0, total = 10) {
@@ -127,86 +130,119 @@ export async function moveFeatures(tlo: TimelineOptions) {
   versions.forEach(v => importFeaturesFolder(v, '/Volumes/FastSSD/gd_tuned/features/'));
 }
 
-export async function saveGdSequences(tlo: TimelineOptions) {
-  const MAX_LENGTH = undefined;
-  const MAX_VERSIONS = 100;
+interface Sequences {
+  data: number[][],
+  labels: string[]
+}
+
+export async function saveGdMultinomialSequences(tlo: TimelineOptions) {
   const swOptions = getGdSwOptions(initDirRec(GD_PATTERNS));
-  const versions = await getGdVersions(tlo.song, MAX_VERSIONS, tlo.extension, MAX_LENGTH, swOptions);
+  const versions = await getGdVersions(tlo.song, tlo.maxVersions, tlo.extension, tlo.maxLength, swOptions);
   const points = await Promise.all(versions.map(v => getPointsFromAudio(v, swOptions)));
   const values = points.map(s => s.map(p => JSON.stringify(p[1])));
   const distinct = _.uniq(_.flatten(values));
   const data = values.map(vs => vs.map(v => distinct.indexOf(v)));
-  saveJsonFile(tlo.filebase+'-points.json', {data: data, labels: distinct});
+  const sequences: Sequences = {data: data, labels: distinct};
+  saveJsonFile(tlo.filebase+'-points.json', sequences);
+}
+
+export async function saveGdRawSequences(tlo: TimelineOptions) {
+  const swOptions = getGdSwOptions(initDirRec(GD_PATTERNS));
+  const versions = await getGdVersions(tlo.song, tlo.maxVersions, tlo.extension, tlo.maxLength, swOptions);
+  const points = await Promise.all(versions.map(v => getPointsFromAudio(v, swOptions)));
+  const sequences = {data: points};
+  saveJsonFile(tlo.filebase+'-points.json', sequences);
+}
+
+export async function saveTimelineFromMSAResults(tlo: TimelineOptions) {
+  const sequences: Sequences = loadJsonFile(tlo.filebase+'-points.json');
+  const labelPoints = sequences.labels.map(l => <number[]>JSON.parse(l));
+  const points = sequences.data.map(s => s.map(p => labelPoints[p]))
+  const msa: string[][] = loadJsonFile(tlo.filebase+'-msa.json');
+  const alignments = await getAlignments(tlo);
+  const timeline = inferStructureFromMSA(msa, points, alignments.versionTuples,
+    alignments.alignments, tlo.filebase);
+  saveTimelineVisuals(timeline, alignments.versionPoints,
+    alignments.versions, tlo);
 }
 
 export async function saveMultiTimelineDecomposition(tlo: TimelineOptions) {
   //if (!fs.existsSync(tlo.filebase+'-output.json')) {
-    const MAX_LENGTH = undefined;
-    const MAX_VERSIONS = 30;
-    const swOptions = getGdSwOptions(initDirRec(GD_PATTERNS));
-    const siaOptions = getBestGdOptions(initDirRec(GD_PATTERNS));
-    const versions = await getGdVersions(tlo.song, MAX_VERSIONS, tlo.extension, MAX_LENGTH, swOptions);
-    let tuples = <[number,number][]>_.flatten(_.range(tlo.count)
-      .map(c => getMultiConfig(tlo.song, 2, c, versions, MAX_LENGTH, MAX_VERSIONS)
-      .map(pair => pair.map(s => versions.indexOf(s)))));
-    if (tlo.algorithm === AlignmentAlgorithm.BOTH) tuples = _.concat(tuples, tuples);
-    const multis: MultiStructureResult[] = [];
-    if (tlo.algorithm === AlignmentAlgorithm.SIA || tlo.algorithm === AlignmentAlgorithm.BOTH) {
-      multis.push(..._.flatten(await getMultiCosiatecsForSong(tlo.song, tlo.extension, tlo.count, siaOptions, MAX_LENGTH, MAX_VERSIONS)));
+    const alignments = await getAlignments(tlo);
+    const timeline = inferStructureFromAlignments(alignments.versionTuples,
+      alignments.alignments, tlo.filebase);
+    saveTimelineVisuals(timeline, alignments.versionPoints,
+      alignments.versions, tlo);
+  //}
+}
+
+async function getAlignments(tlo: TimelineOptions) {
+  const swOptions = getGdSwOptions(initDirRec(GD_PATTERNS));
+  const siaOptions = getBestGdOptions(initDirRec(GD_PATTERNS));
+  const versions = await getGdVersions(tlo.song, tlo.maxVersions, tlo.extension, tlo.maxLength, swOptions);
+  const points = await Promise.all(versions.map(v => getPointsFromAudio(v, swOptions)));
+  
+  let tuples = <[number,number][]>_.flatten(_.range(tlo.count)
+    .map(c => getMultiConfig(tlo.song, 2, c, versions, tlo.maxLength, tlo.maxVersions)
+    .map(pair => pair.map(s => versions.indexOf(s)))));
+  if (tlo.algorithm === AlignmentAlgorithm.BOTH) tuples = _.concat(tuples, tuples);
+  const multis: MultiStructureResult[] = [];
+  if (tlo.algorithm === AlignmentAlgorithm.SIA || tlo.algorithm === AlignmentAlgorithm.BOTH) {
+    multis.push(..._.flatten(await getMultiCosiatecsForSong(tlo.song, tlo.extension, tlo.count, siaOptions, tlo.maxLength, tlo.maxVersions)));
+  }
+  if (tlo.algorithm === AlignmentAlgorithm.SW || tlo.algorithm === AlignmentAlgorithm.BOTH) {
+    multis.push(..._.flatten(await getMultiSWs(tlo.song, tlo.extension, tlo.count, swOptions, tlo.maxLength, tlo.maxVersions)));
+  }
+  if (tlo.includeSelfAlignments) {
+    if (tlo.algorithm === AlignmentAlgorithm.SIA || tlo.algorithm === AlignmentAlgorithm.BOTH) {
+      const autos = await getCosiatecFromAudio(versions, siaOptions, tlo.maxLength);
+      multis.push(...autos.map(a => Object.assign(a, {points2: a.points})));
+      tuples.push(...<[number,number][]>versions.map((_,i) => [i,i]));
     }
     if (tlo.algorithm === AlignmentAlgorithm.SW || tlo.algorithm === AlignmentAlgorithm.BOTH) {
-      multis.push(..._.flatten(await getMultiSWs(tlo.song, tlo.extension, tlo.count, swOptions, MAX_LENGTH, MAX_VERSIONS)));
+      const autos = await getSmithWatermanFromAudio(versions, swOptions, tlo.maxLength);
+      multis.push(...autos.map(a => Object.assign(a, {points2: a.points})));
+      tuples.push(...<[number,number][]>versions.map((_,i) => [i,i]));
     }
-    if (tlo.includeSelfAlignments) {
-      if (tlo.algorithm === AlignmentAlgorithm.SIA || tlo.algorithm === AlignmentAlgorithm.BOTH) {
-        const autos = await getCosiatecFromAudio(versions, siaOptions, MAX_LENGTH);
-        multis.push(...autos.map(a => Object.assign(a, {points2: a.points})));
-        tuples.push(...<[number,number][]>versions.map((_,i) => [i,i]));
+  }
+  return {versionTuples: tuples, alignments: multis, versions: versions, versionPoints: points};
+}
+
+function saveTimelineVisuals(timeline: SegmentNode[][], points: any[][][],
+    versions: string[], tlo: TimelineOptions) {
+  let segments = points.map((v,i) => v.map((_p,j) =>
+    ({start: points[i][j][0][0],
+      duration: points[i][j+1] ? points[i][j+1][0][0]-points[i][j][0][0] : 1})));
+  const short = versions.map(v =>
+    v.split('/').slice(-2).join('/').replace(tlo.extension || '.m4a', '.mp3'));
+  const tunings = short.map(v =>
+    getTuningRatio(v.split('/')[0], v.split('/')[1].replace('.mp3','')));
+  const json = {title: _.startCase(tlo.song), versions: short, tunings: tunings,
+    segments: segments, timeline: timeline};
+  saveJsonFile(tlo.filebase+'-output.json', json);
+  let visuals: VisualsPoint[] = _.flatten(versions.map((_v,i) => timeline.map(t => {
+    const n = t.find(n => n.version === i);
+    return n ? ({version:i, time:n.time, type:1, point:n.point, path: versions[i],
+      start: segments[i][n.time].start, duration: segments[i][n.time].duration}) : undefined;
+  }))).filter(p=>p);
+  saveJsonFile(tlo.filebase+'-visuals.json', visuals);
+  
+  //infer structure
+  const segmentsByType = inferStructureFromTimeline(tlo.filebase);
+  segments = points.map((v,i) => v.map((_p,j) =>
+    ({start: points[i][j][0][0],
+      duration: points[i][j+1] ? points[i][j+1][0][0]-points[i][j][0][0] : 1})));
+  visuals = _.flatten(points.map((v,i) =>
+    v.map((_p,t) => {
+      const type = segmentsByType.findIndex(s =>
+        s.find(n => n.version === i && n.time === t) != null);
+      if (type >= 0) {
+        const n = segmentsByType[type].find(n => n.version === i && n.time === t);
+        return ({version:i, time:t, type:type+1, point:n.point, path: versions[i],
+          start: segments[i][n.time].start, duration: segments[i][n.time].duration});
       }
-      if (tlo.algorithm === AlignmentAlgorithm.SW || tlo.algorithm === AlignmentAlgorithm.BOTH) {
-        const autos = await getSmithWatermanFromAudio(versions, swOptions, MAX_LENGTH);
-        multis.push(...autos.map(a => Object.assign(a, {points2: a.points})));
-        tuples.push(...<[number,number][]>versions.map((_,i) => [i,i]));
-      }
-    }
-    const timeline = inferStructureFromAlignments(tuples, multis, tlo.filebase);
-    //const timeline = inferStructureFromAlignments(_.concat(tuples, tuples), multis, filebase);
-    const points = await Promise.all(versions.map(v => getPointsFromAudio(v, swOptions)));
-    
-    let segments = points.map((v,i) => v.map((p,j) =>
-      ({start: points[i][j][0][0],
-        duration: points[i][j+1] ? points[i][j+1][0][0]-points[i][j][0][0] : 1})));
-    const short = versions.map(v =>
-      v.split('/').slice(-2).join('/').replace(tlo.extension || '.m4a', '.mp3'));
-    const tunings = short.map(v =>
-      getTuningRatio(v.split('/')[0], v.split('/')[1].replace('.mp3','')));
-    const json = {title: _.startCase(tlo.song), versions: short, tunings: tunings,
-      segments: segments, timeline: timeline};
-    saveJsonFile(tlo.filebase+'-output.json', json);
-    let visuals: VisualsPoint[] = _.flatten(versions.map((v,i) => timeline.map(t => {
-      const n = t.find(n => n.version === i);
-      return n ? ({version:i, time:n.time, type:1, point:n.point, path: versions[i],
-        start: segments[i][n.time].start, duration: segments[i][n.time].duration}) : undefined;
     }))).filter(p=>p);
-    saveJsonFile(tlo.filebase+'-visuals.json', visuals);
-    
-    //infer structure
-    const segmentsByType = inferStructureFromTimeline(tlo.filebase);
-    segments = points.map((v,i) => v.map((_p,j) =>
-      ({start: points[i][j][0][0],
-        duration: points[i][j+1] ? points[i][j+1][0][0]-points[i][j][0][0] : 1})));
-    visuals = _.flatten(points.map((v,i) =>
-      v.map((_p,t) => {
-        const type = segmentsByType.findIndex(s =>
-          s.find(n => n.version === i && n.time === t) != null);
-        if (type >= 0) {
-          const n = segmentsByType[type].find(n => n.version === i && n.time === t);
-          return ({version:i, time:t, type:type+1, point:n.point, path: versions[i],
-            start: segments[i][n.time].start, duration: segments[i][n.time].duration});
-        }
-      }))).filter(p=>p);
-    saveJsonFile(tlo.filebase+'-visuals2.json', visuals);
-  //}
+  saveJsonFile(tlo.filebase+'-visuals2.json', visuals);
 }
 
 export async function saveMultiSWPatternGraph(filebase: string, song = SONG, extension?: string, count = 1) {

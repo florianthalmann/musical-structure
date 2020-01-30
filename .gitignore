@@ -14,6 +14,7 @@ plots/graph_visuals.py
 plots/d3/new*
 plots/d3/latest
 plots/d3/graphs*
+plots/d3/hmm*
 plots/sweeps.json
 plots/gdplots
 plots/sweeps*
@@ -25,3 +26,8 @@ connections*
 good*
 hists*
 thomas
+__pycache__
+hmm.d.ts
+mary-markov.d.ts
+profile-hmm.ts
+test.py
