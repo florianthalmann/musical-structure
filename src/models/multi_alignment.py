@@ -5,7 +5,7 @@ from profile_hmm import ProfileHMM
 def load_data(path):
     with open(path) as ofile:
         loaded = json.load(ofile)
-    return loaded["data"], loaded["labels"]
+    return loaded["data"]#, loaded["labels"]
 
 def create_model_from_data(data):
     lengths = [len(d) for d in data]
@@ -41,10 +41,10 @@ def save_results(data, model, filepath):
     with open(filepath, 'w') as f:
         json.dump(msa, f)
 
-filebase = "results/hmm-test/goodlovin100"
-data, labels = load_data(filebase+"-points.json")
-for sequence in map(list, data[:10]):
-    print(''.join(str(s) for s in sequence))
+filebase = "results/hmm-test/meandmyuncle100c"
+data = load_data(filebase+"-points.json")
+#for sequence in map(list, data[:10]):
+#    print(''.join(str(s) for s in sequence))
 model = create_model_from_data(data)
 #model.save_to_json("results/timeline-test7/meandmyuncle30-hmm.json")
 #model = ProfileHMM().load_from_json("results/timeline-test7/meandmyuncle30-hmm.json")

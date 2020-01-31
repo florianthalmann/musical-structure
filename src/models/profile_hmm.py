@@ -1,6 +1,6 @@
 import itertools, math, json
 import numpy as np
-from pomegranate import HiddenMarkovModel, State, DiscreteDistribution, NormalDistribution, from_json
+from pomegranate import HiddenMarkovModel, DiscreteDistribution, MultivariateGaussianDistribution, from_json
 
 class ProfileHMM(object):
     """docstring for ProfileHMM."""
@@ -9,6 +9,7 @@ class ProfileHMM(object):
         super(ProfileHMM, self).__init__()
         if length is not None:
             n_states = 3*length+1
+            #print(self.get_emission_dists(n_states, n_features, initial)[:3])
             self.model = HiddenMarkovModel.from_matrix(
                 transition_probabilities = self.get_transmat(n_states),
                 distributions = self.get_emission_dists(n_states, n_features, initial),
@@ -19,7 +20,7 @@ class ProfileHMM(object):
         #    self.model = HiddenMarkovModel()
     
     def fit(self, data):
-        return self.model.fit(data, max_iterations=100, return_history=True)[1]#, inertia=0.1, n_jobs=-1)
+        return self.model.fit(data, return_history=True)[1]#, max_iterations=100, inertia=0.1, n_jobs=-1)
     
     def save_to_json(self, path):
         with open(path, 'w') as f:
@@ -68,9 +69,23 @@ class ProfileHMM(object):
     
     def get_emission_dists(self, n_states, n_features, initial_seq):
         emphasis = 10 #emphasis of values of initializing sequence
+        if isinstance(initial_seq[0], int):
+            return self.get_discrete_dists(n_states, n_features, initial_seq, emphasis)
+        else:
+            return self.get_multigauss_dists(n_states, n_features, initial_seq, emphasis)
+    
+    def get_discrete_dists(self, n_states, n_features, initial_seq, emphasis):
         initial_dists = [DiscreteDistribution.from_samples(
             np.concatenate((np.repeat(i, emphasis), range(n_features)))
         ) for i in initial_seq]
-        return [DiscreteDistribution.from_samples(range(n_features))
-            if i % 3 == 0 else initial_dists[int(math.floor(i/3))] if i % 3 == 1
+        return [DiscreteDistribution.from_samples(range(n_features)) if i % 3 == 0
+            else initial_dists[int(math.floor(i/3))] if i % 3 == 1
+            else None for i in range(n_states)]
+    
+    def get_multigauss_dists(self, n_states, n_features, initial_seq, emphasis):
+        initial_dists = [MultivariateGaussianDistribution.from_samples(
+            np.concatenate((np.tile(i, (emphasis,1)), np.array(initial_seq)))
+        ) for i in initial_seq]
+        return [MultivariateGaussianDistribution.from_samples(np.array(initial_seq)) if i % 3 == 0
+            else initial_dists[int(math.floor(i/3))] if i % 3 == 1
             else None for i in range(n_states)]
