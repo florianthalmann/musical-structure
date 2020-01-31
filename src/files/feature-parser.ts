@@ -4,6 +4,7 @@ import { indexOfMax } from 'arrayutils';
 import { Quantizer } from 'siafun';
 import { FEATURES, Features, getFeatures } from './feature-extractor';
 import { FeatureOptions } from './options';
+import { mapSeries } from './util';
 
 interface VampValue {
   time: number,
@@ -24,6 +25,10 @@ export function quantize(points: any[][], options: FeatureOptions) {
 export async function getQuantizedPoints(audioFile: string, options: FeatureOptions) {
   const points = await getPointsFromAudio(audioFile, options);
   return new Quantizer(options.quantizerFunctions).getQuantizedPoints(points);
+}
+
+export async function getPointsForAudioFiles(audioFiles: string[], options: FeatureOptions) {
+  return mapSeries(audioFiles, a => getPointsFromAudio(a, options));
 }
 
 export async function getPointsFromAudio(audioFile: string, options: FeatureOptions) {

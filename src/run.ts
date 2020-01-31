@@ -48,15 +48,17 @@ import { gatherTunings } from './files/tunings';
 /*saveMultiTimelineDecomposition({filebase: "results/timeline-test7/darkstar30", song: "dark star", extension: ".mp3", 
   count: 20, algorithm: AlignmentAlgorithm.SW, includeSelfAlignments: false});*/
 
-//saveGdMultinomialSequences({filebase: "results/hmm-test/boxofrain100", song: "box of rain", extension: ".m4a",
-/*saveGdMultinomialSequences({filebase: "results/hmm-test/meandmyuncle100", song: "me and my uncle",
-//saveGdMultinomialSequences({filebase: "results/hmm-test/goodlovin100", song: "good lovin'", extension: ".mp3",
-//saveGdMultinomialSequences({filebase: "results/hmm-test/darkstar100", song: "dark star", extension: ".mp3",
-  count: 20, algorithm: AlignmentAlgorithm.SW, includeSelfAlignments: false});*/
+//saveGdMultinomialSequences({filebase: "results/hmm-test/boxofrain100c", song: "box of rain", extension: ".m4a",
+//saveGdRawSequences({filebase: "results/hmm-test/meandmyuncle100c", song: "me and my uncle",
+//saveGdRawSequences({filebase: "results/hmm-test/goodlovin100c", song: "good lovin'", extension: ".mp3",
+saveGdMultinomialSequences({filebase: "results/hmm-test/darkstar100", song: "dark star", extension: ".mp3",
+  maxVersions: 40, count: 0, algorithm: AlignmentAlgorithm.SW, includeSelfAlignments: false});
 
-saveTimelineFromMSAResults({filebase: "results/hmm-test/meandmyuncle100", song: "me and my uncle",
+/*saveTimelineFromMSAResults({filebase: "results/hmm-test/meandmyuncle100", song: "me and my uncle",
 //saveTimelineFromMSAResults({filebase: "results/hmm-test/boxofrain100", song: "box of rain", extension: ".m4a",
-  maxVersions: 100, count: 5, algorithm: AlignmentAlgorithm.SW, includeSelfAlignments: false});
+//saveTimelineFromMSAResults({filebase: "results/hmm-test/goodlovin100", song: "good lovin'", extension: ".mp3",
+  maxVersions: 100, count: 0, algorithm: AlignmentAlgorithm.SW, includeSelfAlignments: true});
+
 
 //analyzeSavedTimeline({filebase: "results/timeline-test/boxofrain30c", song: "box of rain", extension: ".m4a",
 //analyzeSavedTimeline({filebase: "results/timeline-test/meandmyuncle30c", song: "me and my uncle", extension: ".mp3",

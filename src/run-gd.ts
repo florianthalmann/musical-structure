@@ -11,7 +11,7 @@ import { loadGraph } from './graphs/graph-theory';
 import { getOptionsWithCaching, getBestGdOptions, getGdSwOptions,
   FullSIAOptions, FullSWOptions, getOptions, FeatureOptions } from './files/options';
 import { FeatureConfig } from './files/feature-extractor';
-import { getPointsFromAudio, getQuantizedPoints, quantize } from './files/feature-parser';
+import { getPointsForAudioFiles, getQuantizedPoints, quantize } from './files/feature-parser';
 import { createSimilarityPatternGraph, getPatternGroupNFs, getNormalFormsMap,
   getConnectednessByVersion, PatternNode } from './analysis/pattern-analysis';
 import { inferStructureFromAlignments, inferStructureFromMSA } from './analysis/segment-analysis';
@@ -107,7 +107,7 @@ export async function analyzeSavedTimeline(tlo: TimelineOptions) {
   const segmentsByType = inferStructureFromTimeline(tlo.filebase);
   const options = getBestGdOptions(initDirRec(GD_PATTERNS));
   const versions = await getGdVersions(tlo.song, MAX_VERSIONS, tlo.extension, MAX_LENGTH, options);
-  const points = await mapSeries(versions, v => getPointsFromAudio(v, options));
+  const points = await getPointsForAudioFiles(versions, options);
   const segments = points.map((v,i) => v.map((_p,j) =>
     ({start: points[i][j][0][0],
       duration: points[i][j+1] ? points[i][j+1][0][0]-points[i][j][0][0] : 1})));
@@ -138,7 +138,7 @@ interface Sequences {
 export async function saveGdMultinomialSequences(tlo: TimelineOptions) {
   const swOptions = getGdSwOptions(initDirRec(GD_PATTERNS));
   const versions = await getGdVersions(tlo.song, tlo.maxVersions, tlo.extension, tlo.maxLength, swOptions);
-  const points = await Promise.all(versions.map(v => getPointsFromAudio(v, swOptions)));
+  const points = await getPointsForAudioFiles(versions, swOptions);
   const values = points.map(s => s.map(p => JSON.stringify(p[1])));
   const distinct = _.uniq(_.flatten(values));
   const data = values.map(vs => vs.map(v => distinct.indexOf(v)));
@@ -149,8 +149,8 @@ export async function saveGdMultinomialSequences(tlo: TimelineOptions) {
 export async function saveGdRawSequences(tlo: TimelineOptions) {
   const swOptions = getGdSwOptions(initDirRec(GD_PATTERNS));
   const versions = await getGdVersions(tlo.song, tlo.maxVersions, tlo.extension, tlo.maxLength, swOptions);
-  const points = await Promise.all(versions.map(v => getPointsFromAudio(v, swOptions)));
-  const sequences = {data: points};
+  const points = await getPointsForAudioFiles(versions, swOptions);
+  const sequences = {data: points.map(s => s.map(p => p[1]))};
   saveJsonFile(tlo.filebase+'-points.json', sequences);
 }
 
@@ -180,7 +180,7 @@ async function getAlignments(tlo: TimelineOptions) {
   const swOptions = getGdSwOptions(initDirRec(GD_PATTERNS));
   const siaOptions = getBestGdOptions(initDirRec(GD_PATTERNS));
   const versions = await getGdVersions(tlo.song, tlo.maxVersions, tlo.extension, tlo.maxLength, swOptions);
-  const points = await Promise.all(versions.map(v => getPointsFromAudio(v, swOptions)));
+  const points = await getPointsForAudioFiles(versions, swOptions);
   
   let tuples = <[number,number][]>_.flatten(_.range(tlo.count)
     .map(c => getMultiConfig(tlo.song, 2, c, versions, tlo.maxLength, tlo.maxVersions)
@@ -309,7 +309,7 @@ export async function saveSWPatternAndVectorSequences(filebase: string, tryHalft
   console.log("\n"+song+" "+versions.length+"\n")
 
   const options = getGdSwOptions(GD_PATTERNS);
-  const points = await mapSeries(versions, a => getPointsFromAudio(a, options));
+  const points = await getPointsForAudioFiles(versions, options);
   const results = await getSmithWatermanFromAudio(versions, options);
 
   const MIN_OCCURRENCE = 2;
@@ -317,7 +317,7 @@ export async function saveSWPatternAndVectorSequences(filebase: string, tryHalft
 
   /*if (tryHalftime) {
     const doubleOptions = getGdSwOptions(true);
-    const doublePoints = await mapSeries(versions, a => getPointsFromAudio(a, doubleOptions));
+    const doublePoints = await getPointsForAudioFiles(versions, doubleOptions);
     const doubleResults = await getSmithWatermanFromAudio(versions, doubleOptions);
 
     const graph = createSimilarityPatternGraph(results.concat(doubleResults), false, null, MIN_OCCURRENCE);
@@ -353,7 +353,7 @@ export async function savePatternAndVectorSequences(filebase: string, tryHalftim
   console.log("\n"+song+" "+versions.length+"\n")
 
   const options = getBestGdOptions(GD_PATTERNS);
-  const points = await mapSeries(versions, a => getPointsFromAudio(a, options));
+  const points = await getPointsForAudioFiles(versions, options);
   const results = await getCosiatecFromAudio(versions, options);
   results.forEach(r => removeNonParallelOccurrences(r));
 
@@ -362,7 +362,7 @@ export async function savePatternAndVectorSequences(filebase: string, tryHalftim
 
   if (tryHalftime) {
     const doubleOptions = getBestGdOptions(GD_PATTERNS, true);
-    const doublePoints = await mapSeries(versions, a => getPointsFromAudio(a, doubleOptions));
+    const doublePoints = await getPointsForAudioFiles(versions, options);
     const doubleResults = await getCosiatecFromAudio(versions, doubleOptions);
     doubleResults.forEach(r => removeNonParallelOccurrences(r));
 
@@ -396,7 +396,7 @@ export async function savePatternSequences(file: string, hubSize: number, append
   const options = getBestGdOptions(GD_PATTERNS);
   const versions = await getGdVersions(SONG)//.slice(0,40);
   const graphFile = GD_GRAPHS+SONG+appendix+'.json';
-  const points = await mapSeries(versions, a => getPointsFromAudio(a, options));
+  const points = await getPointsForAudioFiles(versions, options);
   const results = await getCosiatecFromAudio(versions, options);
   results.forEach(r => removeNonParallelOccurrences(r));
   const sequences = await getPatternSequences(versions, points, results, {maxDistance: 3}, 10);
@@ -439,7 +439,7 @@ function removeNonParallelOccurrences(results: StructureResult, dimIndex = 0) {
 export async function saveVectorSequences(file: string, typeCount?: number) {
   const options = getBestGdOptions(GD_PATTERNS);
   const versions = (await getGdVersions(SONG)).slice(0,10);
-  const points = await mapSeries(versions, a => getPointsFromAudio(a, options));
+  const points = await getPointsForAudioFiles(versions, options);
   const sequences = await getVectorSequences(versions, points, options, typeCount);
   fs.writeFileSync(file, JSON.stringify(_.flatten(sequences)));
 }
@@ -468,21 +468,21 @@ export async function saveGdHists(features: FeatureConfig[], quantFuncs: ArrayMa
 }
 
 export async function getSmithWatermanFromAudio(audioFiles: string[], options: FullSWOptions, maxLength?: number) {
+  const points = await getPointsForAudioFiles(audioFiles, options);
   return mapSeries(audioFiles, async (a,i) => {
     updateStatus('  ' + (i+1) + '/' + audioFiles.length);
-    const points = await getPointsFromAudio(a, options);
     if (!maxLength || points.length < maxLength) {
-      return getSmithWaterman(points, getOptionsWithCaching(a, options));
+      return getSmithWaterman(points[i], getOptionsWithCaching(a, options));
     }
   });
 }
 
 export async function getCosiatecFromAudio(audioFiles: string[], options: FullSIAOptions, maxLength?: number) {
+  const points = await getPointsForAudioFiles(audioFiles, options);
   return mapSeries(audioFiles, async (a,i) => {
     updateStatus('  ' + (i+1) + '/' + audioFiles.length);
-    const points = await getPointsFromAudio(a, options);
     if (!maxLength || points.length < maxLength) {
-      return getCosiatec(points, getOptionsWithCaching(a, options));
+      return getCosiatec(points[i], getOptionsWithCaching(a, options));
     }
   });
 }
@@ -490,7 +490,7 @@ export async function getCosiatecFromAudio(audioFiles: string[], options: FullSI
 async function getMultiSW(name: string, index: number, audioFiles: string[], options: FullSWOptions, maxLength?: number, count?: number) {
   const tuples = getMultiConfig(name, 2, index, audioFiles, maxLength, count);
   audioFiles = _.uniq(_.flatten(tuples));
-  const points = await mapSeries(audioFiles, a => getPointsFromAudio(a, options));
+  const points = await getPointsForAudioFiles(audioFiles, options);
   return mapSeries(tuples, async (tuple,i) => {
     updateStatus('  ' + (i+1) + '/' + tuples.length);
     const currentPoints = tuple.map(a => points[audioFiles.indexOf(a)]);
@@ -504,7 +504,7 @@ async function getMultiSW(name: string, index: number, audioFiles: string[], opt
 
 async function getMultiCosiatecs(name: string, size: number, index: number, audioFiles: string[], maxLength?: number, count?: number) {
   const options = getBestGdOptions(initDirRec(GD_PATTERNS));
-  let points = mapSeries(audioFiles, a => getPointsFromAudio(a, options));
+  let points = await getPointsForAudioFiles(audioFiles, options);
   const tuples = getMultiConfig(name, size, index, audioFiles, maxLength, count);
   return mapSeries(tuples, async (tuple,i) => {
     updateStatus('  ' + (i+1) + '/' + tuples.length);
@@ -520,7 +520,7 @@ async function getMultiCosiatecs(name: string, size: number, index: number, audi
   const options = getBestGdOptions(initDirRec(GD_PATTERNS+'/multi'+index));
   return _.flatten(await mapSeries(pairs, async (pair,i) => {
     updateStatus('  ' + (i+1) + '/' + pairs.length);
-    const points = await Promise.all(pair.map(p => getPointsFromAudio(p, options)));
+    const points = await getPointsForAudioFiles(pair, options);
     const slices = points.map(p => getSlices(p));
     const multis = _.zip(...slices).map(s => s[0].concat(s[1]));
     return multis.map(h => {
@@ -590,7 +590,7 @@ async function getGdVersions(songname: string, count?: number, extension?: strin
       +(extension ? _.replace(s.track, '.mp3', extension) : s.track))
     .filter(fs.existsSync);
   if (maxLength && options) {
-    const points = await mapSeries(versions, a => getPointsFromAudio(a, options));
+    const points = getPointsForAudioFiles(versions, options);
     versions = versions.filter((_,i) => points[i].length <= maxLength);
   }
   return versions.slice(-count);

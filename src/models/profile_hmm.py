@@ -19,7 +19,7 @@ class ProfileHMM(object):
         #    self.model = HiddenMarkovModel()
     
     def fit(self, data):
-        return self.model.fit(data, max_iterations=10, return_history=True)[1]#, inertia=0.1, n_jobs=-1)
+        return self.model.fit(data, max_iterations=100, return_history=True)[1]#, inertia=0.1, n_jobs=-1)
     
     def save_to_json(self, path):
         with open(path, 'w') as f:

@@ -62,7 +62,7 @@ export function getGdCompressionOptions(resultsDir: string) {
 
 export function getGdSwOptions(resultsDir: string, doubletime?: boolean) {
   const options = _.clone(SW_OPTIONS);
-  options.selectedFeatures = [FEATURES.MADMOM_BARS, FEATURES.CHROMA];
+  options.selectedFeatures = [FEATURES.MADMOM_BARS, FEATURES.JOHAN_CHORDS];
   options.quantizerFunctions = [QF.ORDER(), QF.IDENTITY()];
   options.doubletime = doubletime;
   addCacheDir(options, resultsDir, options.selectedFeatures, '', doubletime);
