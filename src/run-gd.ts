@@ -150,7 +150,7 @@ export async function saveGdRawSequences(tlo: TimelineOptions) {
   const swOptions = getGdSwOptions(initDirRec(GD_PATTERNS));
   const versions = await getGdVersions(tlo.song, tlo.maxVersions, tlo.extension, tlo.maxLength, swOptions);
   const points = await getPointsForAudioFiles(versions, swOptions);
-  const sequences = {data: points.map(s => s.map(p => p[1]))};
+  const sequences = {data: points.map(s => s.map(p => p[1]).filter(p=>p))};
   saveJsonFile(tlo.filebase+'-points.json', sequences);
 }
 
