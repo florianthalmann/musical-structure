@@ -20,7 +20,7 @@ class ProfileHMM(object):
         #    self.model = HiddenMarkovModel()
     
     def fit(self, data):
-        return self.model.fit(data, return_history=True)[1]#, max_iterations=100, inertia=0.1, n_jobs=-1)
+        return self.model.fit(data, return_history=True)[1]#, max_iterations=500, inertia=0.1, n_jobs=-1)
     
     def save_to_json(self, path):
         with open(path, 'w') as f:
@@ -45,7 +45,7 @@ class ProfileHMM(object):
         return sum([['In']]
             +[['M'+str(i),'D'+str(i),'I'+str(i)] for i in range(length)], [])
     
-    def get_trans_prob(self, i, j, encouragement = 1.2):
+    def get_trans_prob(self, i, j, encouragement = 2.9):
         match_match = 1/3*encouragement
         match_other = (1-match_match)/2
         delete_insert = 1/3/encouragement

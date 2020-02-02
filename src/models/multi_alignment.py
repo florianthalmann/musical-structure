@@ -35,16 +35,18 @@ def print_viterbi_paths(data, model):
             for idx, state in path[1:-1]))
 
 def save_results(data, model, filepath):
-    paths = [model.viterbi(d)[1] for d in data]
+    viterbis = [model.viterbi(d) for d in data]
+    logps = [v[0] for v in viterbis]
+    paths = [v[1] for v in viterbis]
     msa = [[state.name if state.name[0] == 'M' else ''
         for idx, state in path[1:-1]] for path in paths]
     with open(filepath, 'w') as f:
-        json.dump(msa, f)
+        json.dump({"msa": msa, "logp": logps}, f)
 
-filebase = "results/hmm-test/meandmyuncle100c"
+filebase = "results/hmm-test/boxofrain100"
 data = load_data(filebase+"-points.json")
-#for sequence in map(list, data[:10]):
-#    print(''.join(str(s) for s in sequence))
+for sequence in map(list, data[:10]):
+    print(''.join(str(s) for s in sequence))
 model = create_model_from_data(data)
 #model.save_to_json("results/timeline-test7/meandmyuncle30-hmm.json")
 #model = ProfileHMM().load_from_json("results/timeline-test7/meandmyuncle30-hmm.json")
