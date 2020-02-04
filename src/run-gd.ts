@@ -5,7 +5,7 @@ import { pointsToIndices, ArrayMap, StructureResult, MultiStructureResult, getCo
 import { GD_AUDIO as GDA, GD_SONG_MAP, GD_PATTERNS, GD_GRAPHS } from './files/config';
 import { mapSeries, updateStatus, audioPathToDirName } from './files/util';
 import { loadJsonFile, initDirRec, getFoldersInFolder, saveJsonFile,
-  importFeaturesFolder } from './files/file-manager';
+  importFeaturesFolder, getFilesInFolder } from './files/file-manager';
 import { NodeGroupingOptions } from './graphs/graph-analysis';
 import { loadGraph } from './graphs/graph-theory';
 import { getOptionsWithCaching, getBestGdOptions, getGdSwOptions,
@@ -15,6 +15,7 @@ import { getPointsForAudioFiles, getQuantizedPoints, quantize } from './files/fe
 import { createSimilarityPatternGraph, getPatternGroupNFs, getNormalFormsMap,
   getConnectednessByVersion, PatternNode } from './analysis/pattern-analysis';
 import { inferStructureFromAlignments, inferStructureFromMSA } from './analysis/segment-analysis';
+import { getSequenceRating } from './analysis/sequence-heuristics';
 import { SegmentNode } from './analysis/types';
 import { inferStructureFromTimeline } from './analysis/structure-analysis';
 import { getTuningRatio } from './files/tunings';
@@ -50,7 +51,7 @@ export enum AlignmentAlgorithm {
   BOTH
 }
 
-interface TimelineOptions {
+export interface TimelineOptions {
   filebase: string,
   song: string,
   extension?: string,
@@ -158,12 +159,30 @@ export async function saveTimelineFromMSAResults(tlo: TimelineOptions) {
   const sequences: Sequences = loadJsonFile(tlo.filebase+'-points.json');
   const labelPoints = sequences.labels.map(l => <number[]>JSON.parse(l));
   const points = sequences.data.map(s => s.map(p => labelPoints[p]))
-  const msa: string[][] = loadJsonFile(tlo.filebase+'-msa.json');
+  let json = loadJsonFile(tlo.filebase+'-msa.json');
+  if (json["msa"]) json = json["msa"];
+  const msa: string[][] = json;
   const alignments = await getAlignments(tlo);
   const timeline = inferStructureFromMSA(msa, points, alignments.versionTuples,
-    alignments.alignments, tlo.filebase);
+    alignments.alignments, tlo.filebase).getPartitions();
   saveTimelineVisuals(timeline, alignments.versionPoints,
     alignments.versions, tlo);
+}
+
+export async function printRatingsFromMSAResults(tlo: TimelineOptions) {
+  const sequences: Sequences = loadJsonFile(tlo.filebase+'-points.json');
+  const labelPoints = sequences.labels.map(l => <number[]>JSON.parse(l));
+  const points = sequences.data.map(s => s.map(p => labelPoints[p]));
+  const folder = tlo.filebase.split("/").slice(0, -1).join("/")+"/";
+  const alignments = await getAlignments(tlo);
+  const files = getFilesInFolder(folder, ["json"])
+    .filter(f => _.includes(f, "msa"));
+  const msas: string[][][] = files.map(f => loadJsonFile(folder+f))
+    .map(json => json["msa"] ? json["msa"] : json);
+  const partitions = msas.map(m => inferStructureFromMSA(m, points,
+    alignments.versionTuples, alignments.alignments, tlo.filebase));
+  const configs = files.map(f => f.slice(f.indexOf("msa"), f.indexOf(".json")));
+  partitions.forEach((p,i) => console.log(configs[i], getSequenceRating(p)));
 }
 
 export async function saveMultiTimelineDecomposition(tlo: TimelineOptions) {

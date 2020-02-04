@@ -2,14 +2,14 @@ import * as _ from 'lodash';
 //import { saveGdHists } from './histograms';
 import { saveMultiTimelineDecomposition, AlignmentAlgorithm,
   saveThomasSongAlignments, analyzeSavedTimeline, moveFeatures,
-  saveGdRawSequences, saveGdMultinomialSequences, saveTimelineFromMSAResults } from './run-gd';
+  saveGdRawSequences, saveGdMultinomialSequences, saveTimelineFromMSAResults,
+  TimelineOptions, printRatingsFromMSAResults } from './run-gd';
 import { calculateCompressionDistances, calculatePatternSimilarities,
   sweep, saveSimilarities, sweep2} from './run-gd-dists';
 
 import { analyzePatternGraph } from './analysis/pattern-analysis';
 import { cleanCaches, renameJohanChordFeatures, moveToFeaturesDir } from './files/file-manager';
 import { gatherTunings } from './files/tunings';
-
 
 /*fs.writeFileSync('connections3.json', JSON.stringify(
   getConnectednessRatings(JSON.parse(fs.readFileSync(
@@ -41,30 +41,37 @@ import { gatherTunings } from './files/tunings';
 //saveSWPatternAndVectorSequences("plots/d3/latest/box of rain-sw", false, "box of rain", ".m4a");
 //saveHybridSWPatternGraph("plots/d3/latest/box of rain-sw", "box of rain", ".m4a", 1)
 
-//saveMultiTimelineDecomposition({filebase: "results/timeline-test7/boxofrain30", song: "box of rain", extension: ".m4a",  //[ 156, 178, 154, 156, 157, 156, 155, 155, 163, 163 ]
-//saveMultiTimelineDecomposition({filebase: "results/timeline-test7/meandmyuncle30", song: "me and my uncle", //[ 135, 92, 90, 99, 99, 171, 87, 89, 89, 87 ]
-//saveMultiTimelineDecomposition({filebase: "results/timeline-test7/goodlovin30", song: "good lovin'", extension: ".mp3", 
-//saveMultiTimelineDecomposition({filebase: "results/cosmiccharlie30", song: "cosmic charlie", extension: ".mp3", 
-/*saveMultiTimelineDecomposition({filebase: "results/timeline-test7/darkstar30", song: "dark star", extension: ".mp3", 
-  count: 20, algorithm: AlignmentAlgorithm.SW, includeSelfAlignments: false});*/
+export function getSongOptions(name: string, extension: string) {
+  return {results: name.replace(/\s/g,''), song: name,
+    extension: extension};
+}
 
-//saveGdMultinomialSequences({filebase: "results/hmm-test/boxofrain100c", song: "box of rain", extension: ".m4a",
-//saveGdRawSequences({filebase: "results/hmm-test/meandmyuncle100c", song: "me and my uncle",
-//saveGdRawSequences({filebase: "results/hmm-test/goodlovin100c", song: "good lovin'", extension: ".mp3",
-saveGdMultinomialSequences({filebase: "results/hmm-test/darkstar100", song: "dark star", extension: ".mp3",
-  maxVersions: 40, count: 0, algorithm: AlignmentAlgorithm.SW, includeSelfAlignments: false});
+const CURRENT_SONG =
+//getSongOptions("me and my uncle", ".mp3");
+//getSongOptions("box of rain", ".m4a");
+//getSongOptions("good lovin'", ".mp3");
+getSongOptions("cosmic charlie", ".mp3");
+//getSongOptions("dark star", ".mp3");
 
-/*saveTimelineFromMSAResults({filebase: "results/hmm-test/meandmyuncle100", song: "me and my uncle",
-//saveTimelineFromMSAResults({filebase: "results/hmm-test/boxofrain100", song: "box of rain", extension: ".m4a",
-//saveTimelineFromMSAResults({filebase: "results/hmm-test/goodlovin100", song: "good lovin'", extension: ".mp3",
-  maxVersions: 100, count: 0, algorithm: AlignmentAlgorithm.SW, includeSelfAlignments: true});
+const RESULTS_PATH = "results/hmm-test2/";
+const CURRENT_OPTIONS = (mv: number) => Object.assign(CURRENT_SONG, {
+  filebase: RESULTS_PATH + CURRENT_SONG.results + mv,
+  maxVersions: mv,
+  count: 5,
+  algorithm: AlignmentAlgorithm.SW,
+  includeSelfAlignments: true
+});
 
+////try cosmic charlie again with maxV 30, count 10, SW, false
+//saveMultiTimelineDecomposition(CURRENT_OPTIONS(30));
 
-//analyzeSavedTimeline({filebase: "results/timeline-test/boxofrain30c", song: "box of rain", extension: ".m4a",
-//analyzeSavedTimeline({filebase: "results/timeline-test/meandmyuncle30c", song: "me and my uncle", extension: ".mp3",
-/*analyzeSavedTimeline({filebase: "results/timeline-test/goodlovin30c", song: "good lovin'", extension: ".mp3",
-  count: 5, algorithm: AlignmentAlgorithm.SW,
-  includeSelfAlignments: false});*/
+//saveGdRawSequences(CURRENT_OPTIONS);
+//saveGdMultinomialSequences(CURRENT_OPTIONS(100));
+
+//saveTimelineFromMSAResults(CURRENT_OPTIONS(100));
+printRatingsFromMSAResults(CURRENT_OPTIONS(100));
+
+//analyzeSavedTimeline(CURRENT_OPTIONS);
 
 //saveThomasSongAlignments()
 
