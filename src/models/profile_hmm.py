@@ -2,16 +2,20 @@ import itertools, math, json
 import numpy as np
 from pomegranate import HiddenMarkovModel, DiscreteDistribution, MultivariateGaussianDistribution, from_json
 
+INITIAL_EMPHASIS = 10 #emphasis of values of initializing sequence
+LR_DECAY = 0.0
+
 class ProfileHMM(object):
     """docstring for ProfileHMM."""
 
-    def __init__(self, length=None, n_features=None, initial=None):
+    def __init__(self, length=None, n_features=None, initial=None,
+            match_match=0.9, delete_insert=0.1):
         super(ProfileHMM, self).__init__()
         if length is not None:
             n_states = 3*length+1
             #print(self.get_emission_dists(n_states, n_features, initial)[:3])
             self.model = HiddenMarkovModel.from_matrix(
-                transition_probabilities = self.get_transmat(n_states),
+                transition_probabilities = self.get_transmat(n_states, match_match, delete_insert),
                 distributions = self.get_emission_dists(n_states, n_features, initial),
                 starts = self.get_startprob(n_states),
                 ends = self.get_endprob(n_states),
@@ -19,8 +23,9 @@ class ProfileHMM(object):
         #else:
         #    self.model = HiddenMarkovModel()
     
-    def fit(self, data):
-        return self.model.fit(data, return_history=True)[1]#, max_iterations=500, inertia=0.1, n_jobs=-1)
+    def fit(self, data, inertia=0.0, max_iterations=1e8):
+        return self.model.fit(data, max_iterations=max_iterations,
+            lr_decay=LR_DECAY, inertia=inertia, return_history=True)[1]#, n_jobs=-1)
     
     def save_to_json(self, path):
         with open(path, 'w') as f:
@@ -37,18 +42,16 @@ class ProfileHMM(object):
     def get_endprob(self, n_states):
         return np.array([2/3 if i > n_states-3 else 0 for i in range(n_states)])
     
-    def get_transmat(self, n_states):
-        return np.array([[self.get_trans_prob(i,j)
+    def get_transmat(self, n_states, match_match, delete_insert):
+        return np.array([[self.get_transprob(i,j, match_match, delete_insert)
             for j in range(n_states)] for i in range(n_states)])
     
     def get_state_names(self, length):
         return sum([['In']]
             +[['M'+str(i),'D'+str(i),'I'+str(i)] for i in range(length)], [])
     
-    def get_trans_prob(self, i, j, encouragement = 2.9):
-        match_match = 1/3*encouragement
+    def get_transprob(self, i, j, match_match, delete_insert):
         match_other = (1-match_match)/2
-        delete_insert = 1/3/encouragement
         delete_other = (1-delete_insert)/2
         if (i % 3 == 0) and (i <= j <= i+2): #insert
             return 1/3
@@ -68,11 +71,10 @@ class ProfileHMM(object):
     # ]
     
     def get_emission_dists(self, n_states, n_features, initial_seq):
-        emphasis = 10 #emphasis of values of initializing sequence
         if isinstance(initial_seq[0], int):
-            return self.get_discrete_dists(n_states, n_features, initial_seq, emphasis)
+            return self.get_discrete_dists(n_states, n_features, initial_seq, INITIAL_EMPHASIS)
         else:
-            return self.get_multigauss_dists(n_states, n_features, initial_seq, emphasis)
+            return self.get_multigauss_dists(n_states, n_features, initial_seq, INITIAL_EMPHASIS)
     
     def get_discrete_dists(self, n_states, n_features, initial_seq, emphasis):
         initial_dists = [DiscreteDistribution.from_samples(
