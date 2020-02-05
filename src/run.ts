@@ -3,7 +3,7 @@ import * as _ from 'lodash';
 import { saveMultiTimelineDecomposition, AlignmentAlgorithm,
   saveThomasSongAlignments, analyzeSavedTimeline, moveFeatures,
   saveGdRawSequences, saveGdMultinomialSequences, saveTimelineFromMSAResults,
-  TimelineOptions, printRatingsFromMSAResults } from './run-gd';
+  TimelineOptions, saveRatingsFromMSAResults } from './run-gd';
 import { calculateCompressionDistances, calculatePatternSimilarities,
   sweep, saveSimilarities, sweep2} from './run-gd-dists';
 
@@ -47,10 +47,10 @@ export function getSongOptions(name: string, extension: string) {
 }
 
 const CURRENT_SONG =
-//getSongOptions("me and my uncle", ".mp3");
+getSongOptions("me and my uncle", ".mp3");
 //getSongOptions("box of rain", ".m4a");
 //getSongOptions("good lovin'", ".mp3");
-getSongOptions("cosmic charlie", ".mp3");
+//getSongOptions("cosmic charlie", ".mp3");
 //getSongOptions("dark star", ".mp3");
 
 const RESULTS_PATH = "results/hmm-test2/";
@@ -69,7 +69,7 @@ const CURRENT_OPTIONS = (mv: number) => Object.assign(CURRENT_SONG, {
 //saveGdMultinomialSequences(CURRENT_OPTIONS(100));
 
 //saveTimelineFromMSAResults(CURRENT_OPTIONS(100));
-printRatingsFromMSAResults(CURRENT_OPTIONS(100));
+saveRatingsFromMSAResults(CURRENT_OPTIONS(100));
 
 //analyzeSavedTimeline(CURRENT_OPTIONS);
 

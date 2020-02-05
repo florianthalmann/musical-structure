@@ -7,7 +7,7 @@ import { mapSeries, updateStatus, audioPathToDirName } from './files/util';
 import { loadJsonFile, initDirRec, getFoldersInFolder, saveJsonFile,
   importFeaturesFolder, getFilesInFolder } from './files/file-manager';
 import { NodeGroupingOptions } from './graphs/graph-analysis';
-import { loadGraph } from './graphs/graph-theory';
+import { loadGraph, DirectedGraph } from './graphs/graph-theory';
 import { getOptionsWithCaching, getBestGdOptions, getGdSwOptions,
   FullSIAOptions, FullSWOptions, getOptions, FeatureOptions } from './files/options';
 import { FeatureConfig } from './files/feature-extractor';
@@ -169,20 +169,42 @@ export async function saveTimelineFromMSAResults(tlo: TimelineOptions) {
     alignments.versions, tlo);
 }
 
-export async function printRatingsFromMSAResults(tlo: TimelineOptions) {
+export async function saveRatingsFromMSAResults(tlo: TimelineOptions) {
   const sequences: Sequences = loadJsonFile(tlo.filebase+'-points.json');
   const labelPoints = sequences.labels.map(l => <number[]>JSON.parse(l));
   const points = sequences.data.map(s => s.map(p => labelPoints[p]));
   const folder = tlo.filebase.split("/").slice(0, -1).join("/")+"/";
   const alignments = await getAlignments(tlo);
+  
+  const results = loadJsonFile(tlo.filebase+'-ratings.json') || [];
   const files = getFilesInFolder(folder, ["json"])
-    .filter(f => _.includes(f, "msa"));
-  const msas: string[][][] = files.map(f => loadJsonFile(folder+f))
-    .map(json => json["msa"] ? json["msa"] : json);
-  const partitions = msas.map(m => inferStructureFromMSA(m, points,
-    alignments.versionTuples, alignments.alignments, tlo.filebase));
-  const configs = files.map(f => f.slice(f.indexOf("msa"), f.indexOf(".json")));
-  partitions.forEach((p,i) => console.log(configs[i], getSequenceRating(p)));
+    .filter(f => _.includes(f, "msa")
+      && _.includes(f, _.last(tlo.filebase.split("/"))));
+  
+  let graph: DirectedGraph<SegmentNode>;
+  files.forEach(f => {
+    const config = f.slice(f.indexOf("msa")+3, f.indexOf(".json")).split('-');
+    if (!isInDataTable(config, results)) {
+      console.log("rating", config.join(" "));
+      const json = loadJsonFile(folder+f);
+      const msa: string[][] = json["msa"] ? json["msa"] : json;
+      const partition = inferStructureFromMSA(msa, points,
+        alignments.versionTuples, alignments.alignments, tlo.filebase, graph);
+      if (!graph) graph = partition.getGraph();
+      const rating = getSequenceRating(partition);
+      addToDataTable(config, rating, results);
+    }
+  });
+  saveJsonFile(tlo.filebase+'-ratings.json', results);
+}
+
+function addToDataTable(keys: string[], value: any, table: any[][]) {
+  table.push(_.concat(keys, value));
+}
+
+function isInDataTable(keys: string[], table: any[][]) {
+  keys.forEach((k,i) => table = table.filter(r => r[i] === k));
+  return table.length > 0;
 }
 
 export async function saveMultiTimelineDecomposition(tlo: TimelineOptions) {
