@@ -16,10 +16,17 @@ import { BeamSearch, GeneratorOutput } from '../graphs/beam-search';
 const DIFF_VERSIONS: GroupingCondition<SegmentNode>
   = (n, os) => os.every(o => o.version !== n.version);
 
+//same version, min distance
 const MIN_DISTANCE = 8;
 const DIFF_VERSIONS_MIN_DIST: GroupingCondition<SegmentNode>
   = (n, os) => !os.some(o => o.version == n.version
     && Math.abs(o.time-n.time) < MIN_DISTANCE);
+
+//similar times
+const MAX_TIME_DIST = 100;
+const DIFF_VERSIONS_SIM_TIME: GroupingCondition<SegmentNode>
+  = (n, os) => !os.some(o => o.version == n.version
+    || Math.abs(o.time-n.time) > MAX_TIME_DIST);
 
 const DIFF_VERSIONS_MAX_EDGES: GroupingCondition<SegmentNode>
   = (n, os, g) => {
@@ -35,10 +42,13 @@ const DIFF_VERSIONS_MAX_EDGES: GroupingCondition<SegmentNode>
     return false;
   }
 
+const ACTIVE_GROUPING_CONDITION = DIFF_VERSIONS_SIM_TIME//DIFF_VERSIONS_SIM_TIME;
+
 export function inferStructureFromMSA(msa: string[][], points: number[][][],
-    versionPairs: [number,number][], results: MultiStructureResult[], filebase: string) {
+    versionPairs: [number,number][], results: MultiStructureResult[], filebase: string,
+    graph?: DirectedGraph<SegmentNode>) {
   //const graph = createSegmentGraphFromMSA(msa, points);
-  const graph = createSegmentGraphFromAlignments(versionPairs, results, false)//, filebase+'-graph.json');
+  graph = graph || createSegmentGraphFromAlignments(versionPairs, results, false)//, filebase+'-graph.json');
   const nodesByVersion = toSegmentNodes(points).map(v => v.map(n => graph.getNode(n.id)));
   
   const partition = new GraphPartition(graph, toPartitions(msa, nodesByVersion));
@@ -47,14 +57,14 @@ export function inferStructureFromMSA(msa: string[][], points: number[][][],
   if (filebase) {
     saveJsonFile(filebase+'-matrix.json', connectionMatrix);
   }
-  return partition.getPartitions();
+  return partition;
 }
 
 export function inferStructureFromAlignments(versionPairs: [number,number][],
     results: MultiStructureResult[], filebase?: string): SegmentNode[][] {
 
   const timeline = constructTimelineFromAlignments(versionPairs, results,
-    DIFF_VERSIONS, false, filebase);
+    ACTIVE_GROUPING_CONDITION, false, filebase);
   
   const connectionMatrix = timeline.getConnectionMatrix();
 
@@ -124,7 +134,7 @@ function constructFullPartition(graph: DirectedGraph<SegmentNode>,
   
   /*const initial = addNewSegments(new GraphPartition(graph, []),
     {graphAdjacentsSearch: true, minSizeFactor: 3,
-      groupingCondition: DIFF_VERSIONS, maxNumSegments: 5}).value*/
+      groupingCondition: ACTIVE_GROUPING_CONDITION, maxNumSegments: 5}).value*/
     
     partition = beamSearchGenerateSequence(graph)//, initial);
     //partition = iterativeGetIndexBasedPartition(graph, groupingCondition);
@@ -180,7 +190,7 @@ function generateSolutions(sequence: GraphPartition<SegmentNode>) {
 
 function validateSolution(sequence: GraphPartition<SegmentNode>) {
   return ensureSequenceValidity(sequence,
-    {versions: true, uniqueness: true, order: true});//affinity, connected, component
+    {versions: true, uniqueness: true, order: true, minSizeFactor: 2});//affinity, connected, component
 }
 
 function generateSolutionsByAdding(sequence: GraphPartition<SegmentNode>) {
@@ -190,16 +200,16 @@ function generateSolutionsByAdding(sequence: GraphPartition<SegmentNode>) {
   while (!candidates.length) {
     candidates.push(addNewSegments(sequence,
       {graphAdjacentsSearch: true, minSizeFactor: minSizeFactor,
-        groupingCondition: DIFF_VERSIONS, maxNumSegments: 5}));
+        groupingCondition: ACTIVE_GROUPING_CONDITION, maxNumSegments: 5}));
     candidates.push(addNewSegments(sequence,
       {indexNeighborSearch: true, minSizeFactor: minSizeFactor,
-        groupingCondition: DIFF_VERSIONS, maxNumSegments: 5}));
+        groupingCondition: ACTIVE_GROUPING_CONDITION, maxNumSegments: 5}));
     candidates.push(addNewSegments(sequence,
       {indexNeighborSearch: true, minSizeFactor: minSizeFactor,
-        groupingCondition: DIFF_VERSIONS, maxNumSegments: 2}));
+        groupingCondition: ACTIVE_GROUPING_CONDITION, maxNumSegments: 2}));
     candidates.push(addNewSegments(sequence,
       {indexNeighborSearch: true, minSizeFactor: minSizeFactor,
-        groupingCondition: DIFF_VERSIONS, maxNumSegments: 10}));
+        groupingCondition: ACTIVE_GROUPING_CONDITION, maxNumSegments: 10}));
     candidates.filter(c => c.value.getPartitionCount() > previousLength);
     if (!candidates.length) minSizeFactor++;
   }

@@ -57,6 +57,13 @@ export function ensureSequenceValidity(sequence: GraphPartition<SegmentNode>,
     messages.push("order contradictions removed " + disorder.length);
   }
   
+  if (options.minSizeFactor) {
+    //remove all time points with too few nodes
+    const minSize = sequence.getMaxPartitionSize()/options.minSizeFactor;
+    const removed = sequence.removeSmallPartitions(minSize);
+    messages.push("small partitions removed " + removed.length);
+  }
+  
   sequence.removeEmptyPartitions();
   
   //console.log(messages.join(", "));

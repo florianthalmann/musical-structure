@@ -14,6 +14,7 @@ export interface SequenceValidityOptions {
   versions?: boolean //ensure all slices include only one node per version
   uniqueness?: boolean, //every node appears only once
   order?: boolean, //segments are strictly ordered in time
+  minSizeFactor?: number
 }
 
 //some number values determine size of processed chunks

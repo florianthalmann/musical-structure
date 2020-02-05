@@ -221,15 +221,13 @@ function getNeighboringGraphSegmentsForSequence(sequence: SegmentNode[][],
 
 //modifies the given array
 function sortPartitionsTemporally(components: SegmentNode[][]) {
-  /*components.sort((a,b) => _.range(0, NUM_VERSIONS).some(v =>
-    getIndex(a, v) < getIndex(b, v)) ? -1 : 1);*/
-  //components.sort((a,b) => _.mean(a.map(n => n.time)) < _.mean(b.map(n => n.time)) ? -1 : 1);
   //new sorting method based on common versions!!
   components.sort((a,b) => {
     const versions = _.intersection(a.map(n => n.version), b.map(n => n.version));
-    const aversions = a.filter(n => versions.indexOf(n.version) >= 0);
-    const bversions = b.filter(n => versions.indexOf(n.version) >= 0);
-    return _.mean(aversions.map(n => n.time)) < _.mean(bversions.map(n => n.time)) ? -1 : 1
+    const aversions = versions.map(v => a.find(n => n.version == v));
+    const bversions = versions.map(v => b.find(n => n.version == v));
+    return Math.sign(_.sum(aversions.map((a,i) => a < bversions[i] ? -1 : 1)));
+    //return _.mean(aversions.map(n => n.time)) < _.mean(bversions.map(n => n.time)) ? -1 : 1
   });
   return components;
 }
