@@ -188,8 +188,9 @@ export async function saveRatingsFromMSAResults(tlo: TimelineOptions) {
       console.log("rating", config.join(" "));
       const json = loadJsonFile(folder+f);
       const msa: string[][] = json["msa"] ? json["msa"] : json;
+      const matrixBase = tlo.filebase+f.replace('.json','');
       const partition = inferStructureFromMSA(msa, points,
-        alignments.versionTuples, alignments.alignments, tlo.filebase, graph);
+        alignments.versionTuples, alignments.alignments, matrixBase, graph);
       if (!graph) graph = partition.getGraph();
       const rating = getSequenceRating(partition);
       addToDataTable(config, rating, results);

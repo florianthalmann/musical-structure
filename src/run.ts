@@ -47,13 +47,13 @@ export function getSongOptions(name: string, extension: string) {
 }
 
 const CURRENT_SONG =
-getSongOptions("me and my uncle", ".mp3");
+//getSongOptions("me and my uncle", ".mp3");
 //getSongOptions("box of rain", ".m4a");
 //getSongOptions("good lovin'", ".mp3");
-//getSongOptions("cosmic charlie", ".mp3");
+getSongOptions("cosmic charlie", ".mp3");
 //getSongOptions("dark star", ".mp3");
 
-const RESULTS_PATH = "results/hmm-test2/";
+const RESULTS_PATH = "results/hmm-test3/";
 const CURRENT_OPTIONS = (mv: number) => Object.assign(CURRENT_SONG, {
   filebase: RESULTS_PATH + CURRENT_SONG.results + mv,
   maxVersions: mv,
