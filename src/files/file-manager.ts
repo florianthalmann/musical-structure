@@ -71,6 +71,10 @@ export function saveJsonFile(path: string, content: {}) {
   fs.writeFileSync(path, JSON.stringify(content));
 }
 
+export function saveTextFile(path: string, content: string) {
+  fs.writeFileSync(path, content);
+}
+
 function saveOutFile(filePath: string, content: string): Promise<any> {
   return new Promise((resolve, reject) => {
     fs.writeFile(filePath, content, err => {

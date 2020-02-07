@@ -2,7 +2,7 @@ import json
 import pandas as pd
 from matplotlib import pyplot as plt
 
-path = "results/hmm-test3/cosmiccharlie100-ratings.json"
+path = "results/hmm-test3/darkstar100-ratings.json"
 
 with open(path) as f:
     data = pd.DataFrame(json.load(f))

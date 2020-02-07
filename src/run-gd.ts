@@ -4,7 +4,7 @@ import { pointsToIndices, ArrayMap, StructureResult, MultiStructureResult, getCo
   getSmithWaterman, getDualSmithWaterman, getMultiCosiatec } from 'siafun';
 import { GD_AUDIO as GDA, GD_SONG_MAP, GD_PATTERNS, GD_GRAPHS } from './files/config';
 import { mapSeries, updateStatus, audioPathToDirName } from './files/util';
-import { loadJsonFile, initDirRec, getFoldersInFolder, saveJsonFile,
+import { loadJsonFile, initDirRec, getFoldersInFolder, saveJsonFile, saveTextFile,
   importFeaturesFolder, getFilesInFolder } from './files/file-manager';
 import { NodeGroupingOptions } from './graphs/graph-analysis';
 import { loadGraph, DirectedGraph } from './graphs/graph-theory';
@@ -137,28 +137,41 @@ interface Sequences {
 }
 
 export async function saveGdMultinomialSequences(tlo: TimelineOptions) {
-  const swOptions = getGdSwOptions(initDirRec(GD_PATTERNS));
-  const versions = await getGdVersions(tlo.song, tlo.maxVersions, tlo.extension, tlo.maxLength, swOptions);
-  const points = await getPointsForAudioFiles(versions, swOptions);
-  const values = points.map(s => s.map(p => JSON.stringify(p[1])));
-  const distinct = _.uniq(_.flatten(values));
-  const data = values.map(vs => vs.map(v => distinct.indexOf(v)));
-  const sequences: Sequences = {data: data, labels: distinct};
-  saveJsonFile(tlo.filebase+'-points.json', sequences);
+  saveJsonFile(tlo.filebase+'-points.json', await getPointSequences(tlo));
+}
+
+export async function saveGdFastaSequences(tlo: TimelineOptions) {
+  const data = (await getPointSequences(tlo)).data;
+  const fasta = _.flatten(data.map((d,i) => [">version"+i,
+    d.map(p => String.fromCharCode(65+p)).join('')])).join("\n");
+  saveTextFile(tlo.filebase+'.fa', fasta);
 }
 
 export async function saveGdRawSequences(tlo: TimelineOptions) {
-  const swOptions = getGdSwOptions(initDirRec(GD_PATTERNS));
-  const versions = await getGdVersions(tlo.song, tlo.maxVersions, tlo.extension, tlo.maxLength, swOptions);
-  const points = await getPointsForAudioFiles(versions, swOptions);
+  const points = await getVersionPoints(tlo);
   const sequences = {data: points.map(s => s.map(p => p[1]).filter(p=>p))};
   saveJsonFile(tlo.filebase+'-points.json', sequences);
+}
+
+async function getVersionPoints(tlo: TimelineOptions) {
+  const swOptions = getGdSwOptions(initDirRec(GD_PATTERNS));
+  const versions = await getGdVersions(tlo.song, tlo.maxVersions,
+    tlo.extension, tlo.maxLength, swOptions);
+  return getPointsForAudioFiles(versions, swOptions);
+}
+
+async function getPointSequences(tlo: TimelineOptions): Promise<Sequences> {
+  const points = await getVersionPoints(tlo);
+  const values = points.map(s => s.map(p => JSON.stringify(p[1])));
+  const distinct = _.uniq(_.flatten(values));
+  const data = values.map(vs => vs.map(v => distinct.indexOf(v)));
+  return {data: data, labels: distinct};
 }
 
 export async function saveTimelineFromMSAResults(tlo: TimelineOptions) {
   const sequences: Sequences = loadJsonFile(tlo.filebase+'-points.json');
   const labelPoints = sequences.labels.map(l => <number[]>JSON.parse(l));
-  const points = sequences.data.map(s => s.map(p => labelPoints[p]))
+  const points = sequences.data.map(s => s.map(p => labelPoints[p]));
   let json = loadJsonFile(tlo.filebase+'-msa.json');
   if (json["msa"]) json = json["msa"];
   const msa: string[][] = json;
@@ -179,7 +192,8 @@ export async function saveRatingsFromMSAResults(tlo: TimelineOptions) {
   const results = loadJsonFile(tlo.filebase+'-ratings.json') || [];
   const files = getFilesInFolder(folder, ["json"])
     .filter(f => _.includes(f, "msa")
-      && _.includes(f, _.last(tlo.filebase.split("/"))));
+      && _.includes(f, _.last(tlo.filebase.split("/")))
+      && !_.includes(f, "matrix"));
   
   let graph: DirectedGraph<SegmentNode>;
   files.forEach(f => {
