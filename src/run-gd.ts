@@ -5,7 +5,7 @@ import { pointsToIndices, ArrayMap, StructureResult, MultiStructureResult, getCo
 import { GD_AUDIO as GDA, GD_SONG_MAP, GD_PATTERNS, GD_GRAPHS } from './files/config';
 import { mapSeries, updateStatus, audioPathToDirName } from './files/util';
 import { loadJsonFile, initDirRec, getFoldersInFolder, saveJsonFile, saveTextFile,
-  importFeaturesFolder, getFilesInFolder } from './files/file-manager';
+  loadTextFile, importFeaturesFolder, getFilesInFolder } from './files/file-manager';
 import { NodeGroupingOptions } from './graphs/graph-analysis';
 import { loadGraph, DirectedGraph } from './graphs/graph-theory';
 import { getOptionsWithCaching, getBestGdOptions, getGdSwOptions,
@@ -141,7 +141,7 @@ export async function saveGdMultinomialSequences(tlo: TimelineOptions) {
 }
 
 export async function saveGdFastaSequences(tlo: TimelineOptions) {
-  const data = (await getPointSequences(tlo)).data;
+  const data = (await getPointSequences(tlo, [16,25])).data;
   const fasta = _.flatten(data.map((d,i) => [">version"+i,
     d.map(p => String.fromCharCode(65+p)).join('')])).join("\n");
   saveTextFile(tlo.filebase+'.fa', fasta);
@@ -160,21 +160,29 @@ async function getVersionPoints(tlo: TimelineOptions) {
   return getPointsForAudioFiles(versions, swOptions);
 }
 
-async function getPointSequences(tlo: TimelineOptions): Promise<Sequences> {
-  const points = await getVersionPoints(tlo);
+async function getPointSequences(tlo: TimelineOptions, exclude?: number[]): Promise<Sequences> {
+  let points = await getVersionPoints(tlo);
+  points = exclude ? points.filter((_v,i) => !_.includes(exclude, i)) : points;
   const values = points.map(s => s.map(p => JSON.stringify(p[1])));
   const distinct = _.uniq(_.flatten(values));
   const data = values.map(vs => vs.map(v => distinct.indexOf(v)));
   return {data: data, labels: distinct};
 }
 
-export async function saveTimelineFromMSAResults(tlo: TimelineOptions) {
+export async function saveTimelineFromMSAResults(tlo: TimelineOptions, fasta?: boolean) {
   const sequences: Sequences = loadJsonFile(tlo.filebase+'-points.json');
   const labelPoints = sequences.labels.map(l => <number[]>JSON.parse(l));
   const points = sequences.data.map(s => s.map(p => labelPoints[p]));
-  let json = loadJsonFile(tlo.filebase+'-msa.json');
-  if (json["msa"]) json = json["msa"];
-  const msa: string[][] = json;
+  let msa: string[][];
+  if (fasta) {
+    const fasta = loadTextFile(tlo.filebase+'-msa.fa').split(">").slice(1)
+      .map(f => f.split("\n").slice(1).join(''));
+    msa = fasta.map(f => f.split('').map((c,i) => c === '-' ? "" : "M"+i));
+  } else {
+    let json = loadJsonFile(tlo.filebase+'-msa.json');
+    if (json["msa"]) json = json["msa"];
+    msa = json;
+  }
   const alignments = await getAlignments(tlo);
   const timeline = inferStructureFromMSA(msa, points, alignments.versionTuples,
     alignments.alignments, tlo.filebase).getPartitions();

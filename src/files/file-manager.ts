@@ -67,6 +67,10 @@ export function loadJsonFile(path: string) {
   return fs.existsSync(path) ? JSON.parse(fs.readFileSync(path, 'utf8')) : null;
 }
 
+export function loadTextFile(path: string) {
+  return fs.existsSync(path) ? fs.readFileSync(path, 'utf8') : null;
+}
+
 export function saveJsonFile(path: string, content: {}) {
   fs.writeFileSync(path, JSON.stringify(content));
 }

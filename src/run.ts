@@ -67,10 +67,10 @@ const CURRENT_OPTIONS = (mv: number) => Object.assign(CURRENT_SONG, {
 
 //saveGdRawSequences(CURRENT_OPTIONS);
 //saveGdMultinomialSequences(CURRENT_OPTIONS(100));
-saveGdFastaSequences(CURRENT_OPTIONS(100));
+//saveGdFastaSequences(CURRENT_OPTIONS(100));
 
-//saveTimelineFromMSAResults(CURRENT_OPTIONS(100));
-//saveRatingsFromMSAResults(CURRENT_OPTIONS(100));
+saveTimelineFromMSAResults(CURRENT_OPTIONS(100), true);
+//saveRatingsFromMSAResults(CURRENT_OPTIONS(100), true);
 
 //analyzeSavedTimeline(CURRENT_OPTIONS);
 
