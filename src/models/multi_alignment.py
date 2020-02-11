@@ -40,7 +40,7 @@ def print_viterbi_paths(data, model):
         logp, path = model.viterbi(sequence)
         print(''.join( '-' if state.name[0] == 'I'
             #else str(get_dist_max(state.distribution)) if state.name[0] == 'M'
-            else str(state.name[-1]) if state.name[0] == 'M'
+            else str(chr(65+(int(state.name[1:])%61))) if state.name[0] == 'M'
             else ''#state.name[0]
             for idx, state in path[1:-1]))
 
@@ -54,13 +54,13 @@ def save_results(data, model, filepath):
         json.dump({"msa": msa, "logp": logps}, f)
 
 def align_song_versions(filebase, match_match, delete_insert,
-        max_iterations, inertia, label="", verbose=False, realignTopP=0):
+        max_iterations, inertia, label="", verbose=False, realignTopP=0, force=False):
     target_path = filebase+"-msa"+label+".json";
-    if not path.exists(target_path):
+    if force or not path.exists(target_path):
         data = load_data(filebase+"-points.json")
         if verbose:
             for sequence in map(list, data[:10]):
-                print(''.join(str(s) for s in sequence))
+                print(''.join(str(chr(65+(s%26))) for s in sequence))
         model = train_model_from_data(data, verbose, match_match, delete_insert,
             inertia, max_iterations, np.median)
         #model.save_to_json("results/timeline-test7/meandmyuncle30-hmm.json")
@@ -80,7 +80,7 @@ def align_song_versions(filebase, match_match, delete_insert,
         print_viterbi_paths(data, model.model)
         save_results(data, model.model, filebase+"-msa"+label+"RE.json")
 
-def sweep_align(filebase, iterations, inertias, match_matches, delete_inserts, realignTopP):
+def sweep_align(filebase, iterations, inertias, match_matches, delete_inserts, realignTopP=0):
     params = [iterations, inertias, match_matches, delete_inserts]
     for i, n, m, d in itertools.product(*params):
         label = ""+str(i)+"-"+str(n)+"-"+str(m)+"-"+str(d)
@@ -94,6 +94,7 @@ def sweep_align(filebase, iterations, inertias, match_matches, delete_inserts, r
 #sweep_align("results/hmm-test2/cosmiccharlie100", [100], [0.4], [0.999], [0.001,0.01,0.1,0.2,0.3])
 #sweep_align("results/hmm-test2/meandmyuncle100", [100], [0.0,0.2,0.4], [0.9,0.99,0.999], [0.001,0.01,0.1])
 #sweep_align("results/hmm-test3/cosmiccharlie100", [100], [0.4,0.8], [0.5,0.7,0.9,0.999], [0.01,0.1,0.2])
-sweep_align("results/hmm-test3/cosmiccharlie100", [100], [0.4], [0.999], [0.2], realignTopP=0.3)
+#sweep_align("results/hmm-test3/cosmiccharlie100", [100], [0.4], [0.999], [0.2], realignTopP=0.3)
+align_song_versions("results/hmm-test4/meandmyuncle100c", 0.999, 0.01, 1, 0.4, verbose=False, force=True)
 
 

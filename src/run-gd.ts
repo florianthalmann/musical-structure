@@ -170,7 +170,7 @@ async function getPointSequences(tlo: TimelineOptions, exclude?: number[]): Prom
 }
 
 export async function saveTimelineFromMSAResults(tlo: TimelineOptions, fasta?: boolean) {
-  const sequences: Sequences = loadJsonFile(tlo.filebase+'-points.json');
+  const sequences: Sequences = loadJsonFile(tlo.filebase.slice(0,-1)+'-points.json');
   const labelPoints = sequences.labels.map(l => <number[]>JSON.parse(l));
   const points = sequences.data.map(s => s.map(p => labelPoints[p]));
   let msa: string[][];

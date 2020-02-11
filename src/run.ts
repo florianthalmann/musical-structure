@@ -53,9 +53,9 @@ getSongOptions("me and my uncle", ".mp3");
 //getSongOptions("cosmic charlie", ".mp3");
 //getSongOptions("dark star", ".mp3");
 
-const RESULTS_PATH = "results/hmm-test3/";
-const CURRENT_OPTIONS = (mv: number) => Object.assign(CURRENT_SONG, {
-  filebase: RESULTS_PATH + CURRENT_SONG.results + mv,
+const RESULTS_PATH = "results/hmm-test4/";
+const CURRENT_OPTIONS = (mv: number, variant?: string) => Object.assign(CURRENT_SONG, {
+  filebase: RESULTS_PATH + CURRENT_SONG.results + mv + variant,
   maxVersions: mv,
   count: 5,
   algorithm: AlignmentAlgorithm.SW,
@@ -69,7 +69,7 @@ const CURRENT_OPTIONS = (mv: number) => Object.assign(CURRENT_SONG, {
 //saveGdMultinomialSequences(CURRENT_OPTIONS(100));
 //saveGdFastaSequences(CURRENT_OPTIONS(100));
 
-saveTimelineFromMSAResults(CURRENT_OPTIONS(100), true);
+saveTimelineFromMSAResults(CURRENT_OPTIONS(100, "c"))//, true);
 //saveRatingsFromMSAResults(CURRENT_OPTIONS(100), true);
 
 //analyzeSavedTimeline(CURRENT_OPTIONS);
