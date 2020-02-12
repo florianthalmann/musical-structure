@@ -42,22 +42,22 @@ import { gatherTunings } from './files/tunings';
 //saveHybridSWPatternGraph("plots/d3/latest/box of rain-sw", "box of rain", ".m4a", 1)
 
 export function getSongOptions(name: string, extension: string) {
-  return {results: name.replace(/\s/g,''), song: name,
+  return {results: name.replace(/\s/g,'').replace(/\'/g,''), song: name,
     extension: extension};
 }
 
 const CURRENT_SONG =
 getSongOptions("me and my uncle", ".mp3");
-//getSongOptions("box of rain", ".m4a");
+//getSongOptions("box of rain", ".mp3");
 //getSongOptions("good lovin'", ".mp3");
 //getSongOptions("cosmic charlie", ".mp3");
 //getSongOptions("dark star", ".mp3");
 
-const RESULTS_PATH = "results/hmm-test4/";
+const RESULTS_PATH = "results/hmm-test5/";
 const CURRENT_OPTIONS = (mv: number, variant?: string) => Object.assign(CURRENT_SONG, {
   filebase: RESULTS_PATH + CURRENT_SONG.results + mv + variant,
   maxVersions: mv,
-  count: 5,
+  count: 0,
   algorithm: AlignmentAlgorithm.SW,
   includeSelfAlignments: true
 });
@@ -65,7 +65,7 @@ const CURRENT_OPTIONS = (mv: number, variant?: string) => Object.assign(CURRENT_
 ////try cosmic charlie again with maxV 30, count 10, SW, false
 //saveMultiTimelineDecomposition(CURRENT_OPTIONS(30));
 
-//saveGdRawSequences(CURRENT_OPTIONS);
+//saveGdRawSequences(CURRENT_OPTIONS(100, "c"));
 //saveGdMultinomialSequences(CURRENT_OPTIONS(100));
 //saveGdFastaSequences(CURRENT_OPTIONS(100));
 

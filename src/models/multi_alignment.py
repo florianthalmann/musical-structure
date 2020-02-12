@@ -95,6 +95,6 @@ def sweep_align(filebase, iterations, inertias, match_matches, delete_inserts, r
 #sweep_align("results/hmm-test2/meandmyuncle100", [100], [0.0,0.2,0.4], [0.9,0.99,0.999], [0.001,0.01,0.1])
 #sweep_align("results/hmm-test3/cosmiccharlie100", [100], [0.4,0.8], [0.5,0.7,0.9,0.999], [0.01,0.1,0.2])
 #sweep_align("results/hmm-test3/cosmiccharlie100", [100], [0.4], [0.999], [0.2], realignTopP=0.3)
-align_song_versions("results/hmm-test4/meandmyuncle100c", 0.999, 0.01, 1, 0.4, verbose=False, force=True)
+align_song_versions("results/hmm-test4/darkstar100c", 0.999, 0.01, 50, 0.8, verbose=False, force=True)
 
 

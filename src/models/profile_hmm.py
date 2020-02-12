@@ -25,7 +25,7 @@ class ProfileHMM(object):
     
     def fit(self, data, inertia=0.0, max_iterations=1e8):
         return self.model.fit(data, max_iterations=max_iterations,
-            lr_decay=LR_DECAY, inertia=inertia, return_history=True)[1]#, n_jobs=-1)
+            lr_decay=LR_DECAY, inertia=inertia, return_history=True, pseudocount=0.2)[1]#, n_jobs=-1)
     
     def save_to_json(self, path):
         with open(path, 'w') as f:

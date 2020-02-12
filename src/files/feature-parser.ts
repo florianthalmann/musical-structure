@@ -312,6 +312,10 @@ function escapeVampBuggyQuotes(s: string) {
       .forEach(i => chars.splice(i, 0, '\\'));
     return chars.join("");
   }
+  
+  s = s.replace("\\&", "&");
+  s = s.replace("\\>", ">");
+  s = s.replace("\\*", "*");
   return s;
 }
 
