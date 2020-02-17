@@ -3,7 +3,8 @@ import * as _ from 'lodash';
 import { saveMultiTimelineDecomposition, AlignmentAlgorithm,
   saveThomasSongAlignments, analyzeSavedTimeline, moveFeatures,
   saveGdRawSequences, saveGdMultinomialSequences, saveTimelineFromMSAResults,
-  TimelineOptions, saveRatingsFromMSAResults, saveGdFastaSequences } from './run-gd';
+  TimelineOptions, saveRatingsFromMSAResults, saveGdFastaSequences,
+  saveSimilarityMatrices } from './run-gd';
 import { calculateCompressionDistances, calculatePatternSimilarities,
   sweep, saveSimilarities, sweep2} from './run-gd-dists';
 
@@ -65,11 +66,12 @@ const CURRENT_OPTIONS = (mv: number, variant?: string) => Object.assign(CURRENT_
 ////try cosmic charlie again with maxV 30, count 10, SW, false
 //saveMultiTimelineDecomposition(CURRENT_OPTIONS(30));
 
-//saveGdRawSequences(CURRENT_OPTIONS(100, "c"));
+saveGdRawSequences(CURRENT_OPTIONS(100, "t"));
 //saveGdMultinomialSequences(CURRENT_OPTIONS(100));
 //saveGdFastaSequences(CURRENT_OPTIONS(100));
+//saveSimilarityMatrices(CURRENT_OPTIONS(100, "c"));
 
-saveTimelineFromMSAResults(CURRENT_OPTIONS(100, "c"))//, true);
+//saveTimelineFromMSAResults(CURRENT_OPTIONS(100, "c"))//, true);
 //saveRatingsFromMSAResults(CURRENT_OPTIONS(100), true);
 
 //analyzeSavedTimeline(CURRENT_OPTIONS);

@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import * as _ from 'lodash';
 import { pointsToIndices, ArrayMap, StructureResult, MultiStructureResult, getCosiatec,
-  getSmithWaterman, getDualSmithWaterman, getMultiCosiatec } from 'siafun';
+  getSmithWaterman, getDualSmithWaterman, getMultiCosiatec, getSelfSimilarityMatrix } from 'siafun';
 import { GD_AUDIO as GDA, GD_SONG_MAP, GD_PATTERNS, GD_GRAPHS } from './files/config';
 import { mapSeries, updateStatus, audioPathToDirName } from './files/util';
 import { loadJsonFile, initDirRec, getFoldersInFolder, saveJsonFile, saveTextFile,
@@ -169,8 +169,16 @@ async function getPointSequences(tlo: TimelineOptions, exclude?: number[]): Prom
   return {data: data, labels: distinct};
 }
 
+export async function saveSimilarityMatrices(tlo: TimelineOptions) {
+  const points = await getVersionPoints(tlo);
+  const sequences = points.map(s => s.map(p => p[1]).filter(p=>p));
+  const matrixes = sequences.map(s => getSelfSimilarityMatrix(s));
+  saveJsonFile(tlo.filebase+'-ssm.json', matrixes);
+}
+
 export async function saveTimelineFromMSAResults(tlo: TimelineOptions, fasta?: boolean) {
   const sequences: Sequences = loadJsonFile(tlo.filebase.slice(0,-1)+'-points.json');
+  console.log(tlo.filebase.slice(0,-1)+'-points.json')
   const labelPoints = sequences.labels.map(l => <number[]>JSON.parse(l));
   const points = sequences.data.map(s => s.map(p => labelPoints[p]));
   let msa: string[][];

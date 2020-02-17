@@ -31,16 +31,17 @@ const STANDARD_OPTIONS: FullSIAOptions = {
 const SW_OPTIONS: FullSWOptions = {
   quantizerFunctions: null,
   selectedFeatures: null,
-  maxIterations: 3,//true,
+  maxIterations: 5,//true,
   fillGaps: true, //turn off for similarity graphs!!
-  //similarityThreshold: .99,
+  //similarityThreshold: .95,
   minSegmentLength: 5, //only take segments longer than this
   maxThreshold: 50, //stop when max value below this
   //endThreshold: 0,
   onlyDiagonals: true,
   //nLongest: 10,
-  maxGapSize: 2
-  //maxGaps: 5
+  maxGapSize: 5,
+  //maxGaps: 5,
+  minDistance: 3
 }
 
 export function getVariations(minPatternLengths: number[]): [string, any[]][] {
@@ -62,8 +63,8 @@ export function getGdCompressionOptions(resultsDir: string) {
 
 export function getGdSwOptions(resultsDir: string, doubletime?: boolean) {
   const options = _.clone(SW_OPTIONS);
-  options.selectedFeatures = [FEATURES.MADMOM_BARS, FEATURES.JOHAN_CHORDS];
-  options.quantizerFunctions = [QF.ORDER(), QF.IDENTITY()];
+  options.selectedFeatures = [FEATURES.ESSENTIA_BEATS, FEATURES.ESSENTIA_TUNING, FEATURES.ESSENTIA_KEY];
+  options.quantizerFunctions = [QF.ORDER(), QF.IDENTITY(), QF.IDENTITY()];
   options.doubletime = doubletime;
   addCacheDir(options, resultsDir, options.selectedFeatures, '', doubletime);
   return options;

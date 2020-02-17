@@ -51,7 +51,10 @@ export const FEATURES = {
   MADMOM_BEATS: {name:'madbeats', file: 'madbars', isSegmentation: true},
   MADHAN_BARS: {name: 'madhanbars', file: 'johan', isSegmentation: true},
   SILVET: {name:'silvet', plugin:'vamp:silvet:silvet:notes', isSegmentation: false},
-  TRANSCRIPTION: {name:'qmtrans', plugin:'vamp:qm-vamp-plugins:qm-transcription:transcription', isSegmentation: false}
+  TRANSCRIPTION: {name:'qmtrans', plugin:'vamp:qm-vamp-plugins:qm-transcription:transcription', isSegmentation: false},
+  ESSENTIA_BEATS: {name: 'essentiabeats', file: 'essentia', isSegmentation: true},
+  ESSENTIA_TUNING: {name: 'essentiatuning', file: 'essentia', isSegmentation: false},
+  ESSENTIA_KEY: {name: 'essentiakey', file: 'essentia', isSegmentation: false}
 }
 
 export async function getFeatures(audioPath: string, features: FeatureConfig[]): Promise<Features> {
@@ -81,7 +84,9 @@ function extractFeatures(audioFiles: string[], features: FeatureConfig[]): Promi
     f.hasOwnProperty('plugin') ? extractVampFeature(a, <VampFeatureConfig>f)
       : f === FEATURES.MADMOM_BARS ? extractMadmomBars(a)
       : f === FEATURES.MADMOM_BEATS ? extractMadmomBeats(a)
-      : extractJohanChords(a, f)
+      : f.file === 'johan' ? extractJohanChords(a, f)
+      : f.file === 'essentia' ? extractEssentia(a)
+      : null
   ));
 }
 
@@ -116,6 +121,14 @@ function extractMadmomBars(audioPath: string): Promise<any> {
   return extractAndMove(audioPath, FEATURES.MADMOM_BARS,
     (featureOutFile) => {
       return 'DBNDownbeatTracker single -o "'+featureOutFile+'" "'+audioPath+'"'
+    });
+}
+
+//extracts the given feature from the audio file (path) if it doesn't exist yet
+function extractEssentia(audioPath: string): Promise<any> {
+  return extractAndMove(audioPath, FEATURES.ESSENTIA_BEATS,
+    (featureOutFile) => {
+      return 'essentia_streaming_extractor_music "'+audioPath+'" "'+featureOutFile+'"'
     });
 }
 

@@ -2,7 +2,8 @@ import * as fs from 'fs';
 import * as _ from 'lodash';
 import { indexOfMax } from 'arrayutils';
 import { Quantizer } from 'siafun';
-import { FEATURES, Features, getFeatures } from './feature-extractor';
+import { FEATURES, Features, getFeatures, FeatureConfig } from './feature-extractor';
+import { loadJsonFile } from './file-manager';
 import { FeatureOptions } from './options';
 import { mapSeries } from './util';
 
@@ -43,11 +44,12 @@ export function getPoints(features: Features, options: FeatureOptions) {
 
 function generatePoints(options: FeatureOptions, featureFiles: string[], condition?: any) {
   if (featureFiles.every(fs.existsSync)) {
+    const nonSeg = options.selectedFeatures.filter(f => !f.isSegmentation);
     let points: any[][] = initPoints(featureFiles[0], condition);
     if (options.doubletime) points = points.filter((_,i) => i % 2 == 0);
     const add7 = options.selectedFeatures.indexOf(FEATURES.JOHAN_SEVENTHS) >= 0;
     return featureFiles.slice(1)
-      .reduce((p,f) => addFeature(f, p, add7), points)
+      .reduce((p,f,i) => addFeature(f, nonSeg[i], p, add7), points)
       .filter(p => p.every(x => x != null));
   }
 }
@@ -60,15 +62,21 @@ function initPoints(filename: string, condition?: any): number[][] {
     return getMadhanBars(filename).map(b => [b]);
   } else if (filename.indexOf(FEATURES.FLOHAN_BEATS.file) >= 0) {
     return getFlohanBeats(filename).map(b => [b]);
+  } else if (filename.indexOf(FEATURES.ESSENTIA_BEATS.file) >= 0) {
+    return getEssentiaBeats(filename).map(b => [b]);
   }
   return getVampValues(filename, condition).map(v => [v.time]);
 }
 
-function addFeature(filename: string, points: number[][], add7ths?: boolean) {
+function addFeature(filename: string, type: FeatureConfig, points: number[][], add7ths?: boolean) {
   if (filename.indexOf(FEATURES.JOHAN_CHORDS.name) >= 0) {
     return addJohanChords(filename, points, add7ths);
   } else if (filename.indexOf(FEATURES.TRANSCRIPTION.name) >= 0) {
     return addVampTranscription(filename, points);
+  } else if (type == FEATURES.ESSENTIA_TUNING) {
+    return addEssentiaTuning(filename, points);
+  } else if (type == FEATURES.ESSENTIA_KEY) {
+    return addEssentiaKey(filename, points);
   }
   return addVampFeatureMeans(filename, points);
 }
@@ -97,6 +105,17 @@ function addVampFeatureMeans(filename: string, points: number[][]) {
   const grouped = getGroupedVampValues(filename, points.map(p => p[0]));
   const means = grouped.map(g => g.map(v => v.value)).slice(1).map(g => mean(g));
   return _.zip(points, means);
+}
+
+function addEssentiaTuning(filename: string, points: number[][]) {
+  const tuning = loadJsonFile(filename)["tonal"]["tuning_frequency"];
+  return _.zip(points, _.times(points.length, _.constant(tuning)));
+}
+
+function addEssentiaKey(filename: string, points: number[][]) {
+  const json = loadJsonFile(filename);
+  const key = [json["tonal"]["chords_key"], json["tonal"]["chords_scale"]];
+  return _.zip(points, _.times(points.length, _.constant(key)));
 }
 
 function addJohanChords(filename: string, points: number[][], add7ths?: boolean) {
@@ -290,6 +309,10 @@ function getMadmomBeats(filename: string): number[] {
   return fs.readFileSync(filename, 'utf8').split('\n').map(parseFloat);
 }
 
+function getEssentiaBeats(filename: string): number[] {
+  return loadJsonFile(filename)["rhythm"]["beats_position"];
+}
+
 function fixVampBuggyJson(j: string) {
   return j.split('{').map(k =>
     k.split('}').map(l =>
@@ -316,6 +339,9 @@ function escapeVampBuggyQuotes(s: string) {
   s = s.replace("\\&", "&");
   s = s.replace("\\>", ">");
   s = s.replace("\\*", "*");
+  s = s.replace("\\*", "*");
+  s = s.replace("\\(", "(");
+  s = s.replace("\\)", ")");
   return s;
 }
 
