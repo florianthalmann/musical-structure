@@ -7,8 +7,8 @@ import { initDirRec } from './file-manager';
 import { FeatureConfig, FEATURES } from './feature-extractor';
 
 export interface FeatureOptions {
-  quantizerFunctions: ArrayMap[],
   selectedFeatures: FeatureConfig[],
+  quantizerFunctions: ArrayMap[],
   seventhChords?: boolean,
   doubletime?: boolean
 }
@@ -61,11 +61,24 @@ export function getGdCompressionOptions(resultsDir: string) {
   return options;
 }
 
+export function getFeatureOptions(doubletime?: boolean): FeatureOptions {
+  return {
+    selectedFeatures: [FEATURES.ESSENTIA_BEATS, FEATURES.ESSENTIA_TUNING, FEATURES.ESSENTIA_KEY],
+    quantizerFunctions: [QF.ORDER(), QF.IDENTITY(), QF.IDENTITY()],
+    doubletime: doubletime,
+    seventhChords: false
+  }
+}
+
 export function getGdSwOptions(resultsDir: string, doubletime?: boolean) {
-  const options = _.clone(SW_OPTIONS);
-  options.selectedFeatures = [FEATURES.ESSENTIA_BEATS, FEATURES.ESSENTIA_TUNING, FEATURES.ESSENTIA_KEY];
-  options.quantizerFunctions = [QF.ORDER(), QF.IDENTITY(), QF.IDENTITY()];
-  options.doubletime = doubletime;
+  const options = Object.assign(_.clone(SW_OPTIONS), getFeatureOptions());
+  addCacheDir(options, resultsDir, options.selectedFeatures, '', doubletime);
+  return options;
+}
+
+export function getGdSiaOptions(resultsDir: string, doubletime?: boolean) {
+  const options = Object.assign(getBestGdOptions(resultsDir, doubletime),
+    getFeatureOptions());
   addCacheDir(options, resultsDir, options.selectedFeatures, '', doubletime);
   return options;
 }

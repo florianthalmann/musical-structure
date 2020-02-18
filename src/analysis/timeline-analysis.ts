@@ -1,0 +1,572 @@
+import * as fs from 'fs';
+import * as _ from 'lodash';
+import { pointsToIndices, StructureResult, MultiStructureResult, getCosiatec,
+  getSmithWaterman, getDualSmithWaterman, getMultiCosiatec, getSelfSimilarityMatrix,
+  Quantizer } from 'siafun';
+//import { GD_AUDIO as GDA, GD_SONG_MAP, GD_PATTERNS, GD_GRAPHS } from '../files/config';
+import { mapSeries, updateStatus, audioPathToDirName } from '../files/util';
+import { loadJsonFile, saveJsonFile, saveTextFile,
+  loadTextFile, getFilesInFolder } from '../files/file-manager';
+import { NodeGroupingOptions } from '../graphs/graph-analysis';
+import { loadGraph, DirectedGraph } from '../graphs/graph-theory';
+import { getOptionsWithCaching, getGdSiaOptions, getGdSwOptions, getFeatureOptions,
+  FullSIAOptions, FullSWOptions, FeatureOptions } from '../files/options';
+import { FeatureLoader } from '../files/feature-loader';
+import { createSimilarityPatternGraph, getPatternGroupNFs, getNormalFormsMap,
+  getConnectednessByVersion, PatternNode } from '../analysis/pattern-analysis';
+import { inferStructureFromAlignments, inferStructureFromMSA } from '../analysis/segment-analysis';
+import { getSequenceRating } from '../analysis/sequence-heuristics';
+import { SegmentNode } from '../analysis/types';
+import { inferStructureFromTimeline } from '../analysis/structure-analysis';
+import { getTuningRatio } from '../files/tunings';
+import { getMostCommonPoints } from '../analysis/pattern-histograms';
+import { toIndexSeqMap } from '../graphs/util';
+
+export enum AlignmentAlgorithm {
+  SIA,
+  SW,
+  BOTH
+}
+
+export interface TimelineOptions {
+  filebase: string,
+  song: string,
+  extension?: string,
+  count: number,
+  algorithm: AlignmentAlgorithm,
+  includeSelfAlignments: boolean,
+  maxVersions?: number,
+  maxLength?: number
+}
+
+interface Sequences {
+  data: number[][],
+  labels: string[]
+}
+
+interface VisualsPoint {
+  version: number,
+  time: number,
+  type: number,
+  point: number[],
+  path: string,
+  start: number,
+  duration: number
+}
+
+export class TimelineAnalysis {
+  
+  private siaOptions: FullSIAOptions;
+  private swOptions: FullSWOptions;
+  private points: Promise<any[][][]>;
+  
+  constructor(private collectionName: string, private audioFiles: string[],
+      private featuresFolder: string, private patternsFolder: string,
+      private maxPointsLength?: number) {
+    this.siaOptions = getGdSiaOptions(this.patternsFolder);
+    this.swOptions = getGdSwOptions(this.patternsFolder);
+    this.points = this.getPoints(getFeatureOptions());
+  }
+
+  async saveSimilarityMatrices(tlo: TimelineOptions) {
+    const sequences = (await this.points).map(s => s.map(p => p[1]).filter(p=>p));
+    const matrixes = sequences.map(s => getSelfSimilarityMatrix(s));
+    saveJsonFile(tlo.filebase+'-ssm.json', matrixes);
+  }
+  
+  async saveGdMultinomialSequences(tlo: TimelineOptions) {
+    saveJsonFile(tlo.filebase+'-points.json', await this.getPointSequences());
+  }
+
+  async saveGdFastaSequences(tlo: TimelineOptions) {
+    const data = (await this.getPointSequences([16,25])).data;
+    const fasta = _.flatten(data.map((d,i) => [">version"+i,
+      d.map(p => String.fromCharCode(65+p)).join('')])).join("\n");
+    saveTextFile(tlo.filebase+'.fa', fasta);
+  }
+
+  async saveGdRawSequences(tlo: TimelineOptions) {
+    const points = await this.points;
+    const sequences = {data: points.map(s => s.map(p => p[1]).filter(p=>p))};
+    saveJsonFile(tlo.filebase+'-points.json', sequences);
+  }
+
+  async saveTimelineFromMSAResults(tlo: TimelineOptions, fasta?: boolean) {
+    const sequences: Sequences = loadJsonFile(tlo.filebase.slice(0,-1)+'-points.json');
+    console.log(tlo.filebase.slice(0,-1)+'-points.json')
+    const labelPoints = sequences.labels.map(l => <number[]>JSON.parse(l));
+    const points = sequences.data.map(s => s.map(p => labelPoints[p]));
+    let msa: string[][];
+    if (fasta) {
+      const fasta = loadTextFile(tlo.filebase+'-msa.fa').split(">").slice(1)
+        .map(f => f.split("\n").slice(1).join(''));
+      msa = fasta.map(f => f.split('').map((c,i) => c === '-' ? "" : "M"+i));
+    } else {
+      let json = loadJsonFile(tlo.filebase+'-msa.json');
+      if (json["msa"]) json = json["msa"];
+      msa = json;
+    }
+    const alignments = await this.getAlignments(tlo);
+    const timeline = inferStructureFromMSA(msa, points, alignments.versionTuples,
+      alignments.alignments, tlo.filebase).getPartitions();
+    this.saveTimelineVisuals(timeline, alignments.versionPoints,
+      alignments.versions, tlo);
+  }
+
+  async saveRatingsFromMSAResults(tlo: TimelineOptions) {
+    const sequences: Sequences = loadJsonFile(tlo.filebase+'-points.json');
+    const labelPoints = sequences.labels.map(l => <number[]>JSON.parse(l));
+    const points = sequences.data.map(s => s.map(p => labelPoints[p]));
+    const folder = tlo.filebase.split("/").slice(0, -1).join("/")+"/";
+    const alignments = await this.getAlignments(tlo);
+    
+    const results = loadJsonFile(tlo.filebase+'-ratings.json') || [];
+    const files = getFilesInFolder(folder, ["json"])
+      .filter(f => _.includes(f, "msa")
+        && _.includes(f, _.last(tlo.filebase.split("/")))
+        && !_.includes(f, "matrix"));
+    
+    let graph: DirectedGraph<SegmentNode>;
+    files.forEach(f => {
+      const config = f.slice(f.indexOf("msa")+3, f.indexOf(".json")).split('-');
+      if (!this.isInDataTable(config, results)) {
+        console.log("rating", config.join(" "));
+        const json = loadJsonFile(folder+f);
+        const msa: string[][] = json["msa"] ? json["msa"] : json;
+        const matrixBase = tlo.filebase+f.replace('.json','');
+        const partition = inferStructureFromMSA(msa, points,
+          alignments.versionTuples, alignments.alignments, matrixBase, graph);
+        if (!graph) graph = partition.getGraph();
+        const rating = getSequenceRating(partition);
+        this.addToDataTable(config, rating, results);
+      }
+    });
+    saveJsonFile(tlo.filebase+'-ratings.json', results);
+  }
+
+  private addToDataTable(keys: string[], value: any, table: any[][]) {
+    table.push(_.concat(keys, value));
+  }
+
+  private isInDataTable(keys: string[], table: any[][]) {
+    keys.forEach((k,i) => table = table.filter(r => r[i] === k));
+    return table.length > 0;
+  }
+
+  async saveMultiTimelineDecomposition(tlo: TimelineOptions) {
+    //if (!fs.existsSync(tlo.filebase+'-output.json')) {
+      const alignments = await this.getAlignments(tlo);
+      const timeline = inferStructureFromAlignments(alignments.versionTuples,
+        alignments.alignments, tlo.filebase);
+      this.saveTimelineVisuals(timeline, alignments.versionPoints,
+        alignments.versions, tlo);
+    //}
+  }
+
+  private async getAlignments(tlo: TimelineOptions) {
+    this.maxPointsLength = tlo.maxLength;
+    
+    let tuples = <[number,number][]>_.flatten(_.range(tlo.count)
+      .map(c => this.getMultiConfig(2, c, tlo.maxVersions)
+      .map(pair => pair.map(s => this.audioFiles.indexOf(s)))));
+    if (tlo.algorithm === AlignmentAlgorithm.BOTH) tuples = _.concat(tuples, tuples);
+    const multis: MultiStructureResult[] = [];
+    if (tlo.algorithm === AlignmentAlgorithm.SIA || tlo.algorithm === AlignmentAlgorithm.BOTH) {
+      multis.push(..._.flatten(await this.getMultiCosiatecsForSong(tlo.count, tlo.maxVersions)));
+    }
+    if (tlo.algorithm === AlignmentAlgorithm.SW || tlo.algorithm === AlignmentAlgorithm.BOTH) {
+      multis.push(..._.flatten(await this.getMultiSWs(tlo.count, tlo.maxVersions)));
+    }
+    if (tlo.includeSelfAlignments) {
+      if (tlo.algorithm === AlignmentAlgorithm.SIA || tlo.algorithm === AlignmentAlgorithm.BOTH) {
+        const autos = await this.getCosiatecFromAudio();
+        multis.push(...autos.map(a => Object.assign(a, {points2: a.points})));
+        tuples.push(...<[number,number][]>this.audioFiles.map((_,i) => [i,i]));
+      }
+      if (tlo.algorithm === AlignmentAlgorithm.SW || tlo.algorithm === AlignmentAlgorithm.BOTH) {
+        const autos = await this.getSmithWatermanFromAudio();
+        multis.push(...autos.map(a => Object.assign(a, {points2: a.points})));
+        tuples.push(...<[number,number][]>this.audioFiles.map((_,i) => [i,i]));
+      }
+    }
+    return {versionTuples: tuples, alignments: multis,
+      versions: this.audioFiles, versionPoints: await this.points};
+  }
+
+  private saveTimelineVisuals(timeline: SegmentNode[][], points: any[][][],
+      versions: string[], tlo: TimelineOptions) {
+    let segments = points.map((v,i) => v.map((_p,j) =>
+      ({start: points[i][j][0][0],
+        duration: points[i][j+1] ? points[i][j+1][0][0]-points[i][j][0][0] : 1})));
+    const short = versions.map(v =>
+      v.split('/').slice(-2).join('/').replace(tlo.extension || '.m4a', '.mp3'));
+    const tunings = short.map(v =>
+      getTuningRatio(v.split('/')[0], v.split('/')[1].replace('.mp3','')));
+    const json = {title: _.startCase(tlo.song), versions: short, tunings: tunings,
+      segments: segments, timeline: timeline};
+    saveJsonFile(tlo.filebase+'-output.json', json);
+    let visuals: VisualsPoint[] = _.flatten(versions.map((_v,i) => timeline.map(t => {
+      const n = t.find(n => n.version === i);
+      return n ? ({version:i, time:n.time, type:1, point:n.point, path: versions[i],
+        start: segments[i][n.time].start, duration: segments[i][n.time].duration}) : undefined;
+    }))).filter(p=>p);
+    saveJsonFile(tlo.filebase+'-visuals.json', visuals);
+    
+    //infer structure
+    const segmentsByType = inferStructureFromTimeline(tlo.filebase);
+    segments = points.map((v,i) => v.map((_p,j) =>
+      ({start: points[i][j][0][0],
+        duration: points[i][j+1] ? points[i][j+1][0][0]-points[i][j][0][0] : 1})));
+    visuals = _.flatten(points.map((v,i) =>
+      v.map((_p,t) => {
+        const type = segmentsByType.findIndex(s =>
+          s.find(n => n.version === i && n.time === t) != null);
+        if (type >= 0) {
+          const n = segmentsByType[type].find(n => n.version === i && n.time === t);
+          return ({version:i, time:t, type:type+1, point:n.point, path: versions[i],
+            start: segments[i][n.time].start, duration: segments[i][n.time].duration});
+        }
+      }))).filter(p=>p);
+    saveJsonFile(tlo.filebase+'-visuals2.json', visuals);
+  }
+  
+  async analyzeSavedTimeline(tlo: TimelineOptions) {
+    const segmentsByType = inferStructureFromTimeline(tlo.filebase);
+    const points = await this.points;
+    const segments = points.map((v,i) => v.map((_p,j) =>
+      ({start: points[i][j][0][0],
+        duration: points[i][j+1] ? points[i][j+1][0][0]-points[i][j][0][0] : 1})));
+    const visuals: VisualsPoint[] = _.flatten(points.map((v,i) =>
+      v.map((_p,t) => {
+        const type = segmentsByType.findIndex(s =>
+          s.find(n => n.version === i && n.time === t) != null);
+        if (type >= 0) {
+          const n = segmentsByType[type].find(n => n.version === i && n.time === t);
+          return ({version:i, time:t, type:type+1, point:n.point, path: this.audioFiles[i],
+            start: segments[i][n.time].start, duration: segments[i][n.time].duration});
+        }
+      }))).filter(p=>p);
+    saveJsonFile(tlo.filebase+'-visuals-types.json', visuals);
+  }
+
+  async saveMultiSWPatternGraph(filebase: string, count = 1) {
+    const MIN_OCCURRENCE = 1;
+    const multis = await this.getMultiSWs(count);
+    multis.map((h,i) =>
+      createSimilarityPatternGraph(h, false, filebase+'-multi'+i+'-graph.json', MIN_OCCURRENCE));
+  }
+
+  private async getMultiSWs(count: number, maxVersions?: number) {
+    return mapSeries(_.range(count), async i => {
+      console.log('working on ' + this.collectionName + ' - multi ' + i);
+      return this.getMultiSW(i, maxVersions);
+    });
+  }
+
+  private async getMultiCosiatecsForSong(count: number, maxVersions?: number) {
+    return mapSeries(_.range(count), async i => {
+      console.log('working on ' + this.collectionName + ' - multi ' + i);
+      return this.getMultiCosiatecs(2, i, maxVersions);
+    })
+  }
+
+  async saveMultiPatternGraphs(filebase: string, size = 2, count = 1) {
+    const MIN_OCCURRENCE = 2;
+    await mapSeries(_.range(count), async i => {
+      console.log('working on ' + this.collectionName + ' - multi ' + i);
+      const results = await this.getMultiCosiatecs(size, i);
+      createSimilarityPatternGraph(results, false, filebase+'-multi'+size+'-'+i+'-graph.json', MIN_OCCURRENCE);
+    })
+  }
+
+  async analyzeMultiPatternGraphs(filebase: string, size = 2, count = 1) {
+    const graphs = _.range(count)
+      .map(i =>loadGraph<PatternNode>(filebase+'-multi'+size+'-'+i+'-graph.json'));
+    const grouping: NodeGroupingOptions<PatternNode> = { maxDistance: 3, condition: n => n.size > 5 };
+    graphs.forEach(g => {getPatternGroupNFs(g, grouping, 5); console.log()});
+  }
+
+  async savePS(filebase: string, cosiatecFile: string, graphFile: string) {
+    const file = filebase+"-seqs.json";
+    const results: StructureResult[] = loadJsonFile(cosiatecFile);
+    const points = results.map(r => r.points);
+
+    const MIN_OCCURRENCE = 2;
+    const PATTERN_TYPES = 10;
+
+    const grouping: NodeGroupingOptions<PatternNode> = { maxDistance: 5, condition: (n,_c) => n.size > 5};
+    const patsec = _.flatten(await this.getPatternSequences([], points, results, grouping, PATTERN_TYPES, MIN_OCCURRENCE, graphFile));
+
+    //TODO TAKE MOST CONNECTED ONES :)
+
+    fs.writeFileSync(file, JSON.stringify(patsec));
+  }
+
+  async saveSWPatternAndVectorSequences(filebase: string, _tryHalftime = false, _extension?: string) {
+    const file = filebase+"-seqs.json";
+    const graphFile = filebase+"-graph.json";
+    console.log("\n"+this.collectionName+" "+this.audioFiles.length+"\n")
+
+    const results = await this.getSmithWatermanFromAudio();
+
+    const MIN_OCCURRENCE = 2;
+    const PATTERN_TYPES = 20;
+
+    /*if (tryHalftime) {
+      const doubleOptions = getGdSwOptions(true);
+      const doublePoints = await getPointsForAudioFiles(versions, doubleOptions);
+      const doubleResults = await getSmithWatermanFromAudio(versions, doubleOptions);
+
+      const graph = createSimilarityPatternGraph(results.concat(doubleResults), false, null, MIN_OCCURRENCE);
+      let conn = getConnectednessByVersion(graph);
+      //console.log(conn)
+      //conn = conn.map((c,v) => c / points.concat(doublePoints)[v].length);
+      //console.log(conn)
+      versions.forEach((_,i) => {
+        if (conn[i+versions.length] > conn[i]) {
+          console.log("version", i, "is better analyzed doubletime");
+          points[i] = doublePoints[i];
+          results[i] = doubleResults[i];
+        }
+      })
+    }*/
+
+    /*const vecsec = _.flatten(await getVectorSequences(versions, points, options, PATTERN_TYPES));
+    vecsec.forEach(s => s.version = s.version*2+1);*/
+
+    const grouping: NodeGroupingOptions<PatternNode> = { maxDistance: 4, condition: (n,_c) => n.size > 6};
+    const patsec = _.flatten(await this.getPatternSequences(this.audioFiles,
+      await this.points, results, grouping, PATTERN_TYPES, MIN_OCCURRENCE, graphFile));
+    //patsec.forEach(s => s.version = s.version*2);
+
+    //TODO TAKE MOST CONNECTED ONES :)
+
+    fs.writeFileSync(file, JSON.stringify(patsec))//_.union(vecsec, patsec)));
+  }
+
+  async savePatternAndVectorSequences(filebase: string, tryDoubletime = false) {
+    const file = filebase+"-seqs.json";
+    const graphFile = filebase+"-graph.json";
+    console.log("\n"+this.collectionName+" "+this.audioFiles.length+"\n")
+
+    const points = await this.points;
+    const results = await this.getCosiatecFromAudio();
+    results.forEach(r => this.removeNonParallelOccurrences(r));
+
+    const MIN_OCCURRENCE = 2;
+    const PATTERN_TYPES = 20;
+
+    if (tryDoubletime) {
+      const doubleOptions = Object.assign(_.clone(this.siaOptions), {doubletime: true});
+      const doublePoints = await this.getPoints(doubleOptions);
+      const doubleResults = await this.getCosiatecFromAudio(doublePoints);
+      doubleResults.forEach(r => this.removeNonParallelOccurrences(r));
+
+      const graph = createSimilarityPatternGraph(results.concat(doubleResults), false, null, MIN_OCCURRENCE);
+      let conn = getConnectednessByVersion(graph);
+      //console.log(conn)
+      //conn = conn.map((c,v) => c / points.concat(doublePoints)[v].length);
+      //console.log(conn)
+      this.audioFiles.forEach((_,i) => {
+        if (conn[i+this.audioFiles.length] > conn[i]) {
+          console.log("version", i, "is better analyzed doubletime");
+          points[i] = doublePoints[i];
+          results[i] = doubleResults[i];
+        }
+      });
+    }
+
+    /*const vecsec = _.flatten(await getVectorSequences(versions, points, options, PATTERN_TYPES));
+    vecsec.forEach(s => s.version = s.version*2+1);*/
+
+    const grouping: NodeGroupingOptions<PatternNode> = { maxDistance: 4, condition: (n,_c) => n.size > 6};
+    const patsec = _.flatten(await this.getPatternSequences(this.audioFiles, points, results, grouping, PATTERN_TYPES, MIN_OCCURRENCE, graphFile));
+    //patsec.forEach(s => s.version = s.version*2);
+
+    //TODO TAKE MOST CONNECTED ONES :)
+
+    fs.writeFileSync(file, JSON.stringify(patsec))//_.union(vecsec, patsec)));
+  }
+
+  async savePatternSequences(file: string) {//, hubSize: number, appendix = '') {
+    const results = await this.getCosiatecFromAudio();
+    results.forEach(r => this.removeNonParallelOccurrences(r));
+    const sequences = await this.getPatternSequences(this.audioFiles,
+      await this.points, results, {maxDistance: 3}, 10);
+    fs.writeFileSync(file, JSON.stringify(_.flatten(sequences)));
+    //visuals.map(v => v.join('')).slice(0, 10).forEach(v => console.log(v));
+  }
+
+  private async getPatternSequences(audio: string[], points: any[][],
+      results: StructureResult[], groupingOptions: NodeGroupingOptions<PatternNode>,
+      typeCount = 10, minCount = 2, path?: string): Promise<VisualsPoint[][]> {
+    const sequences = results.map((v,i) => v.points.map((p,j) =>
+      ({version:i, time:j, type:0, point:p, path: audio[i],
+        start: points[i][j][0][0],
+        duration: points[i][j+1] ? points[i][j+1][0][0]-points[i][j][0][0] : 1})));
+    const nfMap = getNormalFormsMap(results);
+    const graph = createSimilarityPatternGraph(results, false, path, minCount);
+
+    const mostCommon = getPatternGroupNFs(graph, groupingOptions, typeCount);
+    //mostCommon.slice(0, typeCount).forEach(p => console.log(p[0]+ " " + p.length));
+    mostCommon.forEach((nfs,nfi) =>
+      nfs.forEach(nf => nfMap[nf].forEach(([v, p]: [number, number]) => {
+        const pattern = results[v].patterns[p];
+        let indexOccs = pointsToIndices([pattern.occurrences], results[v].points)[0];
+        //fill in gaps
+        indexOccs = indexOccs.map(o => _.range(o[0], _.last(o)+1));
+        indexOccs.forEach(o => o.forEach(i => i >= 0 ? sequences[v][i].type = nfi+1 : null));
+      })
+    ));
+    return sequences;
+  }
+
+  private removeNonParallelOccurrences(results: StructureResult, dimIndex = 0) {
+    results.patterns.forEach(p => {
+      const parallel = p.vectors.map(v => v.every((d,i) => i == dimIndex || d == 0));
+      p.vectors = p.vectors.filter((_,i) => parallel[i]);
+      p.occurrences = p.occurrences.filter((_,i) => parallel[i]);
+    })
+  }
+
+  async saveVectorSequences(file: string, typeCount?: number) {
+    const sequences = await this.getVectorSequences(this.audioFiles,
+      await this.points, this.siaOptions, typeCount);
+    fs.writeFileSync(file, JSON.stringify(_.flatten(sequences)));
+  }
+
+  private async getVectorSequences(audio: string[], points: any[][],
+      options: FullSIAOptions, typeCount = 3): Promise<VisualsPoint[][]> {
+    const quantPoints = points.map(p => this.quantize(p, options));
+    const atemporalPoints = quantPoints.map(v => v.map(p => p.slice(1)));
+    const pointMap = toIndexSeqMap(atemporalPoints, JSON.stringify);
+    const mostCommon = getMostCommonPoints(_.flatten(atemporalPoints));
+    const sequences = quantPoints.map((v,i) => v.map((p,j) =>
+      ({version:i, time:j, type:0, point:p, path: audio[i],
+        start: points[i][j][0][0],
+        duration: points[i][j+1] ? points[i][j+1][0][0]-points[i][j][0][0] : 1})));
+    mostCommon.slice(0, typeCount).forEach((p,i) =>
+      pointMap[JSON.stringify(p)].forEach(([v, p]) => sequences[v][p].type = i+1));
+    return sequences;
+  }
+  
+  private quantize(points: any[][], options: FeatureOptions) {
+    return new Quantizer(options.quantizerFunctions).getQuantizedPoints(points);
+  }
+  
+  async getSmithWatermanFromAudio() {
+    const points = await this.points;
+    return mapSeries(this.audioFiles, async (a,i) => {
+      updateStatus('  ' + (i+1) + '/' + this.audioFiles.length);
+      if (!this.maxPointsLength || points.length < this.maxPointsLength) {
+        return getSmithWaterman(points[i], getOptionsWithCaching(a, this.swOptions));
+      }
+    });
+  }
+
+  async getCosiatecFromAudio(points?: any[][][]) {
+    points = points || await this.points;
+    return mapSeries(this.audioFiles, async (a,i) => {
+      updateStatus('  ' + (i+1) + '/' + this.audioFiles.length);
+      if (!this.maxPointsLength || points.length < this.maxPointsLength) {
+        return getCosiatec(points[i], getOptionsWithCaching(a, this.siaOptions));
+      }
+    });
+  }
+
+  private async getMultiSW(index: number, count?: number) {
+    const tuples = this.getMultiConfig(2, index, count);
+    const points = await this.points;
+    return mapSeries(tuples, async (tuple,i) => {
+      updateStatus('  ' + (i+1) + '/' + tuples.length);
+      const currentPoints = tuple.map(a => points[this.audioFiles.indexOf(a)]);
+      if (currentPoints[0] && currentPoints[1]) {
+        return getDualSmithWaterman(currentPoints[0], currentPoints[1],
+          getOptionsWithCaching(this.getMultiCacheDir(...tuple), this.swOptions));
+      }
+      return getDualSmithWaterman([], [], getOptionsWithCaching(this.getMultiCacheDir(...tuple), this.swOptions));
+    });
+  }
+
+  private async getMultiCosiatecs(size: number, index: number, count?: number) {
+    const points = await this.points;
+    const tuples = this.getMultiConfig(size, index, count);
+    return mapSeries(tuples, async (tuple,i) => {
+      updateStatus('  ' + (i+1) + '/' + tuples.length);
+      const currentPoints = tuple.map(a => points[this.audioFiles.indexOf(a)]);
+      return getMultiCosiatec(currentPoints,
+        getOptionsWithCaching(this.getMultiCacheDir(...tuple), this.siaOptions));
+    })
+  }
+
+  /*private async getSlicedMultiCosiatec(name: string, size: number, index: number, audioFiles: string[]) {
+    const pairs = getMultiConfig(name, size, index, audioFiles);
+    //TODO UPDATE PATH!!!!
+    const options = getBestGdOptions(initDirRec(GD_PATTERNS+'/multi'+index));
+    return _.flatten(await mapSeries(pairs, async (pair,i) => {
+      updateStatus('  ' + (i+1) + '/' + pairs.length);
+      const points = await getPointsForAudioFiles(pair, options);
+      const slices = points.map(p => getSlices(p));
+      const multis = _.zip(...slices).map(s => s[0].concat(s[1]));
+      return multis.map(h => {
+        return getInducerWithCaching(pair[0], h, options).getCosiatec();
+      });
+    }))
+  }
+
+  private getSlices<T>(array: T[]) {
+    const start = array.slice(0, array.length/2);
+    const middle = array.slice(array.length/4, 3*array.length/4);
+    const end = array.slice(array.length/2);
+    return [start, middle, end];
+  }*/
+  
+  private async getPointSequences(exclude?: number[]): Promise<Sequences> {
+    let points = await this.points;
+    points = exclude ? points.filter((_v,i) => !_.includes(exclude, i)) : points;
+    const values = points.map(s => s.map(p => JSON.stringify(p[1])));
+    const distinct = _.uniq(_.flatten(values));
+    const data = values.map(vs => vs.map(v => distinct.indexOf(v)));
+    return {data: data, labels: distinct};
+  }
+  
+  private async getPoints(featureOptions: FeatureOptions) {
+    return new FeatureLoader(this.featuresFolder)
+      .getPointsForAudioFiles(this.audioFiles, featureOptions);
+  }
+
+  private getMultiCacheDir(...audio: string[]) {
+    let names = audio.map(audioPathToDirName)
+    //only odd chars if too long :)
+    if (audio.length > 3) names = names.map(n => n.split('').filter((_,i)=>i%2==0).join(''));
+    return names.join('_X_');
+  }
+
+  private getMultiConfig(size: number, index: number, count = 0): string[][] {
+    const name = this.collectionName;
+    const maxLength = this.maxPointsLength || 0;
+    const file = this.patternsFolder+'multi-config.json';
+    const config: {} = loadJsonFile(file) || {};
+    if (!config[name]) config[name] = {};
+    if (!config[name][size]) config[name][size] = {};
+    if (!config[name][size][maxLength]) config[name][size][maxLength] = {};
+    if (!config[name][size][maxLength][count]) config[name][size][maxLength][count] = [];
+    if (!config[name][size][maxLength][count][index]) {
+      config[name][size][maxLength][count][index] = this.getRandomTuples(this.audioFiles, size);
+      if (config[name][size][maxLength][count][index].length > 0) //only write if successful
+        fs.writeFileSync(file, JSON.stringify(config));
+    }
+    return config[name][size][maxLength][count][index];
+  }
+
+  private getRandomTuples<T>(array: T[], size = 2): T[][] {
+    const tuples: T[][] = [];
+    while (array.length >= size) {
+      const tuple = _.sampleSize(array, size);
+      tuples.push(tuple);
+      array = _.difference(array, tuple);
+    }
+    return tuples;
+  }
+  
+}

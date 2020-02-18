@@ -1,16 +1,13 @@
 import * as _ from 'lodash';
 //import { saveGdHists } from './histograms';
-import { saveMultiTimelineDecomposition, AlignmentAlgorithm,
-  saveThomasSongAlignments, analyzeSavedTimeline, moveFeatures,
-  saveGdRawSequences, saveGdMultinomialSequences, saveTimelineFromMSAResults,
-  TimelineOptions, saveRatingsFromMSAResults, saveGdFastaSequences,
-  saveSimilarityMatrices } from './run-gd';
+import { GdExperiment } from './run-gd';
 import { calculateCompressionDistances, calculatePatternSimilarities,
   sweep, saveSimilarities, sweep2} from './run-gd-dists';
 
 import { analyzePatternGraph } from './analysis/pattern-analysis';
 import { cleanCaches, renameJohanChordFeatures, moveToFeaturesDir } from './files/file-manager';
 import { gatherTunings } from './files/tunings';
+import { AlignmentAlgorithm } from './analysis/timeline-analysis';
 
 /*fs.writeFileSync('connections3.json', JSON.stringify(
   getConnectednessRatings(JSON.parse(fs.readFileSync(
@@ -42,17 +39,17 @@ import { gatherTunings } from './files/tunings';
 //saveSWPatternAndVectorSequences("plots/d3/latest/box of rain-sw", false, "box of rain", ".m4a");
 //saveHybridSWPatternGraph("plots/d3/latest/box of rain-sw", "box of rain", ".m4a", 1)
 
-export function getSongOptions(name: string, extension: string) {
+export function getSongOptions(name: string, subfolder?: string, extension?: string) {
   return {results: name.replace(/\s/g,'').replace(/\'/g,''), song: name,
-    extension: extension};
+    subfolder: subfolder, extension: extension};
 }
 
 const CURRENT_SONG =
-getSongOptions("me and my uncle", ".mp3");
-//getSongOptions("box of rain", ".mp3");
-//getSongOptions("good lovin'", ".mp3");
-//getSongOptions("cosmic charlie", ".mp3");
-//getSongOptions("dark star", ".mp3");
+getSongOptions("me and my uncle", "me_and_my_uncle");
+//getSongOptions("box of rain", "box_of_rain");
+//getSongOptions("good lovin'", "good_lovin'");
+//getSongOptions("cosmic charlie", "cosmic_charlie");
+//getSongOptions("dark star", "dark_star");
 
 const RESULTS_PATH = "results/hmm-test5/";
 const CURRENT_OPTIONS = (mv: number, variant?: string) => Object.assign(CURRENT_SONG, {
@@ -66,7 +63,10 @@ const CURRENT_OPTIONS = (mv: number, variant?: string) => Object.assign(CURRENT_
 ////try cosmic charlie again with maxV 30, count 10, SW, false
 //saveMultiTimelineDecomposition(CURRENT_OPTIONS(30));
 
-saveGdRawSequences(CURRENT_OPTIONS(100, "t"));
+const options = CURRENT_OPTIONS(100, "t");
+new GdExperiment(options.subfolder).tuneAndAnalyze(options);
+
+//saveGdRawSequences(CURRENT_OPTIONS(100, "t"));
 //saveGdMultinomialSequences(CURRENT_OPTIONS(100));
 //saveGdFastaSequences(CURRENT_OPTIONS(100));
 //saveSimilarityMatrices(CURRENT_OPTIONS(100, "c"));

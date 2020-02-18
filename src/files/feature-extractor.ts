@@ -1,7 +1,6 @@
 import * as fs from 'fs';
 import { execute, mapSeries, audioPathToDirName } from './util';
-import { getFeatureFiles } from './file-manager';
-import { FEATURES_DIR } from './config';
+import { getAllFeatureFiles } from './file-manager';
 
 export interface FeatureConfig {
   name: string,
@@ -57,103 +56,113 @@ export const FEATURES = {
   ESSENTIA_KEY: {name: 'essentiakey', file: 'essentia', isSegmentation: false}
 }
 
-export async function getFeatures(audioPath: string, features: FeatureConfig[]): Promise<Features> {
-  await extractFeatures([audioPath], features);
-  const featureFiles = await getFeatureFiles(audioPath);
-  return filterSelectedFeatures(featureFiles, features);
-}
+export class FeatureExtractor {
+  
+  constructor(private targetDir: string) {}
+  
+  async getFeatureFiles(audioPath: string, features: FeatureConfig[]): Promise<Features> {
+    await this.extractFeatures([audioPath], features);
+    const featureFiles = await getAllFeatureFiles(audioPath, this.targetDir);
+    return this.filterSelectedFeatures(featureFiles, features);
+  }
 
-function filterSelectedFeatures(featureFiles: string[], features: FeatureConfig[]): Features {
-  const segs = features.filter(f => f.isSegmentation);
-  const others = features.filter(f => !f.isSegmentation);
-  const segFiles = getFiles(segs, featureFiles);
-  const segConditions = segFiles.map((_,i) => segs[i]['subset']);
-  return {
-    segmentations: segFiles,
-    segConditions: segConditions.filter((_,i)=>segFiles[i]),
-    otherFeatures: getFiles(others, featureFiles),
-  };
-}
+  async getFeatureFile(audioPath: string, feature: FeatureConfig) {
+    return (await this.getFeatureFiles(audioPath, [feature])).otherFeatures[0];
+  }
 
-function getFiles(features: FeatureConfig[], files: string[]) {
-  return features.map(f => files.filter(u => u.indexOf(f.file||f.name) >= 0)[0]);
-}
+  private filterSelectedFeatures(featureFiles: string[], features: FeatureConfig[]): Features {
+    const segs = features.filter(f => f.isSegmentation);
+    const others = features.filter(f => !f.isSegmentation);
+    const segFiles = this.getFiles(segs, featureFiles);
+    const segConditions = segFiles.map((_,i) => segs[i]['subset']);
+    return {
+      segmentations: segFiles,
+      segConditions: segConditions.filter((_,i)=>segFiles[i]),
+      otherFeatures: this.getFiles(others, featureFiles),
+    };
+  }
 
-function extractFeatures(audioFiles: string[], features: FeatureConfig[]): Promise<any> {
-  return mapSeries(audioFiles, a => mapSeries(features, f =>
-    f.hasOwnProperty('plugin') ? extractVampFeature(a, <VampFeatureConfig>f)
-      : f === FEATURES.MADMOM_BARS ? extractMadmomBars(a)
-      : f === FEATURES.MADMOM_BEATS ? extractMadmomBeats(a)
-      : f.file === 'johan' ? extractJohanChords(a, f)
-      : f.file === 'essentia' ? extractEssentia(a)
-      : null
-  ));
-}
+  private getFiles(features: FeatureConfig[], files: string[]) {
+    return features.map(f => files.filter(u => u.indexOf(f.file||f.name) >= 0)[0]);
+  }
 
-//extracts the given feature from the audio file (path) if it doesn't exist yet
-function extractVampFeature(audioPath: string, feature: VampFeatureConfig): Promise<any> {
-  return extractAndMove(audioPath, feature,
-    () => 'sonic-annotator -d ' + feature.plugin + ' ' + audioPath + ' -w jams --jams-force');
-}
+  private extractFeatures(audioFiles: string[], features: FeatureConfig[]): Promise<any> {
+    return mapSeries(audioFiles, a => mapSeries(features, f =>
+      f.hasOwnProperty('plugin') ? this.extractVampFeature(a, <VampFeatureConfig>f)
+        : f === FEATURES.MADMOM_BARS ? this.extractMadmomBars(a)
+        : f === FEATURES.MADMOM_BEATS ? this.extractMadmomBeats(a)
+        : f.file === 'johan' ? this.extractJohanChords(a, f)
+        : f.file === 'essentia' ? this.extractEssentia(a)
+        : null
+    ));
+  }
 
-//extracts the given feature from the audio file (path) if it doesn't exist yet
-function extractJohanChords(audioPath: string, config: FeatureConfig): Promise<any> {
-  return extractAndMove(audioPath, config,
-    (featureOutFile) => {
-      const audioFile = audioPath.slice(audioPath.lastIndexOf('/')+1);
-      const outPath = audioPath.slice(0, audioPath.lastIndexOf('/'));
-      return 'echo -n /srv/'+audioFile+' | docker run --rm -i -v "'
-        +outPath+':/srv" audiocommons/faas-confident-chord-estimator python3 index.py > "'
-        +featureOutFile+'"'
-    });
-}
+  //extracts the given feature from the audio file (path) if it doesn't exist yet
+  private extractVampFeature(audioPath: string, feature: VampFeatureConfig): Promise<any> {
+    return this.extractAndMove(audioPath, feature,
+      () => 'sonic-annotator -d ' + feature.plugin + ' ' + audioPath + ' -w jams --jams-force');
+  }
 
-//extracts the given feature from the audio file (path) if it doesn't exist yet
-function extractMadmomBeats(audioPath: string): Promise<any> {
-  return extractAndMove(audioPath, FEATURES.MADMOM_BEATS,
-    (featureOutFile) => {
-      return 'DBNBeatTracker single -o "'+featureOutFile+'" "'+audioPath+'"'
-    });
-}
+  //extracts the given feature from the audio file (path) if it doesn't exist yet
+  private extractJohanChords(audioPath: string, config: FeatureConfig): Promise<any> {
+    return this.extractAndMove(audioPath, config,
+      (featureOutFile) => {
+        const audioFile = audioPath.slice(audioPath.lastIndexOf('/')+1);
+        const outPath = audioPath.slice(0, audioPath.lastIndexOf('/'));
+        return 'echo -n /srv/'+audioFile+' | docker run --rm -i -v "'
+          +outPath+':/srv" audiocommons/faas-confident-chord-estimator python3 index.py > "'
+          +featureOutFile+'"'
+      });
+  }
 
-//extracts the given feature from the audio file (path) if it doesn't exist yet
-function extractMadmomBars(audioPath: string): Promise<any> {
-  return extractAndMove(audioPath, FEATURES.MADMOM_BARS,
-    (featureOutFile) => {
-      return 'DBNDownbeatTracker single -o "'+featureOutFile+'" "'+audioPath+'"'
-    });
-}
+  //extracts the given feature from the audio file (path) if it doesn't exist yet
+  private extractMadmomBeats(audioPath: string): Promise<any> {
+    return this.extractAndMove(audioPath, FEATURES.MADMOM_BEATS,
+      (featureOutFile) => {
+        return 'DBNBeatTracker single -o "'+featureOutFile+'" "'+audioPath+'"'
+      });
+  }
 
-//extracts the given feature from the audio file (path) if it doesn't exist yet
-function extractEssentia(audioPath: string): Promise<any> {
-  return extractAndMove(audioPath, FEATURES.ESSENTIA_BEATS,
-    (featureOutFile) => {
-      return 'essentia_streaming_extractor_music "'+audioPath+'" "'+featureOutFile+'"'
-    });
-}
+  //extracts the given feature from the audio file (path) if it doesn't exist yet
+  private extractMadmomBars(audioPath: string): Promise<any> {
+    return this.extractAndMove(audioPath, FEATURES.MADMOM_BARS,
+      (featureOutFile) => {
+        return 'DBNDownbeatTracker single -o "'+featureOutFile+'" "'+audioPath+'"'
+      });
+  }
 
-function extractAndMove(audioPath: string, feature: FeatureConfig,
-    commandFunc: (featureOutFile: string) => string) {
-  const outFileName = audioPathToDirName(audioPath);
-  const extension = audioPath.slice(audioPath.lastIndexOf('.'));
-  const featureOutFile = audioPath.replace(extension, '.json');
-  const featureDestDir = FEATURES_DIR+outFileName+'/';
-  const featureDestPath = featureDestDir+outFileName+'_'+(feature.file||feature.name)+'.json';
-  return new Promise(resolve =>
-    fs.stat(featureDestPath, err => {
-      if (err) { //only extract if file doesn't exist yet
-        console.log('extracting '+feature.name+' for '+audioPath);
-        execute(commandFunc(featureOutFile), (success: boolean) => {
-          if (success) {
-            fs.existsSync(featureDestDir) || fs.mkdirSync(featureDestDir);
-            execute('mv "'+featureOutFile+'" "'+featureDestPath+'"', resolve);
-          } else {
-            console.log('failed to extract '+feature.name+' for '+audioPath)
-            resolve();
-          }
-        });
-      } else {
-        resolve();
-      }
-    }));
+  //extracts the given feature from the audio file (path) if it doesn't exist yet
+  private extractEssentia(audioPath: string): Promise<any> {
+    return this.extractAndMove(audioPath, FEATURES.ESSENTIA_BEATS,
+      (featureOutFile) => {
+        return 'essentia_streaming_extractor_music "'+audioPath+'" "'+featureOutFile+'"'
+      });
+  }
+
+  private extractAndMove(audioPath: string, feature: FeatureConfig,
+      commandFunc: (featureOutFile: string) => string) {
+    const outFileName = audioPathToDirName(audioPath);
+    const extension = audioPath.slice(audioPath.lastIndexOf('.'));
+    const featureOutFile = audioPath.replace(extension, '.json');
+    const featureDestDir = this.targetDir+outFileName+'/';
+    const featureDestPath = featureDestDir+outFileName+'_'+(feature.file||feature.name)+'.json';
+    return new Promise(resolve =>
+      fs.stat(featureDestPath, err => {
+        if (err) { //only extract if file doesn't exist yet
+          console.log('extracting '+feature.name+' for '+audioPath);
+          execute(commandFunc(featureOutFile), (success: boolean) => {
+            if (success) {
+              fs.existsSync(featureDestDir) || fs.mkdirSync(featureDestDir);
+              execute('mv "'+featureOutFile+'" "'+featureDestPath+'"', resolve);
+            } else {
+              console.log('failed to extract '+feature.name+' for '+audioPath)
+              resolve();
+            }
+          });
+        } else {
+          resolve();
+        }
+      }));
+  }
+
 }

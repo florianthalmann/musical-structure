@@ -1,10 +1,10 @@
 import * as fs from 'fs';
 import * as fse from 'fs-extra';
 import * as _ from 'lodash';
-import { FEATURES_DIR, RESULTS_DIR } from './config';
+import { RESULTS_DIR } from './config';
 import { audioPathToDirName } from './util';
 
-fs.existsSync(FEATURES_DIR) || fs.mkdirSync(FEATURES_DIR);
+//fs.existsSync(FEATURES_DIR) || fs.mkdirSync(FEATURES_DIR);
 fs.existsSync(RESULTS_DIR) || fs.mkdirSync(RESULTS_DIR);
 
 export function initDirRec(path: string) {
@@ -16,35 +16,36 @@ export function initDirRec(path: string) {
   return dirNames.join('/')+'/';
 }
 
-export function importFeaturesFolder(audioPath: string, fromPath: string) {
+export function importFeaturesFolder(audioPath: string, fromPath: string, featuresDir: string) {
   const folder = audioPathToDirName(audioPath)+'/';
   const source = fromPath+folder;
+  const target = featuresDir+folder;
   const wavSource = source.replace('mp3', 'wav');
   if (fs.existsSync(source)) {
-    fse.copySync(source, FEATURES_DIR+folder);
+    fse.copySync(source, target);
     console.log('copied', source);
   } else if (fs.existsSync(wavSource)) {
-    fse.copySync(wavSource, FEATURES_DIR+folder);
-    fs.readdirSync(FEATURES_DIR+folder).forEach(f =>
-      fs.renameSync(FEATURES_DIR+folder+f, FEATURES_DIR+folder+f.replace('wav','mp3')));
+    fse.copySync(wavSource, target);
+    fs.readdirSync(target).forEach(f =>
+      fs.renameSync(target+f, target+f.replace('wav','mp3')));
     console.log('copied wav as mp3', wavSource);
   } else {
     console.log('NOT FOUND', source);
   }
 }
 
-export function moveToFeaturesDir(currentDir: string) {
+export function moveToFeaturesDir(currentDir: string, featuresDir: string) {
   fs.readdirSync(currentDir).forEach(f => {
-    const destDir = FEATURES_DIR + f.slice(0, _.lastIndexOf(f, '_')) + '/';
+    const destDir = featuresDir + f.slice(0, _.lastIndexOf(f, '_')) + '/';
     fs.existsSync(destDir) || fs.mkdirSync(destDir);
     fs.copyFileSync(currentDir+f, destDir+f);
   });
 }
 
-export function renameJohanChordFeatures() {
-  fs.readdirSync(FEATURES_DIR).filter(d => d.indexOf('.DS_Store') < 0).forEach(d =>
-    fs.readdirSync(FEATURES_DIR+d).filter(p => p.indexOf('johanchords') >= 0).forEach(j =>
-      fs.renameSync(FEATURES_DIR+d+'/'+j, FEATURES_DIR+d+'/'+j.replace('johanchords', 'johan'))));
+export function renameJohanChordFeatures(featuresDir: string) {
+  fs.readdirSync(featuresDir).filter(d => d.indexOf('.DS_Store') < 0).forEach(d =>
+    fs.readdirSync(featuresDir+d).filter(p => p.indexOf('johanchords') >= 0).forEach(j =>
+      fs.renameSync(featuresDir+d+'/'+j, featuresDir+d+'/'+j.replace('johanchords', 'johan'))));
 }
 
 export async function cleanCaches(path: string, search: string) {
@@ -58,8 +59,8 @@ export async function cleanCaches(path: string, search: string) {
   filepaths.forEach(f => fs.unlinkSync(f));
 }
 
-export async function getFeatureFiles(audioPath: string): Promise<string[]> {
-  var folder = FEATURES_DIR + audioPathToDirName(audioPath) + '/';
+export async function getAllFeatureFiles(audioPath: string, featuresDir: string): Promise<string[]> {
+  var folder = featuresDir + audioPathToDirName(audioPath) + '/';
   return getFilesInFolder(folder, ["json", "n3"]).map(f => folder + f);
 }
 
