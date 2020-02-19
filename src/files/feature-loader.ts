@@ -6,6 +6,7 @@ import { FEATURES, Features, FeatureExtractor, FeatureConfig } from './feature-e
 import { loadJsonFile } from './file-manager';
 import { FeatureOptions } from './options';
 import { mapSeries } from './util';
+import { labelToPCSet } from './theory';
 
 interface VampValue {
   time: number,
@@ -142,7 +143,7 @@ export class FeatureLoader {
       this.intersectJohanDuration(p[0], points[i+1][0], c)));
     const longest = durations.map(ds => chords[indexOfMax(ds)]);
     points.pop();//remove helper point
-    const pcsets = longest.map(l => this.labelToPCSet(l.label, add7ths));
+    const pcsets = longest.map(l => labelToPCSet(l.label, add7ths));
     return _.zip(points, pcsets);
   }
 
@@ -150,44 +151,11 @@ export class FeatureLoader {
     return this.intersectDuration([start, end], [chord.start, chord.end]);
   }
 
-  private toPCSet(pitchSet: number[]) {
-    return _.sortBy(_.uniq(pitchSet.map(p => p % 12)));
-  }
-
-  private labelToPCSet(chordLabel: string, add7ths?: boolean) {
-    const quality = this.getChordQuality(chordLabel);
-    const rootString = quality.length > 0 ? chordLabel.split(quality)[0]
-      : chordLabel.split('7')[0];
-    const hasSeventh = chordLabel.indexOf('7') >= 0;
-    const root = this.toPitchClass(rootString);
-    const pcset = [root];
-    pcset.push(quality === 'min' ? (root+3)%12 : (root+4)%12);
-    pcset.push((root+7)%12);
-    if (add7ths && hasSeventh) {
-      pcset.push(quality === 'maj' ? (root+11)%12 : (root+10)%12);
-    }
-    pcset.sort((a,b)=>a-b);
-    return pcset;
-  }
-
-  private getChordQuality(chordLabel: string) {
-    return chordLabel.indexOf('min') >= 0 ? 'min'
-      : chordLabel.indexOf('maj') >= 0 ? 'maj'
-      : '';
-  }
-
   private mean(array: Number[] | Number[][]) {
     if (array[0] instanceof Array) {
       return _.zip(...<number[][]>array).map(a => _.mean(a));
     }
     return _.mean(array);
-  }
-
-  private toPitchClass(pitch: string) {
-    const n = pitch[0];
-    const name = n === 'C' ? 0 : n === 'D' ? 2 : n === 'E' ? 4 : n === 'F' ? 5
-      : n === 'G' ? 7 : n === 'A' ? 9 : 11;
-    return pitch[1] === 'b' ? name-1 : name;
   }
 
   private filterMaxDurations(groups: VampValue[][], times: number[], count: number) {

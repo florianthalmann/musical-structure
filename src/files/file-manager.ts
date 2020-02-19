@@ -7,8 +7,12 @@ import { audioPathToDirName } from './util';
 //fs.existsSync(FEATURES_DIR) || fs.mkdirSync(FEATURES_DIR);
 fs.existsSync(RESULTS_DIR) || fs.mkdirSync(RESULTS_DIR);
 
+export function initDirRecForFile(filePath: string) {
+  return initDirRec(filePath.split('/').slice(0, -1).join('/'));
+}
+
 export function initDirRec(path: string) {
-  const dirNames = path.split('/');
+  const dirNames = path.split('/').filter(d => d != "");
   dirNames.forEach((_,i) => {
     const subdir = dirNames.slice(0, i+1).join('/');
     fs.existsSync(subdir) || fs.mkdirSync(subdir);

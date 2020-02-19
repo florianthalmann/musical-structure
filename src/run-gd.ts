@@ -7,6 +7,7 @@ import { initDirRec, getFoldersInFolder, importFeaturesFolder } from './files/fi
 import { getOptions } from './files/options';
 import { FeatureConfig, FEATURES } from './files/feature-extractor';
 import { FeatureLoader } from './files/feature-loader';
+import { actuallyTuneFile } from './files/tuning';
 import { toHistogram } from './analysis/pattern-histograms';
 import { AlignmentAlgorithm, TimelineOptions, TimelineAnalysis } from './analysis/timeline-analysis';
 
@@ -27,30 +28,45 @@ export class GdExperiment {
   
   private songMap: Map<string, GdVersion[]>;
   private audioFolder: string;
+  private tunedFolder: string;
   
   constructor(audioSubfolder = "") {
     this.initGdSongMap();
     this.audioFolder = GD_RAW+audioSubfolder;
+    this.tunedFolder = GD_TUNED+audioSubfolder;
   }
   
-  async tuneAndAnalyze(tlo: TimelineOptions) {
-    
+  async tuneAndCheck(tlo: TimelineOptions) {
+    await this.tuneSongVersions(tlo, 440, this.audioFolder, RAW_FEATURES, this.tunedFolder);
+    const tunedVersions = await this.getGdVersionsQuick(this.tunedFolder, tlo);
+    const tunedFeatures = await this.getTuningFeatures(tunedVersions, TUNED_FEATURES);
   }
   
-  private async tuneSongVersions(tlo: TimelineOptions) {
-    const versions = await this.getGdVersions(tlo.song, this.audioFolder, tlo.maxVersions, tlo.extension);
-    const features = new FeatureLoader(RAW_FEATURES);
-    const tunings = await features.getFeaturesFromAudio(versions, FEATURES.ESSENTIA_TUNING);
-    const keys = await features.getFeaturesFromAudio(versions, FEATURES.ESSENTIA_KEY);
-    const mostCommonKey = _.head(_(keys).countBy().entries().maxBy(_.last));
+  private async tuneSongVersions(tlo: TimelineOptions, targetFreq: number,
+      originalFolder: string, featuresFolder: string, tunedFolder: string) {
+    const versions = await this.getGdVersionsQuick(originalFolder, tlo);
+    const tuningFeatures = await this.getTuningFeatures(versions, featuresFolder);
+    return mapSeries(versions, (v,i) => actuallyTuneFile(v,
+      v.replace(originalFolder, tunedFolder), tuningFeatures.tuningFreqs[i],
+      targetFreq, tuningFeatures.keys[i], tuningFeatures.mostCommonKey));
+  }
+  
+  private getGdVersionsQuick(folder: string, tlo: TimelineOptions) {
+    return this.getGdVersions(tlo.song, folder, tlo.maxVersions, tlo.extension);
+  }
+  
+  private async getTuningFeatures(audioFiles: string[], featuresFolder: string) {
+    const features = new FeatureLoader(featuresFolder);
+    const tuningFreqs: number[] =
+      await features.getFeaturesFromAudio(audioFiles, FEATURES.ESSENTIA_TUNING);
+    const keys: string[] =
+      await features.getFeaturesFromAudio(audioFiles, FEATURES.ESSENTIA_KEY);
+    console.log(JSON.stringify(tuningFreqs))
+    console.log(JSON.stringify(keys))
+    const mostCommonKey = <string>_.head(_(keys).countBy().entries().maxBy(_.last));
     console.log(mostCommonKey);
-    versions.forEach((v,i) => console.log(v, tunings[i], keys[i]));
-    //versions.forEach((v,i) => tuneSong(v, ));
+    return {tuningFreqs: tuningFreqs, keys: keys, mostCommonKey: mostCommonKey};
   }
-  
-  /*private tuneSong(, key: string, targetKey: string) {
-  
-  }*/
   
   async saveAllSongSequences(offset = 0, skip = 0, total = 10) {
     let songs: [string, GdVersion[]][] = _.toPairs(this.songMap);

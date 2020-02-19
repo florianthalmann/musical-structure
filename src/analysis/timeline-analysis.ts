@@ -18,7 +18,7 @@ import { inferStructureFromAlignments, inferStructureFromMSA } from '../analysi
 import { getSequenceRating } from '../analysis/sequence-heuristics';
 import { SegmentNode } from '../analysis/types';
 import { inferStructureFromTimeline } from '../analysis/structure-analysis';
-import { getTuningRatio } from '../files/tunings';
+import { getThomasTuningRatio } from '../files/tuning';
 import { getMostCommonPoints } from '../analysis/pattern-histograms';
 import { toIndexSeqMap } from '../graphs/util';
 
@@ -201,7 +201,7 @@ export class TimelineAnalysis {
     const short = versions.map(v =>
       v.split('/').slice(-2).join('/').replace(tlo.extension || '.m4a', '.mp3'));
     const tunings = short.map(v =>
-      getTuningRatio(v.split('/')[0], v.split('/')[1].replace('.mp3','')));
+      getThomasTuningRatio(v.split('/')[0], v.split('/')[1].replace('.mp3','')));
     const json = {title: _.startCase(tlo.song), versions: short, tunings: tunings,
       segments: segments, timeline: timeline};
     saveJsonFile(tlo.filebase+'-output.json', json);
