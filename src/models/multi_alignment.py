@@ -1,4 +1,4 @@
-import json, operator, time, itertools
+import sys, json, operator, time, itertools
 import numpy as np
 from os import path
 from profile_hmm import ProfileHMM
@@ -16,7 +16,6 @@ def train_model_from_data(data, verbose, match_match, delete_insert,
     #take sequence closest to target length as init sequence
     init_sequence = sorted(data, key=lambda d: abs(len(d) - target_length))[0]
     training_data = np.array(np.delete(data, data.index(init_sequence), 0))
-    print('model length', len(init_sequence))
     if verbose:
         print('version count', len(data))
         print('model length', len(init_sequence))
@@ -53,12 +52,12 @@ def save_results(data, model, filepath):
     with open(filepath, 'w') as f:
         json.dump({"msa": msa, "logp": logps}, f)
 
-def align_song_versions(filebase, match_match, delete_insert,
-        max_iterations, inertia, label="", verbose=False, realignTopP=0, force=False):
+def align_song_versions(filebase, match_match=0.999, delete_insert=0.01,
+        max_iterations=50, inertia=0.8, label="", verbose=True, realignTopP=0, force=False):
     target_path = filebase+"-msa"+label+".json";
     if force or not path.exists(target_path):
         data = load_data(filebase+"-points.json")
-        if verbose:
+        if verbose and isinstance(data[0][0], int):
             for sequence in map(list, data[:10]):
                 print(''.join(str(chr(65+(s%26))) for s in sequence))
         model = train_model_from_data(data, verbose, match_match, delete_insert,
@@ -80,8 +79,8 @@ def align_song_versions(filebase, match_match, delete_insert,
         print_viterbi_paths(data, model.model)
         save_results(data, model.model, filebase+"-msa"+label+"RE.json")
 
-def sweep_align(filebase, iterations, inertias, match_matches, delete_inserts, realignTopP=0):
-    params = [iterations, inertias, match_matches, delete_inserts]
+def sweep_align(filebase, max_iterations, inertias, match_matches, delete_inserts, realignTopP=0):
+    params = [max_iterations, inertias, match_matches, delete_inserts]
     for i, n, m, d in itertools.product(*params):
         label = ""+str(i)+"-"+str(n)+"-"+str(m)+"-"+str(d)
         print("aligning", i, n, m, d)
@@ -95,6 +94,5 @@ def sweep_align(filebase, iterations, inertias, match_matches, delete_inserts, r
 #sweep_align("results/hmm-test2/meandmyuncle100", [100], [0.0,0.2,0.4], [0.9,0.99,0.999], [0.001,0.01,0.1])
 #sweep_align("results/hmm-test3/cosmiccharlie100", [100], [0.4,0.8], [0.5,0.7,0.9,0.999], [0.01,0.1,0.2])
 #sweep_align("results/hmm-test3/cosmiccharlie100", [100], [0.4], [0.999], [0.2], realignTopP=0.3)
-align_song_versions("results/hmm-test4/darkstar100c", 0.999, 0.01, 50, 0.8, verbose=False, force=True)
-
-
+#align_song_versions("results/tuning-test/meandmyuncle100c0", 0.999, 0.01, 50, 0.8, verbose=True, force=True)
+align_song_versions(filebase=str(sys.argv[1]), max_iterations=int(sys.argv[2]))
