@@ -33,7 +33,7 @@ const SW_OPTIONS: FullSWOptions = {
   selectedFeatures: null,
   maxIterations: 5,//true,
   fillGaps: true, //turn off for similarity graphs!!
-  //similarityThreshold: .95,
+  similarityThreshold: .95,
   minSegmentLength: 5, //only take segments longer than this
   maxThreshold: 50, //stop when max value below this
   //endThreshold: 0,
@@ -63,8 +63,8 @@ export function getGdCompressionOptions(resultsDir: string) {
 
 export function getFeatureOptions(doubletime?: boolean): FeatureOptions {
   return {
-    selectedFeatures: [FEATURES.ESSENTIA_BEATS, FEATURES.ESSENTIA_TUNING, FEATURES.ESSENTIA_KEY],
-    quantizerFunctions: [QF.ORDER(), QF.IDENTITY(), QF.IDENTITY()],
+    selectedFeatures: [FEATURES.MADMOM_BARS, FEATURES.CHROMA],
+    quantizerFunctions: [QF.ORDER(), QF.IDENTITY()],
     doubletime: doubletime,
     seventhChords: false
   }

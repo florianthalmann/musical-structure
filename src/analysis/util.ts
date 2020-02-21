@@ -36,3 +36,27 @@ export function getCompletedNumberArray(nums: number[]) {
   nums.forEach((n,i) => nums[i] = n != null ? n : Math.max(nums[i-1]-1, 0));
   return _.reverse(nums);
 }
+
+export function toDistribution(histo: number[]) {
+  const total = _.sum(histo);
+  return histo.map(h => h/total);
+}
+
+export function toHistogram(vals: number[]) {
+  const grouped = _.groupBy(vals);
+  return _.range(_.min(vals), _.max(vals)+1)
+    .map(v => grouped[v] ? grouped[v].length : 0);
+}
+
+export function getEntropy(data: number[]) {
+  return -1 * _.sum(data.map(d => d ? d*Math.log(d) : 0));
+}
+
+export function getMedian(data: number[]) {
+  return _.sortBy(data)[_.round(data.length/2)];
+}
+
+export function getStandardDeviation(data: number[]) {
+  const mean = _.mean(data);
+  return Math.sqrt(_.sum(data.map(d => Math.pow(d-mean, 2))) / (data.length-1));
+}

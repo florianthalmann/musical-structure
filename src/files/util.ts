@@ -21,16 +21,25 @@ function audioPathToUniqueName(audioPath: string) {
   return audioPath.split('/').slice(-2).join('_').replace(/\./g, '_');
 }
 
-export function execute(command: string, callback: Function) {
-  let options = {shell: '/bin/bash'}//{stdio: ['pipe', 'pipe', 'ignore']};
-  exec(command, options, function(error, _stdout, stderr) {
-    if (error) {
-      console.log(stderr);
-      if (callback) { callback(false); }
-    } else {
-      if (callback) { callback(true); }
-    }
-  });
+//realtime logging slows down execute significantly, so no longer doing it
+export async function execute(command: string, log = false) {
+  let options = {shell: '/bin/bash'};//{stdio: ['pipe', 'pipe', 'ignore']};
+  return new Promise<void>((resolve, reject) =>
+    exec(command, options, (error, stdout, stderr) => {
+      if (error) {
+        console.log(stderr);
+        reject();
+      } else {
+        if (log) console.log(stdout);
+        resolve();
+      }
+    }));
+  /*const p = spawn(command, args, {stdio: ['inherit', 'pipe', 'inherit']});
+  p.stdout.on('data', d => console.log(d));
+  return new Promise<void>((resolve, reject) => {
+    //childProcess.stderr.on('data', reject);
+    p.on('exit', resolve);
+  });*/
 }
 
 export async function mapSeries<T,S>(array: T[], func: (arg: T, i?: number) => Promise<S>): Promise<S[]> {

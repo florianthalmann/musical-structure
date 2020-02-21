@@ -1,11 +1,7 @@
 import * as fs from 'fs';
 import * as fse from 'fs-extra';
 import * as _ from 'lodash';
-import { RESULTS_DIR } from './config';
 import { audioPathToDirName } from './util';
-
-//fs.existsSync(FEATURES_DIR) || fs.mkdirSync(FEATURES_DIR);
-fs.existsSync(RESULTS_DIR) || fs.mkdirSync(RESULTS_DIR);
 
 export function initDirRecForFile(filePath: string) {
   return initDirRec(filePath.split('/').slice(0, -1).join('/'));
@@ -84,7 +80,7 @@ export function saveTextFile(path: string, content: string) {
   fs.writeFileSync(path, content);
 }
 
-function saveOutFile(filePath: string, content: string): Promise<any> {
+export function saveOutFile(filePath: string, content: string): Promise<any> {
   return new Promise((resolve, reject) => {
     fs.writeFile(filePath, content, err => {
       if (err) return reject(err);

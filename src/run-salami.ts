@@ -1,15 +1,20 @@
 import * as fs from 'fs';
 import * as _ from 'lodash';
 import { getCosiatecOptionsString, getCosiatecIndexOccurrences, HEURISTICS } from 'siafun';
-import { SALAMI_AUDIO, SALAMI_ANNOTATIONS, SALAMI_RESULTS } from './files/config';
-import { getFeatures } from './files/feature-extractor';
-import { getVampValues, getPoints } from './files/feature-parser';
+import { FeatureExtractor } from './files/feature-extractor';
+import { FeatureLoader } from './files/feature-loader';
 import { Annotation, getAnnotations } from './files/salami-parser';
 import { mapSeries, printPatterns, cartesianProduct, updateStatus } from './files/util';
 import { mapToTimegrid, normalize } from './analysis/pattern-analysis';
 import { FullSIAOptions, getOptionsWithCaching, getJohanBarsOptions,
   getChromaBeatsOptions, getVariations } from './files/options';
 import { evaluate } from './eval';
+
+const SALAMI = '/Users/flo/Projects/Code/FAST/grateful-dead/structure/SALAMI/';
+const SALAMI_AUDIO = SALAMI+'lma-audio/';
+const SALAMI_ANNOTATIONS = SALAMI+'salami-data-public/annotations/';
+const SALAMI_RESULTS = 'results/salami/'//'/Volumes/FastSSD/salami/';
+const SALAMI_FEATURES = 'data/salami_features';
 
 
 //NEXT: chroma3bars and chroma4bars with new heuristics!!!!
@@ -68,9 +73,12 @@ async function evaluateSalamiFile(filename: number, groundtruth: Annotation[], o
   
   if (options.loggingLevel >= 0) console.log('    extracting and parsing features', filename);
   const audio = SALAMI_AUDIO+filename+'.mp3';
-  const features = await getFeatures(audio, options.selectedFeatures);
+  const features = await new FeatureExtractor(SALAMI_FEATURES)
+    .getFeatureFiles(audio, options.selectedFeatures);
+  const featureLoader = new FeatureLoader(SALAMI_FEATURES);
   
-  const timegrid = getVampValues(features.segmentations[0], features.segConditions[0])
+  const timegrid = featureLoader
+    .getVampValues(features.segmentations[0], features.segConditions[0])
     .map(v => v.time);
   
   if (options.loggingLevel >= 0) console.log('    mapping annotations to timegrid', filename);
@@ -79,7 +87,7 @@ async function evaluateSalamiFile(filename: number, groundtruth: Annotation[], o
     ps.patterns = normalize(mapToTimegrid(ps.times, ps.patterns, timegrid, true)));
   
   if (options.loggingLevel >= 0) console.log('    inferring structure', filename);
-  const points = getPoints(features, options);
+  const points = featureLoader.getPoints(features, options);
   
   if (!maxLength || points.length < maxLength) {
     const result = getCosiatecIndexOccurrences(points, getOptionsWithCaching(audio, options));

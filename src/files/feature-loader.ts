@@ -193,9 +193,9 @@ export class FeatureLoader {
   getVampValues(filename: string, condition?: string): VampValue[] {
     try {
       const json = JSON.parse(this.fixVampBuggyJson(fs.readFileSync(filename, 'utf8')));
-      let values = json['annotations'][0]['data'];
+      let values: VampValue[] = json['annotations'][0]['data'];
       if (condition != null) {
-        values = values.filter(v => v.value === condition);
+        values = values.filter(v => v.value.toString() === condition);
       }
       return values;
     } catch (e) {

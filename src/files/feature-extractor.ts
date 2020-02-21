@@ -1,6 +1,6 @@
 import * as fs from 'fs';
 import { execute, mapSeries, audioPathToDirName } from './util';
-import { getAllFeatureFiles } from './file-manager';
+import { getAllFeatureFiles, initDirRec } from './file-manager';
 
 export interface FeatureConfig {
   name: string,
@@ -58,7 +58,9 @@ export const FEATURES = {
 
 export class FeatureExtractor {
   
-  constructor(private targetDir: string) {}
+  constructor(private targetDir: string) {
+    initDirRec(targetDir);
+  }
   
   async getFeatureFiles(audioPath: string, features: FeatureConfig[]): Promise<Features> {
     await this.extractFeatures([audioPath], features);
@@ -139,30 +141,23 @@ export class FeatureExtractor {
       });
   }
 
-  private extractAndMove(audioPath: string, feature: FeatureConfig,
+  private async extractAndMove(audioPath: string, feature: FeatureConfig,
       commandFunc: (featureOutFile: string) => string) {
     const outFileName = audioPathToDirName(audioPath);
     const extension = audioPath.slice(audioPath.lastIndexOf('.'));
     const featureOutFile = audioPath.replace(extension, '.json');
     const featureDestDir = this.targetDir+outFileName+'/';
     const featureDestPath = featureDestDir+outFileName+'_'+(feature.file||feature.name)+'.json';
-    return new Promise(resolve =>
-      fs.stat(featureDestPath, err => {
-        if (err) { //only extract if file doesn't exist yet
-          console.log('extracting '+feature.name+' for '+audioPath);
-          execute(commandFunc(featureOutFile), (success: boolean) => {
-            if (success) {
-              fs.existsSync(featureDestDir) || fs.mkdirSync(featureDestDir);
-              execute('mv "'+featureOutFile+'" "'+featureDestPath+'"', resolve);
-            } else {
-              console.log('failed to extract '+feature.name+' for '+audioPath)
-              resolve();
-            }
-          });
-        } else {
-          resolve();
-        }
-      }));
+    if (!fs.existsSync(featureDestPath)) {
+      console.log('extracting '+feature.name+' for '+audioPath);
+      try {
+        await execute(commandFunc(featureOutFile));
+        fs.existsSync(featureDestDir) || fs.mkdirSync(featureDestDir);
+        await execute('mv "'+featureOutFile+'" "'+featureDestPath+'"');
+      } catch {
+        console.log('failed to extract '+feature.name+' for '+audioPath);
+      }
+    }
   }
 
 }

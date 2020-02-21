@@ -1,6 +1,7 @@
 import * as _ from 'lodash';
 import { GraphPartition } from '../graphs/graph-partition';
 import { SegmentNode } from './types';
+import { getStandardDeviation, toHistogram, getEntropy, toDistribution } from './util';
 
 //all values are exponents that control strength of parts of heuristic
 interface SequenceRatingOptions {
@@ -137,30 +138,6 @@ function getAdjacentsMin(bins: number[], totalConnections: number) {
   const adjMin = _.sum(bins.map((v,i) =>
     i > 0 && v > 0 && bins[i-1] > 0 ? Math.min(v, bins[i-1]) : 0));
   return adjMin / totalConnections;
-}
-
-function toHistogram(vals: number[]) {
-  const grouped = _.groupBy(vals);
-  return _.range(_.min(vals), _.max(vals)+1)
-    .map(v => grouped[v] ? grouped[v].length : 0);
-}
-
-function toDistribution(histo: number[]) {
-  const total = _.sum(histo);
-  return histo.map(h => h/total);
-}
-
-function getEntropy(data: number[]) {
-  return -1 * _.sum(data.map(d => d ? d*Math.log(d) : 0));
-}
-
-function getMedian(data: number[]) {
-  return _.sortBy(data)[_.round(data.length/2)];
-}
-
-function getStandardDeviation(data: number[]) {
-  const mean = _.mean(data);
-  return Math.sqrt(_.sum(data.map(d => Math.pow(d-mean, 2))) / (data.length-1));
 }
 
 function getMainDiagonal(matrix: number[][]) {

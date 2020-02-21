@@ -1,11 +1,3 @@
-//export const FEATURES_DIR = 'features/';
-export const RESULTS_DIR = 'results/';
-
-export const SALAMI = '/Users/flo/Projects/Code/FAST/grateful-dead/structure/SALAMI/';
-export const SALAMI_AUDIO = SALAMI+'lma-audio/';
-export const SALAMI_ANNOTATIONS = SALAMI+'salami-data-public/annotations/';
-export const SALAMI_RESULTS = RESULTS_DIR+'salami/'//'/Volumes/FastSSD/salami/';
-
 /*export const GD_DATA = "/Users/flo/Projects/Code/FAST/musical-structure/data/";//'/Volumes/gspeed1/thomasw/grateful_dead/lma_soundboards/sbd/'
 export const GD_SONG_MAP = 'data/app_song_map.json';
 //export const GD_AUDIO = "/Volumes/gspeed1/thomasw/grateful_dead/lma_soundboards/sbd/"

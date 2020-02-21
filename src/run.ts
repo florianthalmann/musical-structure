@@ -15,13 +15,13 @@ export function getSongOptions(name: string, subfolder?: string, extension?: str
 }
 
 const CURRENT_SONG =
-getSongOptions("me and my uncle", "me_and_my_uncle/");
+//getSongOptions("me and my uncle", "me_and_my_uncle/");
 //getSongOptions("box of rain", "box_of_rain/");
 //getSongOptions("good lovin'", "good_lovin'/");
-//getSongOptions("cosmic charlie", "cosmic_charlie/");
+getSongOptions("cosmic charlie", "cosmic_charlie/");
 //getSongOptions("dark star", "dark_star/");
 
-const RESULTS_PATH = "results/hmm-test5/";
+const RESULTS_PATH = "results/tuning-test/";
 const CURRENT_OPTIONS = (mv: number, variant?: string) => Object.assign(CURRENT_SONG, {
   filebase: RESULTS_PATH + CURRENT_SONG.results + mv + variant,
   maxVersions: mv,
@@ -33,8 +33,8 @@ const CURRENT_OPTIONS = (mv: number, variant?: string) => Object.assign(CURRENT_
 ////try cosmic charlie again with maxV 30, count 10, SW, false
 //saveMultiTimelineDecomposition(CURRENT_OPTIONS(30));
 
-const options = CURRENT_OPTIONS(100, "t");
-new GdExperiment(options.subfolder).tuneAndCheck(options);
+const options = CURRENT_OPTIONS(100, "c1");
+new GdExperiment(options.subfolder).analyzeTuned(options);
 
 //saveGdRawSequences(CURRENT_OPTIONS(100, "t"));
 //saveGdMultinomialSequences(CURRENT_OPTIONS(100));

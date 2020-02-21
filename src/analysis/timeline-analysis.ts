@@ -39,9 +39,13 @@ export interface TimelineOptions {
   maxLength?: number
 }
 
-interface Sequences {
+interface MultinomialSequences {
   data: number[][],
   labels: string[]
+}
+
+interface RawSequences {
+  data: number[][][]
 }
 
 interface VisualsPoint {
@@ -75,27 +79,31 @@ export class TimelineAnalysis {
   }
   
   async saveGdMultinomialSequences(tlo: TimelineOptions) {
-    saveJsonFile(tlo.filebase+'-points.json', await this.getPointSequences());
+    if (!fs.existsSync(tlo.filebase+'-points.json')) {
+      saveJsonFile(tlo.filebase+'-points.json',
+        await this.getMultinomialSequences());
+    }
   }
 
   async saveGdFastaSequences(tlo: TimelineOptions) {
-    const data = (await this.getPointSequences([16,25])).data;
-    const fasta = _.flatten(data.map((d,i) => [">version"+i,
-      d.map(p => String.fromCharCode(65+p)).join('')])).join("\n");
-    saveTextFile(tlo.filebase+'.fa', fasta);
+    if (!fs.existsSync(tlo.filebase+'.fa')) {
+      const data = (await this.getMultinomialSequences()).data;//[16,25])).data;
+      const fasta = _.flatten(data.map((d,i) => [">version"+i,
+        d.map(p => String.fromCharCode(65+p)).join('')])).join("\n");
+      saveTextFile(tlo.filebase+'.fa', fasta);
+    }
   }
 
   async saveGdRawSequences(tlo: TimelineOptions) {
-    const points = await this.points;
-    const sequences = {data: points.map(s => s.map(p => p[1]).filter(p=>p))};
-    saveJsonFile(tlo.filebase+'-points.json', sequences);
+    if (!fs.existsSync(tlo.filebase+'-points.json')) {
+      const points = await this.points;
+      const sequences = {data: points.map(s => s.map(p => p[1]).filter(p=>p))};
+      saveJsonFile(tlo.filebase+'-points.json', sequences);
+    }
   }
 
-  async saveTimelineFromMSAResults(tlo: TimelineOptions, fasta?: boolean) {
-    const sequences: Sequences = loadJsonFile(tlo.filebase.slice(0,-1)+'-points.json');
-    console.log(tlo.filebase.slice(0,-1)+'-points.json')
-    const labelPoints = sequences.labels.map(l => <number[]>JSON.parse(l));
-    const points = sequences.data.map(s => s.map(p => labelPoints[p]));
+  async saveTimelineFromMSAResults(tlo: TimelineOptions,  fasta?: boolean) {
+    const points = this.loadPoints(tlo.filebase+'-points.json');
     let msa: string[][];
     if (fasta) {
       const fasta = loadTextFile(tlo.filebase+'-msa.fa').split(">").slice(1)
@@ -112,11 +120,19 @@ export class TimelineAnalysis {
     this.saveTimelineVisuals(timeline, alignments.versionPoints,
       alignments.versions, tlo);
   }
+  
+  private loadPoints(path: string): number[][][] {
+    let loaded = loadJsonFile(path);
+    if (loaded.labels) {
+      const sequences = <MultinomialSequences>loaded;
+      const labelPoints = sequences.labels.map(l => <number[]>JSON.parse(l));
+      return sequences.data.map(s => s.map(p => labelPoints[p]));
+    }
+    return (<RawSequences>loaded).data;
+  }
 
   async saveRatingsFromMSAResults(tlo: TimelineOptions) {
-    const sequences: Sequences = loadJsonFile(tlo.filebase+'-points.json');
-    const labelPoints = sequences.labels.map(l => <number[]>JSON.parse(l));
-    const points = sequences.data.map(s => s.map(p => labelPoints[p]));
+    const points = this.loadPoints(tlo.filebase+'-points.json');
     const folder = tlo.filebase.split("/").slice(0, -1).join("/")+"/";
     const alignments = await this.getAlignments(tlo);
     
@@ -521,7 +537,7 @@ export class TimelineAnalysis {
     return [start, middle, end];
   }*/
   
-  private async getPointSequences(exclude?: number[]): Promise<Sequences> {
+  private async getMultinomialSequences(exclude?: number[]): Promise<MultinomialSequences> {
     let points = await this.points;
     points = exclude ? points.filter((_v,i) => !_.includes(exclude, i)) : points;
     const values = points.map(s => s.map(p => JSON.stringify(p[1])));

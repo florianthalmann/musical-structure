@@ -21,6 +21,8 @@ plots/sweeps*
 
 *.ipynb
 *.png
+*.dnd
+*.mat
 
 connections*
 good*
@@ -31,3 +33,4 @@ hmm.d.ts
 mary-markov.d.ts
 profile-hmm.ts
 test.py
+test.json
