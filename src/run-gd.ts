@@ -52,13 +52,15 @@ export class GdExperiment {
   }
   
   private async generateTimelineViaGaussianHMM(folders: GdFolders, tlo: TimelineOptions) {
-    //add feature config!!!!
-    const versions = await this.getGdVersionsQuick(folders.audio, tlo);
-    const ta = new TimelineAnalysis(tlo.song, versions, folders.features, folders.patterns);
-    await ta.saveGdRawSequences(tlo);
+    tlo.audioFiles = await this.getGdVersionsQuick(folders.audio, tlo);
+    const ta = new TimelineAnalysis(Object.assign(tlo,
+      {featuresFolder: folders.features, patternsFolder: folders.patterns}));
+    console.log('saving raw sequences')
+    await ta.saveGdRawSequences();
     console.log('aligning using hmm')
     await hmmAlign(tlo.filebase);
-    await ta.saveTimelineFromMSAResults(tlo);
+    console.log('saving timeline')
+    await ta.saveTimelineFromMSAResults();
   }
   
   /** shows that standard deviation of tuning frequency never goes below 2-3,
@@ -102,7 +104,7 @@ export class GdExperiment {
   }
   
   private getGdVersionsQuick(folder: string, tlo: TimelineOptions) {
-    return this.getGdVersions(tlo.song, folder, tlo.maxVersions, tlo.extension);
+    return this.getGdVersions(tlo.collectionName, folder, tlo.maxVersions, tlo.extension);
   }
   
   private async getTuningFeatures(audioFiles: string[], featuresFolder: string) {
@@ -119,7 +121,7 @@ export class GdExperiment {
     let songs: [string, GdVersion[]][] = _.toPairs(this.songMap);
     songs = _.reverse(_.sortBy(songs, s => s[1].length));
     mapSeries(songs.slice(offset).filter((_,i) => i%(skip+1)==0).slice(0, total),
-      s => new TimelineAnalysis(s[0], this.getGdVersions(s[0], GD_RAW.audio), GD_RAW.features, GD_RAW.patterns)
+      s => new TimelineAnalysis(this.getBasicTimelineOptions(s[0]))
         .savePatternAndVectorSequences(GD_GRAPHS+s[0], true));
   }
 
@@ -127,9 +129,15 @@ export class GdExperiment {
     mapSeries(this.getTunedSongs(), folder => {
       GD_RAW.audio = '/Volumes/gspeed1/florian/musical-structure/thomas/'+folder+'/';
       const songname = folder.split('_').join(' ');
-      return new TimelineAnalysis(songname, this.getGdVersions(songname, GD_RAW.audio), GD_RAW.features, GD_RAW.patterns)
+      return new TimelineAnalysis(this.getBasicTimelineOptions(songname))
         .savePatternAndVectorSequences(GD_GRAPHS+songname, true);
     });
+  }
+  
+  private getBasicTimelineOptions(songname: string) {
+    return {collectionName: songname,
+      audioFiles: this.getGdVersions(songname, GD_RAW.audio),
+      featuresFolder: GD_RAW.features, patternsFolder: GD_RAW.patterns}
   }
 
   async saveThomasSongAlignments() {
@@ -138,11 +146,10 @@ export class GdExperiment {
     mapSeries(this.getTunedSongs(), folder => {
       GD_RAW.audio = '/Volumes/gspeed1/florian/musical-structure/thomas/'+folder+'/';
       const songname = folder.split('_').join(' ');
-      return new TimelineAnalysis(songname, this.getGdVersions(songname, GD_RAW.audio), GD_RAW.features, GD_RAW.patterns)
-        .saveMultiTimelineDecomposition({
-          filebase: DIR+songname, song: songname,
+      return new TimelineAnalysis(Object.assign(this.getBasicTimelineOptions(songname), 
+        {filebase: DIR+songname, song: songname,
           extension: '.wav', count: 5, algorithm: AlignmentAlgorithm.SW,
-          includeSelfAlignments: true});
+          includeSelfAlignments: true})).saveMultiTimelineDecomposition();
     });
   }
 
@@ -159,7 +166,7 @@ export class GdExperiment {
   }
 
   private async moveFeatures(tlo: TimelineOptions) {
-    const versions = await this.getGdVersions(tlo.song, GD_RAW.audio, null, tlo.extension);
+    const versions = await this.getGdVersions(tlo.collectionName, GD_RAW.audio, null, tlo.extension);
     versions.forEach(v => importFeaturesFolder(v, '/Volumes/FastSSD/gd_tuned/features/', 'features/'));
   }
 

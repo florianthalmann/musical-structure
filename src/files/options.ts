@@ -61,7 +61,7 @@ export function getGdCompressionOptions(resultsDir: string) {
   return options;
 }
 
-export function getFeatureOptions(doubletime?: boolean): FeatureOptions {
+function getFeatureOptions(doubletime?: boolean): FeatureOptions {
   return {
     selectedFeatures: [FEATURES.MADMOM_BARS, FEATURES.CHROMA],
     quantizerFunctions: [QF.ORDER(), QF.IDENTITY()],
@@ -70,22 +70,22 @@ export function getFeatureOptions(doubletime?: boolean): FeatureOptions {
   }
 }
 
-export function getGdSwOptions(resultsDir: string, doubletime?: boolean) {
-  const options = Object.assign(_.clone(SW_OPTIONS), getFeatureOptions());
-  addCacheDir(options, resultsDir, options.selectedFeatures, '', doubletime);
+export function getGdSwOptions(resultsDir: string, featureOptions = getFeatureOptions()) {
+  const options = Object.assign(_.clone(SW_OPTIONS), featureOptions);
+  addCacheDir(options, resultsDir, options.selectedFeatures, '', featureOptions.doubletime);
   return options;
 }
 
-export function getGdSiaOptions(resultsDir: string, doubletime?: boolean) {
-  const options = Object.assign(getBestGdOptions(resultsDir, doubletime),
+export function getGdSiaOptions(resultsDir: string, featureOptions = getFeatureOptions()) {
+  const options = Object.assign(getBestGdOptions(resultsDir, featureOptions),
     getFeatureOptions());
-  addCacheDir(options, resultsDir, options.selectedFeatures, '', doubletime);
+  addCacheDir(options, resultsDir, options.selectedFeatures, '', featureOptions.doubletime);
   return options;
 }
 
-export function getBestGdOptions(resultsDir: string, doubletime?: boolean) {
+export function getBestGdOptions(resultsDir: string, featureOptions = getFeatureOptions()) {
   const options = getJohanBarsOptions(resultsDir,
-    HEURISTICS.SIZE_AND_1D_COMPACTNESS_AXIS2(0), doubletime);
+    HEURISTICS.SIZE_AND_1D_COMPACTNESS_AXIS2(0), featureOptions.doubletime);
   options.minPatternLength = 3;
   options.optimizationHeuristic = HEURISTICS.SIZE_AND_1D_COMPACTNESS(0);
   options.optimizationMethods = [OPTIMIZATION.PARTITION];

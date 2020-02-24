@@ -5,8 +5,9 @@ from pomegranate import HiddenMarkovModel, DiscreteDistribution, MultivariateGau
 INITIAL_EMPHASIS = 10 #emphasis of values of initializing sequence
 LR_DECAY = 0.0
 
+#class FlankedProfileHMM(object):
+
 class ProfileHMM(object):
-    """docstring for ProfileHMM."""
 
     def __init__(self, length=None, n_features=None, initial=None,
             match_match=0.9, delete_insert=0.1):

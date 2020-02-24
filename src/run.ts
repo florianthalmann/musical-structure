@@ -1,16 +1,13 @@
 import * as _ from 'lodash';
 //import { saveGdHists } from './histograms';
+import { QUANT_FUNCS as QF } from 'siafun';
 import { GdExperiment } from './run-gd';
-import { calculateCompressionDistances, calculatePatternSimilarities,
-  sweep, saveSimilarities, sweep2} from './run-gd-dists';
-
-import { analyzePatternGraph } from './analysis/pattern-analysis';
-import { cleanCaches, renameJohanChordFeatures, moveToFeaturesDir } from './files/file-manager';
 import { AlignmentAlgorithm } from './analysis/timeline-analysis';
+import { FEATURES } from './files/feature-extractor';
 
 
 export function getSongOptions(name: string, subfolder?: string, extension?: string) {
-  return {results: name.replace(/\s/g,'').replace(/\'/g,''), song: name,
+  return {results: name.replace(/\s/g,'').replace(/\'/g,''), collectionName: name,
     subfolder: subfolder, extension: extension};
 }
 
@@ -27,7 +24,11 @@ const CURRENT_OPTIONS = (mv: number, variant?: string) => Object.assign(CURRENT_
   maxVersions: mv,
   count: 0,
   algorithm: AlignmentAlgorithm.SW,
-  includeSelfAlignments: true
+  includeSelfAlignments: true,
+  featureOptions: {
+    selectedFeatures: [FEATURES.MADMOM_BARS, FEATURES.CHROMA],
+    quantizerFunctions: [QF.ORDER(), QF.IDENTITY()]
+  }
 });
 
 ////try cosmic charlie again with maxV 30, count 10, SW, false
