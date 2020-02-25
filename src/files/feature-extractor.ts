@@ -35,7 +35,7 @@ export const FEATURES = {
   MFCC: {name:'mfcc', plugin:'vamp:qm-vamp-plugins:qm-mfcc:coefficients', isSegmentation: false},
   CHROMA: {name:'chroma', plugin:'vamp:qm-vamp-plugins:qm-chromagram:chromagram', isSegmentation: false},
   CHORDS: {name:'chords', plugin:'vamp:nnls-chroma:chordino:simplechord', isSegmentation: false},
-  JOHAN_CHORDS: {name:'johan', isSegmentation: false},
+  JOHAN_CHORDS: {name:'johan', file: 'johan', isSegmentation: false},
   JOHAN_SEVENTHS: {name:'johan7', file: 'johan', isSegmentation: false},
   FLOHAN_BEATS: {name:'flohanbeats', file: 'johan', isSegmentation: true},
   FLOHAN_BARS: {name:'flohanbeats', file: 'johan', isSegmentation: true},

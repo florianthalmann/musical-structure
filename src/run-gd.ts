@@ -25,12 +25,14 @@ interface GdFolders {
   patterns: string
 }
 
-const GD_SONG_MAP = 'data/gd_raw/app_song_map.json';
+//full path needed for docker...
+const DATA = '/Users/flo/Projects/Code/FAST/musical-structure/data/';
+const GD_SONG_MAP = DATA+'gd_raw/app_song_map.json';
 const GD_GRAPHS = initDirRec('results/gd/graphs/');
-const GD_RAW: GdFolders = { audio: 'data/gd_raw/',
-  features: 'data/gd_raw_features/', patterns: 'data/gd_raw_patterns/' };
-const GD_TUNED: GdFolders = { audio: 'data/gd_tuned/',
-  features: 'data/gd_tuned_features/', patterns: 'data/gd_tuned_patterns/' };
+const GD_RAW: GdFolders = { audio: DATA+'gd_raw/',
+  features: DATA+'gd_raw_features/', patterns: DATA+'gd_raw_patterns/' };
+const GD_TUNED: GdFolders = { audio: DATA+'gd_tuned/',
+  features: DATA+'gd_tuned_features/', patterns: DATA+'gd_tuned_patterns/' };
 
 export class GdExperiment {
   
