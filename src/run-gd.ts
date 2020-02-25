@@ -53,12 +53,12 @@ export class GdExperiment {
   
   private async generateTimelineViaGaussianHMM(folders: GdFolders, tlo: TimelineOptions) {
     tlo.audioFiles = await this.getGdVersionsQuick(folders.audio, tlo);
+    console.log('saving raw sequences')
     const ta = new TimelineAnalysis(Object.assign(tlo,
       {featuresFolder: folders.features, patternsFolder: folders.patterns}));
-    console.log('saving raw sequences')
     await ta.saveGdRawSequences();
     console.log('aligning using hmm')
-    await hmmAlign(tlo.filebase);
+    await hmmAlign(tlo.filebase, 50);
     console.log('saving timeline')
     await ta.saveTimelineFromMSAResults();
   }

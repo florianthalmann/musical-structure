@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import { execute } from '../files/util';
 
-export async function hmmAlign(filebase: string, iterations = 1) {
+export async function hmmAlign(filebase: string, iterations = 50) {
   if (!fs.existsSync(filebase+"-msa.json"))
     return execute('python src/models/multi_alignment.py "'+filebase+'" '+iterations,
     true);

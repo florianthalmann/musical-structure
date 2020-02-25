@@ -5,23 +5,16 @@ import { getAllFeatureFiles, initDirRec } from './file-manager';
 export interface FeatureConfig {
   name: string,
   file?: string,
-  isSegmentation: boolean,
-  subset?: string
+  isSegmentation: boolean
 }
 
 export interface VampFeatureConfig extends FeatureConfig {
   plugin: string
 }
 
-export interface Features {
-  segmentations: string[],
-  segConditions: string[],
-  otherFeatures: string[],
-}
-
 export const FEATURES = {
   SECTIONS: {name:'sections', plugin:'vamp:qm-vamp-plugins:qm-segmenter:segmentation', isSegmentation: true},
-  BARS: {name:'bars', file:'beats', plugin:'vamp:qm-vamp-plugins:qm-barbeattracker:beats', isSegmentation: true, subset:'1'},
+  BARS: {name:'bars', file:'beats', plugin:'vamp:qm-vamp-plugins:qm-barbeattracker:beats', isSegmentation: true},
   BEATS: {name:'beats', plugin:'vamp:qm-vamp-plugins:qm-barbeattracker:beats', isSegmentation: true},
   ONSETS: {name:'onsets', plugin:'vamp:qm-vamp-plugins:qm-onsetdetector:onsets', isSegmentation: true},
   ONSETS2: {name:'onsets2', plugin:'vamp:vamp-aubio:aubioonset:onsets', isSegmentation: true},
@@ -46,14 +39,16 @@ export const FEATURES = {
   JOHAN_SEVENTHS: {name:'johan7', file: 'johan', isSegmentation: false},
   FLOHAN_BEATS: {name:'flohanbeats', file: 'johan', isSegmentation: true},
   FLOHAN_BARS: {name:'flohanbeats', file: 'johan', isSegmentation: true},
-  MADMOM_BARS: {name:'madbars', isSegmentation: true, subset:'1'},
+  MADMOM_BARS: {name:'madbars', file: 'madbars', isSegmentation: true},
   MADMOM_BEATS: {name:'madbeats', file: 'madbars', isSegmentation: true},
   MADHAN_BARS: {name: 'madhanbars', file: 'johan', isSegmentation: true},
   SILVET: {name:'silvet', plugin:'vamp:silvet:silvet:notes', isSegmentation: false},
   TRANSCRIPTION: {name:'qmtrans', plugin:'vamp:qm-vamp-plugins:qm-transcription:transcription', isSegmentation: false},
   ESSENTIA_BEATS: {name: 'essentiabeats', file: 'essentia', isSegmentation: true},
   ESSENTIA_TUNING: {name: 'essentiatuning', file: 'essentia', isSegmentation: false},
-  ESSENTIA_KEY: {name: 'essentiakey', file: 'essentia', isSegmentation: false}
+  ESSENTIA_KEY: {name: 'essentiakey', file: 'essentia', isSegmentation: false},
+  ESSENTIA_CHORDS: {name: 'essentiachords', file: 'freesound', isSegmentation: false},
+  FLOSSENTIA_BARS: {name: 'flossentiabars', file: 'essentia', isSegmentation: true}
 }
 
 export class FeatureExtractor {
@@ -62,29 +57,13 @@ export class FeatureExtractor {
     initDirRec(targetDir);
   }
   
-  async getFeatureFiles(audioPath: string, features: FeatureConfig[]): Promise<Features> {
-    await this.extractFeatures([audioPath], features);
-    const featureFiles = await getAllFeatureFiles(audioPath, this.targetDir);
-    return this.filterSelectedFeatures(featureFiles, features);
-  }
-
   async getFeatureFile(audioPath: string, feature: FeatureConfig) {
-    return (await this.getFeatureFiles(audioPath, [feature])).otherFeatures[0];
+    return (await this.getFeatureFiles(audioPath, [feature]))[0];
   }
-
-  private filterSelectedFeatures(featureFiles: string[], features: FeatureConfig[]): Features {
-    const segs = features.filter(f => f.isSegmentation);
-    const others = features.filter(f => !f.isSegmentation);
-    const segFiles = this.getFiles(segs, featureFiles);
-    const segConditions = segFiles.map((_,i) => segs[i]['subset']);
-    return {
-      segmentations: segFiles,
-      segConditions: segConditions.filter((_,i)=>segFiles[i]),
-      otherFeatures: this.getFiles(others, featureFiles),
-    };
-  }
-
-  private getFiles(features: FeatureConfig[], files: string[]) {
+  
+  async getFeatureFiles(audioPath: string, features: FeatureConfig[]): Promise<string[]> {
+    await this.extractFeatures([audioPath], features);
+    const files = await getAllFeatureFiles(audioPath, this.targetDir);
     return features.map(f => files.filter(u => u.indexOf(f.file||f.name) >= 0)[0]);
   }
 
@@ -95,6 +74,7 @@ export class FeatureExtractor {
         : f === FEATURES.MADMOM_BEATS ? this.extractMadmomBeats(a)
         : f.file === 'johan' ? this.extractJohanChords(a, f)
         : f.file === 'essentia' ? this.extractEssentia(a)
+        : f.file === 'freesound' ? this.extractEssentiaFreesound(a)
         : null
     ));
   }
@@ -138,6 +118,13 @@ export class FeatureExtractor {
     return this.extractAndMove(audioPath, FEATURES.ESSENTIA_BEATS,
       (featureOutFile) => {
         return 'essentia_streaming_extractor_music "'+audioPath+'" "'+featureOutFile+'"'
+      });
+  }
+  
+  private extractEssentiaFreesound(audioPath: string): Promise<any> {
+    return this.extractAndMove(audioPath, FEATURES.ESSENTIA_CHORDS,
+      (featureOutFile) => {
+        return 'essentia_streaming_extractor_freesound "'+audioPath+'" "'+featureOutFile+'"'
       });
   }
 

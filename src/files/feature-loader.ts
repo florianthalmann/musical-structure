@@ -2,7 +2,7 @@ import * as fs from 'fs';
 import * as _ from 'lodash';
 import { indexOfMax } from 'arrayutils';
 import { Quantizer } from 'siafun';
-import { FEATURES, Features, FeatureExtractor, FeatureConfig } from './feature-extractor';
+import { FEATURES, FeatureExtractor, FeatureConfig } from './feature-extractor';
 import { loadJsonFile } from './file-manager';
 import { FeatureOptions } from './options';
 import { mapSeries } from './util';
@@ -14,7 +14,7 @@ interface VampValue {
   value: number
 }
 
-interface JohanChord {
+interface ChordLabel {
   start: number,
   end: number,
   label: string
@@ -45,7 +45,7 @@ export class FeatureLoader {
 
   async getPointsFromAudio(audioFile: string, options: FeatureOptions) {
     const files = await this.extractor.getFeatureFiles(audioFile, options.selectedFeatures);
-    return this.getPoints(files, options);
+    return this.generatePoints(options, files);
   }
 
   async getFeaturesFromAudio(audioFiles: string[], feature: FeatureConfig) {
@@ -61,41 +61,46 @@ export class FeatureLoader {
     }
   }
 
-  getPoints(features: Features, options: FeatureOptions) {
-    return this.generatePoints(options,
-      [features.segmentations[0]].concat(...features.otherFeatures),
-      features.segConditions[0]);
-  }
-
-  private generatePoints(options: FeatureOptions, featureFiles: string[], condition?: any) {
+  private generatePoints(options: FeatureOptions, featureFiles: string[]) {
     if (featureFiles.every(fs.existsSync)) {
-      let points: any[][] = this.initPoints(featureFiles[0], condition);
+      //first feature needs to be segmentation
+      let points: any[][] = this.initTimePoints(featureFiles[0],
+        options.selectedFeatures[0]);
       if (options.doubletime) points = points.filter((_,i) => i % 2 == 0);
-      const add7 = options.selectedFeatures.indexOf(FEATURES.JOHAN_SEVENTHS) >= 0;
-      return featureFiles.slice(1)
-        .reduce((p,f) => this.addFeature(f, p, add7), points)
+      return _.zip(featureFiles, options.selectedFeatures).slice(1)
+        .reduce((p,f) => this.addFeature(f[0], f[1], p), points)
         .filter(p => p.every(x => x != null));
     }
   }
 
-  private initPoints(filename: string, condition?: any): number[][] {
-    if (filename.indexOf(FEATURES.MADMOM_BARS.name) >= 0) {
-      return condition == '1' ? this.getMadmomDownbeats(filename).map(b => [b])
-        : this.getMadmomBeats(filename).map(b => [b]);
+  private initTimePoints(filename: string, feature: FeatureConfig): number[][] {
+    if (feature.name === FEATURES.MADMOM_BARS.name) {
+      return this.getMadmomDownbeats(filename).map(b => [b]);
+    } else if (feature.name === FEATURES.MADMOM_BEATS.name) {
+      return this.getMadmomBeats(filename).map(b => [b]);
     } else if (filename.indexOf(FEATURES.MADHAN_BARS.file) >= 0) {
       return this.getMadhanBars(filename).map(b => [b]);
     } else if (filename.indexOf(FEATURES.FLOHAN_BEATS.file) >= 0) {
       return this.getFlohanBeats(filename).map(b => [b]);
     } else if (filename.indexOf(FEATURES.ESSENTIA_BEATS.file) >= 0) {
       return this.getEssentiaBeats(filename).map(b => [b]);
+    } else if (filename.indexOf(FEATURES.FLOSSENTIA_BARS.file) >= 0) {
+      return this.getFlossentiaBars(filename).map(b => [b]);
+    } else if (feature.name === FEATURES.BARS.name) {
+      return this.getVampValues(filename)
+        .filter(v => v.value == 1).map(v => [v.time]);
     }
-    return this.getVampValues(filename, condition).map(v => [v.time]);
+    return this.getVampValues(filename).map(v => [v.time]);
   }
 
-  private addFeature(filename: string, points: number[][], add7ths?: boolean) {
-    if (filename.indexOf(FEATURES.JOHAN_CHORDS.name) >= 0) {
-      return this.addJohanChords(filename, points, add7ths);
-    } else if (filename.indexOf(FEATURES.TRANSCRIPTION.name) >= 0) {
+  private addFeature(filename: string, feature: FeatureConfig, points: number[][]) {
+    if (feature.name === FEATURES.JOHAN_CHORDS.name) {
+      return this.addJohanChords(filename, points);
+    } else if (feature.name === FEATURES.JOHAN_SEVENTHS.name) {
+      return this.addJohanChords(filename, points, true);
+    } else if (feature.name === FEATURES.ESSENTIA_CHORDS.name) {
+      return this.addEssentiaChords(filename, points);
+    } else if (feature.name === FEATURES.TRANSCRIPTION.name) {
       return this.addVampTranscription(filename, points);
     }
     return this.addVampFeatureMeans(filename, points);
@@ -137,17 +142,24 @@ export class FeatureLoader {
   }
 
   private addJohanChords(filename: string, points: number[][], add7ths?: boolean) {
+    return this.addChords(points, this.getJohanChordValues(filename), add7ths);
+  }
+  
+  private addEssentiaChords(filename: string, points: number[][]) {
+    return this.addChords(points, this.getEssentiaChordValues(filename));
+  }
+  
+  private addChords(points: number[][], chords: ChordLabel[], add7ths?: boolean) {
     points.push([Infinity]); //add helper point for last segment
-    const chords = this.getJohanChordValues(filename);
     const durations = _.initial(points).map((p,i) => chords.map(c =>
-      this.intersectJohanDuration(p[0], points[i+1][0], c)));
+      this.intersectChordDuration(p[0], points[i+1][0], c)));
     const longest = durations.map(ds => chords[indexOfMax(ds)]);
-    points.pop();//remove helper point
+    points.pop(); //remove helper point
     const pcsets = longest.map(l => labelToPCSet(l.label, add7ths));
     return _.zip(points, pcsets);
   }
 
-  private intersectJohanDuration(start: number, end: number, chord: JohanChord) {
+  private intersectChordDuration(start: number, end: number, chord: ChordLabel) {
     return this.intersectDuration([start, end], [chord.start, chord.end]);
   }
 
@@ -190,18 +202,33 @@ export class FeatureLoader {
     return Math.min(a[1], b[1]) - Math.max(a[0], b[0]);
   }
 
-  getVampValues(filename: string, condition?: string): VampValue[] {
+  getVampValues(filename: string): VampValue[] {
     try {
       const json = JSON.parse(this.fixVampBuggyJson(fs.readFileSync(filename, 'utf8')));
-      let values: VampValue[] = json['annotations'][0]['data'];
-      if (condition != null) {
-        values = values.filter(v => v.value.toString() === condition);
-      }
-      return values;
+      return <VampValue[]>json['annotations'][0]['data'];
     } catch (e) {
       console.log('error parsing features of '+filename+':', e);
       return [];
     }
+  }
+  
+  private getFlossentiaBars(filename: string): number[] {
+    const chords = this.getEssentiaChordValues(filename);
+    console.log(JSON.stringify(chords))
+    const beats = this.getEssentiaBeats(filename);
+    const harmonicRhythm = chords.map(c => c.start);
+    const nearestBeats = harmonicRhythm.map(t => {
+      const dists = beats.map(b => Math.abs(b-t));
+      return dists.indexOf(_.min(dists));
+    });
+    console.log(JSON.stringify(harmonicRhythm))
+    
+    //assume 4/4 for now but could be generalized!!!!
+    const METER = 4;
+    const bestDownbeats = _.range(0,METER).map(m =>
+      nearestBeats.filter(i => (i-m)%METER == 0).length);
+    const firstBarline = bestDownbeats.indexOf(_.max(bestDownbeats));
+    return beats.slice(firstBarline).filter((_b,i) => i%METER === 0);
   }
 
   private getMadhanBars(filename: string): number[] {
@@ -274,9 +301,18 @@ export class FeatureLoader {
     + _.sum(grid.points.map(g => _.min(times.map(h => Math.abs(g-h)))))
   }
 
-  private getJohanChordValues(filename: string): JohanChord[] {
-    const json = JSON.parse(fs.readFileSync(filename, 'utf8'));
-    return json['chordSequence'];
+  private getJohanChordValues(filename: string): ChordLabel[] {
+    return JSON.parse(fs.readFileSync(filename, 'utf8'))['chordSequence'];
+  }
+  
+  private getEssentiaChordValues(filename: string): ChordLabel[] {
+    const chords: string[] = JSON.parse(fs.readFileSync(filename, 'utf8'))
+      ['tonal']['chords_progression']; //hop size 2048 samples
+    const times: number[] = chords.map((_c,i) => (i*2048)/44100); //assuming 44100Hz
+    const labels: ChordLabel[] = chords.reduce((cs, c, i) =>
+      i == 0 || c !== chords[i-1] ? _.concat(cs, {start: times[i], label: c}) : cs, []);
+    return labels.map((l,i) => i < labels.length-1 ?
+      Object.assign(l, {end: labels[i+1].start}) : l);
   }
 
   private getMadmomDownbeats(filename: string): number[] {
