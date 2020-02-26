@@ -35,6 +35,7 @@ export interface TimelineOptions {
   count?: number,
   algorithm?: AlignmentAlgorithm,
   featureOptions?: FeatureOptions,
+  multinomial?: boolean,
   includeSelfAlignments?: boolean,
   maxVersions?: number,
   maxPointsLength?: number,
@@ -69,8 +70,8 @@ export class TimelineAnalysis {
   private points: Promise<any[][][]>;
   
   constructor(private tlo: TimelineOptions) {
-    this.siaOptions = getGdSiaOptions(tlo.patternsFolder);
-    this.swOptions = getGdSwOptions(tlo.patternsFolder);
+    this.siaOptions = getGdSiaOptions(tlo.patternsFolder, tlo.featureOptions);
+    this.swOptions = getGdSwOptions(tlo.patternsFolder, tlo.featureOptions);
     this.points = this.getPoints(tlo.featureOptions);
   }
 

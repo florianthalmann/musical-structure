@@ -41,7 +41,7 @@ const SW_OPTIONS: FullSWOptions = {
   //nLongest: 10,
   maxGapSize: 5,
   //maxGaps: 5,
-  minDistance: 3
+  //minDistance: 3
 }
 
 export function getVariations(minPatternLengths: number[]): [string, any[]][] {
@@ -164,6 +164,6 @@ function generateCacheDir(baseDir: string, features: FeatureConfig[], dims = '',
 export function getOptionsWithCaching<T extends CacheableStructureOptions>(audio: string, options: T) {
   options = _.clone(options);
   options.cacheDir = options.cacheDir+audioPathToDirName(audio)+'/';
-  fs.existsSync(options.cacheDir) || fs.mkdirSync(options.cacheDir);
+  fs.existsSync(options.cacheDir) || initDirRec(options.cacheDir);
   return options;
 }

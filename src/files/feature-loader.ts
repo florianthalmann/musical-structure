@@ -78,14 +78,16 @@ export class FeatureLoader {
       return this.getMadmomDownbeats(filename).map(b => [b]);
     } else if (feature.name === FEATURES.MADMOM_BEATS.name) {
       return this.getMadmomBeats(filename).map(b => [b]);
-    } else if (filename.indexOf(FEATURES.MADHAN_BARS.file) >= 0) {
+    } else if (feature.name === FEATURES.MADHAN_BARS.name) {
       return this.getMadhanBars(filename).map(b => [b]);
-    } else if (filename.indexOf(FEATURES.FLOHAN_BEATS.file) >= 0) {
+    } else if (feature.name === FEATURES.FLOHAN_BEATS.name) {
       return this.getFlohanBeats(filename).map(b => [b]);
-    } else if (filename.indexOf(FEATURES.ESSENTIA_BEATS.file) >= 0) {
+    } else if (feature.name === FEATURES.ESSENTIA_BEATS.name) {
       return this.getEssentiaBeats(filename).map(b => [b]);
-    } else if (filename.indexOf(FEATURES.FLOSSENTIA_BARS.file) >= 0) {
+    } else if (feature.name === FEATURES.FLOSSENTIA_BARS.name) {
       return this.getFlossentiaBars(filename).map(b => [b]);
+    } else if (feature.name === FEATURES.FLOSSHAN_BARS.name) {
+      return this.getFlosshanBars(filename).map(b => [b]);
     } else if (feature.name === FEATURES.BARS.name) {
       return this.getVampValues(filename)
         .filter(v => v.value == 1).map(v => [v.time]);
@@ -212,17 +214,31 @@ export class FeatureLoader {
     }
   }
   
-  private getFlossentiaBars(filename: string): number[] {
-    const chords = this.getEssentiaChordValues(filename);
-    console.log(JSON.stringify(chords))
+  private getFlosshanBars(filename: string): number[] {
+    const chords = this.getJohanChordValues(filename.replace('essentia', 'johan'));
     const beats = this.getEssentiaBeats(filename);
     const harmonicRhythm = chords.map(c => c.start);
     const nearestBeats = harmonicRhythm.map(t => {
       const dists = beats.map(b => Math.abs(b-t));
       return dists.indexOf(_.min(dists));
     });
-    console.log(JSON.stringify(harmonicRhythm))
     
+    //assume 4/4 for now but could be generalized!!!!
+    const METER = 4;
+    const bestDownbeats = _.range(0,METER).map(m =>
+      nearestBeats.filter(i => (i-m)%METER == 0).length);
+    const firstBarline = bestDownbeats.indexOf(_.max(bestDownbeats));
+    return beats.slice(firstBarline).filter((_b,i) => i%METER === 0);
+  }
+  
+  private getFlossentiaBars(filename: string): number[] {
+    const chords = this.getEssentiaChordValues(filename.replace('essentia', 'freesound'));
+    const beats = this.getEssentiaBeats(filename);
+    const harmonicRhythm = chords.map(c => c.start);
+    const nearestBeats = harmonicRhythm.map(t => {
+      const dists = beats.map(b => Math.abs(b-t));
+      return dists.indexOf(_.min(dists));
+    });
     //assume 4/4 for now but could be generalized!!!!
     const METER = 4;
     const bestDownbeats = _.range(0,METER).map(m =>
@@ -240,8 +256,6 @@ export class FeatureLoader {
       const dists = beats.map(b => Math.abs(b-t));
       return dists.indexOf(_.min(dists));
     });
-    //console.log(JSON.stringify(harmonicRhythm))
-    
     //assume 4/4 for now but could be generalized!!!!
     const METER = 4;
     const bestDownbeats = _.range(0,METER).map(m =>

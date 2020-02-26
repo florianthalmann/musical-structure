@@ -30,9 +30,9 @@ const DATA = '/Users/flo/Projects/Code/FAST/musical-structure/data/';
 const GD_SONG_MAP = DATA+'gd_raw/app_song_map.json';
 const GD_GRAPHS = initDirRec('results/gd/graphs/');
 const GD_RAW: GdFolders = { audio: DATA+'gd_raw/',
-  features: DATA+'gd_raw_features/', patterns: DATA+'gd_raw_patterns/' };
+  features: 'data/gd_raw_features/', patterns: 'data/gd_raw_patterns/' };
 const GD_TUNED: GdFolders = { audio: DATA+'gd_tuned/',
-  features: DATA+'gd_tuned_features/', patterns: DATA+'gd_tuned_patterns/' };
+  features: 'data/gd_tuned_features/', patterns: 'data/gd_tuned_patterns/' };
 
 export class GdExperiment {
   
@@ -58,9 +58,10 @@ export class GdExperiment {
     console.log('saving raw sequences')
     const ta = new TimelineAnalysis(Object.assign(tlo,
       {featuresFolder: folders.features, patternsFolder: folders.patterns}));
-    await ta.saveGdRawSequences();
+    if (tlo.multinomial) await ta.saveGdMultinomialSequences();
+    else await ta.saveGdRawSequences();
     console.log('aligning using hmm')
-    await hmmAlign(tlo.filebase, 50);
+    await hmmAlign(tlo.filebase, 200);
     console.log('saving timeline')
     await ta.saveTimelineFromMSAResults();
   }

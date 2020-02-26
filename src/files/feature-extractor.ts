@@ -38,7 +38,6 @@ export const FEATURES = {
   JOHAN_CHORDS: {name:'johan', file: 'johan', isSegmentation: false},
   JOHAN_SEVENTHS: {name:'johan7', file: 'johan', isSegmentation: false},
   FLOHAN_BEATS: {name:'flohanbeats', file: 'johan', isSegmentation: true},
-  FLOHAN_BARS: {name:'flohanbeats', file: 'johan', isSegmentation: true},
   MADMOM_BARS: {name:'madbars', file: 'madbars', isSegmentation: true},
   MADMOM_BEATS: {name:'madbeats', file: 'madbars', isSegmentation: true},
   MADHAN_BARS: {name: 'madhanbars', file: 'johan', isSegmentation: true},
@@ -48,7 +47,8 @@ export const FEATURES = {
   ESSENTIA_TUNING: {name: 'essentiatuning', file: 'essentia', isSegmentation: false},
   ESSENTIA_KEY: {name: 'essentiakey', file: 'essentia', isSegmentation: false},
   ESSENTIA_CHORDS: {name: 'essentiachords', file: 'freesound', isSegmentation: false},
-  FLOSSENTIA_BARS: {name: 'flossentiabars', file: 'essentia', isSegmentation: true}
+  FLOSSENTIA_BARS: {name: 'flossentiabars', file: 'essentia', isSegmentation: true},
+  FLOSSHAN_BARS: {name: 'flosshanbars', file: 'essentia', isSegmentation: true}
 }
 
 export class FeatureExtractor {
