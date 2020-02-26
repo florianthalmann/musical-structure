@@ -61,7 +61,7 @@ export class GdExperiment {
     if (tlo.multinomial) await ta.saveGdMultinomialSequences();
     else await ta.saveGdRawSequences();
     console.log('aligning using hmm')
-    await hmmAlign(tlo.filebase, 200);
+    await hmmAlign(tlo.filebase, 50);
     console.log('saving timeline')
     await ta.saveTimelineFromMSAResults();
   }

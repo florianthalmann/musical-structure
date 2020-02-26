@@ -9,7 +9,7 @@ import { saveJsonFile, loadJsonFile } from '../files/file-manager';
 import { SegmentNode } from './types';
 import { ensureSequenceValidity } from './sequence-validity';
 import { improveSequence, addMissing } from './sequence-improvement';
-import { addNewSegments } from './sequence-addition';
+import { addNewSegments, sortPartitionsTemporally } from './sequence-addition';
 import { getSequenceRating } from './sequence-heuristics';
 import { BeamSearch, GeneratorOutput } from '../graphs/beam-search';
 
@@ -50,7 +50,6 @@ export function inferStructureFromMSA(msa: string[][], points: number[][][],
   //const graph = createSegmentGraphFromMSA(msa, points);
   graph = graph || createSegmentGraphFromAlignments(versionPairs, results, false)//, filebase+'-graph.json');
   const nodesByVersion = toSegmentNodes(points).map(v => v.map(n => graph.getNode(n.id)));
-  
   const partition = new GraphPartition(graph, toPartitions(msa, nodesByVersion));
   //const partition = constructFullPartition(graph, DIFF_VERSIONS, filebase);
   const connectionMatrix = partition.getConnectionMatrix();
@@ -321,7 +320,8 @@ export function createSegmentGraphFromMSA(msa: string[][], points: number[][][])
 }
 
 function toPartitions(msa: string[][], nodesByVersion: SegmentNode[][]): SegmentNode[][] {
-  const matchStates = _.uniq(_.flatten(msa));
+  const matchStates = _.sortBy(_.uniq(_.flatten(msa))
+    .filter(s => s.length > 0), s => parseInt(s.slice(1)));
   return matchStates.map(m => msa.map((v,i) =>
     nodesByVersion[i][v.indexOf(m)]).filter(n => n));
 }

@@ -220,7 +220,7 @@ function getNeighboringGraphSegmentsForSequence(sequence: SegmentNode[][],
 }
 
 //modifies the given array
-function sortPartitionsTemporally(components: SegmentNode[][]) {
+export function sortPartitionsTemporally(components: SegmentNode[][]) {
   //new sorting method based on common versions!!
   components.sort((a,b) => {
     const versions = _.intersection(a.map(n => n.version), b.map(n => n.version));

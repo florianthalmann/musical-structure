@@ -26,7 +26,7 @@ const CURRENT_OPTIONS = (mv: number, variant?: string) => Object.assign(CURRENT_
   algorithm: AlignmentAlgorithm.SW,
   includeSelfAlignments: true,
   featureOptions: {
-    selectedFeatures: [FEATURES.MADHAN_BARS, FEATURES.JOHAN_CHORDS],
+    selectedFeatures: [FEATURES.MADMOM_BARS, FEATURES.JOHAN_CHORDS],
     quantizerFunctions: [QF.ORDER(), QF.IDENTITY()]
   },
   multinomial: true
@@ -35,7 +35,7 @@ const CURRENT_OPTIONS = (mv: number, variant?: string) => Object.assign(CURRENT_
 ////try cosmic charlie again with maxV 30, count 10, SW, false
 //saveMultiTimelineDecomposition(CURRENT_OPTIONS(30));
 
-const options = CURRENT_OPTIONS(100, "j0mj");
+const options = CURRENT_OPTIONS(100, "j0m4");
 new GdExperiment(options.subfolder).analyzeRaw(options);
 
 //saveGdRawSequences(CURRENT_OPTIONS(100, "t"));

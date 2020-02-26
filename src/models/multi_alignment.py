@@ -47,8 +47,9 @@ def save_results(data, model, filepath):
     viterbis = [model.viterbi(d) for d in data]
     logps = [v[0] for v in viterbis]
     paths = [v[1] for v in viterbis]
-    msa = [[state.name if state.name[0] == 'M' else ''
-        for idx, state in path[1:-1]] for path in paths]
+    no_del = [[state.name for idx, state in path[1:-1] if state.name[0] != 'D']
+        for path in paths] #remove deletes
+    msa = [[s if s[0] == 'M' else '' for s in path] for path in no_del] #hide inserts
     with open(filepath, 'w') as f:
         json.dump({"msa": msa, "logp": logps}, f)
 
