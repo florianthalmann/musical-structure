@@ -13,12 +13,19 @@ export function getSongOptions(name: string, subfolder?: string, extension?: str
 
 const CURRENT_SONG =
 //getSongOptions("me and my uncle", "me_and_my_uncle/");
-//getSongOptions("box of rain", "box_of_rain/");
+//getSongOptions("box of rain", "box_of_rain/", ".wav");
 //getSongOptions("good lovin'", "good_lovin'/");
-getSongOptions("cosmic charlie", "cosmic_charlie/");
-//getSongOptions("dark star", "dark_star/");
+//getSongOptions("brokedown palace", "brokedown_palace/", ".wav");
+//getSongOptions("casey jones", "casey_jones/", ".wav");
+getSongOptions("china cat sunflower", "china_cat_sunflower/", ".wav");
+//getSongOptions("china doll", "china_doll/", ".wav");
+//getSongOptions("cosmic charlie", "cosmic_charlie/", ".wav");
+//getSongOptions("cumberland blues", "cumberland_blues/", ".wav");
+//getSongOptions("dark star", "dark_star/", ".wav");
 
-const RESULTS_PATH = "results/bar-test/";
+
+
+const RESULTS_PATH = "results/ssd-test/";
 const CURRENT_OPTIONS = (mv: number, variant?: string) => Object.assign(CURRENT_SONG, {
   filebase: RESULTS_PATH + CURRENT_SONG.results + mv + variant,
   maxVersions: mv,
@@ -35,7 +42,7 @@ const CURRENT_OPTIONS = (mv: number, variant?: string) => Object.assign(CURRENT_
 ////try cosmic charlie again with maxV 30, count 10, SW, false
 //saveMultiTimelineDecomposition(CURRENT_OPTIONS(30));
 
-const options = CURRENT_OPTIONS(100, "j0m4");
+const options = CURRENT_OPTIONS(100, "j0m");
 new GdExperiment(options.subfolder).analyzeRaw(options);
 
 //saveGdRawSequences(CURRENT_OPTIONS(100, "t"));

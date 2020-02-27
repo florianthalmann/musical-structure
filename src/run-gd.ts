@@ -26,13 +26,20 @@ interface GdFolders {
 }
 
 //full path needed for docker...
-const DATA = '/Users/flo/Projects/Code/FAST/musical-structure/data/';
+/*const DATA = '/Users/flo/Projects/Code/FAST/musical-structure/data/';
 const GD_SONG_MAP = DATA+'gd_raw/app_song_map.json';
-const GD_GRAPHS = initDirRec('results/gd/graphs/');
 const GD_RAW: GdFolders = { audio: DATA+'gd_raw/',
   features: 'data/gd_raw_features/', patterns: 'data/gd_raw_patterns/' };
 const GD_TUNED: GdFolders = { audio: DATA+'gd_tuned/',
-  features: 'data/gd_tuned_features/', patterns: 'data/gd_tuned_patterns/' };
+  features: 'data/gd_tuned_features/', patterns: 'data/gd_tuned_patterns/' };*/
+const GD_GRAPHS = initDirRec('results/gd/graphs/');
+
+const DATA = '/Volumes/FastSSD/gd_tuned/';
+const GD_SONG_MAP = DATA+'audio/app_song_map.json';
+const GD_RAW: GdFolders = { audio: DATA+'audio/',
+  features: DATA+'features/', patterns: DATA+'patterns/' };
+const GD_TUNED: GdFolders = { audio: DATA+'gd_retuned/',//no longer used
+  features: DATA+'gd_retuned_features/', patterns: DATA+'gd_retuned_patterns/' };
 
 export class GdExperiment {
   
@@ -58,8 +65,8 @@ export class GdExperiment {
     console.log('saving raw sequences')
     const ta = new TimelineAnalysis(Object.assign(tlo,
       {featuresFolder: folders.features, patternsFolder: folders.patterns}));
-    if (tlo.multinomial) await ta.saveGdMultinomialSequences();
-    else await ta.saveGdRawSequences();
+    if (tlo.multinomial) await ta.saveMultinomialSequences();
+    else await ta.saveRawSequences();
     console.log('aligning using hmm')
     await hmmAlign(tlo.filebase, 50);
     console.log('saving timeline')

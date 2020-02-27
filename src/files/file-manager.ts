@@ -8,7 +8,9 @@ export function initDirRecForFile(filePath: string) {
 }
 
 export function initDirRec(path: string) {
-  const dirNames = path.split('/').filter(d => d != "");
+  let dirNames = path.split('/');
+  if (dirNames[0] === "") dirNames[1] = "/"+dirNames[1]; //root path
+  dirNames = dirNames.filter(d => d != "");
   dirNames.forEach((_,i) => {
     const subdir = dirNames.slice(0, i+1).join('/');
     fs.existsSync(subdir) || fs.mkdirSync(subdir);
@@ -73,10 +75,12 @@ export function loadTextFile(path: string) {
 }
 
 export function saveJsonFile(path: string, content: {}) {
+  initDirRecForFile(path);
   fs.writeFileSync(path, JSON.stringify(content));
 }
 
 export function saveTextFile(path: string, content: string) {
+  initDirRecForFile(path);
   fs.writeFileSync(path, content);
 }
 

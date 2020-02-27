@@ -10,7 +10,8 @@ export interface FeatureOptions {
   selectedFeatures: FeatureConfig[],
   quantizerFunctions: ArrayMap[],
   seventhChords?: boolean,
-  doubletime?: boolean
+  doubletime?: boolean,
+  transpose?: boolean
 }
 
 export interface FullSIAOptions extends OpsiatecOptions, FeatureOptions {}
@@ -31,15 +32,15 @@ const STANDARD_OPTIONS: FullSIAOptions = {
 const SW_OPTIONS: FullSWOptions = {
   quantizerFunctions: null,
   selectedFeatures: null,
-  maxIterations: 5,//true,
+  maxIterations: 10,//true,
   fillGaps: true, //turn off for similarity graphs!!
-  similarityThreshold: .97,
+  //similarityThreshold: .95,
   minSegmentLength: 5, //only take segments longer than this
   maxThreshold: 50, //stop when max value below this
   //endThreshold: 0,
   onlyDiagonals: true,
   //nLongest: 10,
-  maxGapSize: 5,
+  maxGapSize: 2,
   //maxGaps: 5,
   minDistance: 4
 }
@@ -52,7 +53,7 @@ export function getVariations(minPatternLengths: number[]): [string, any[]][] {
   ]
 }
 
-export function getGdCompressionOptions(resultsDir: string) {
+export function getCompressionOptions(resultsDir: string) {
   const options = getJohanBarsOptions(resultsDir, HEURISTICS.SIZE_AND_1D_COMPACTNESS_AXIS2(0));
   //options.optimizationHeuristic = HEURISTICS.SIZE_AND_1D_COMPACTNESS(0);
   //options.optimizationMethods = [OPTIMIZATION.PARTITION];
@@ -70,20 +71,20 @@ function getFeatureOptions(doubletime?: boolean): FeatureOptions {
   }
 }
 
-export function getGdSwOptions(resultsDir: string, featureOptions = getFeatureOptions()) {
+export function getSwOptions(resultsDir: string, featureOptions = getFeatureOptions()) {
   const options = Object.assign(_.clone(SW_OPTIONS), featureOptions);
   addCacheDir(options, resultsDir, options.selectedFeatures, '', featureOptions.doubletime);
   return options;
 }
 
-export function getGdSiaOptions(resultsDir: string, featureOptions = getFeatureOptions()) {
-  const options = Object.assign(getBestGdOptions(resultsDir, featureOptions),
-    getFeatureOptions());
+export function getSiaOptions(resultsDir: string, featureOptions = getFeatureOptions()) {
+  const options = Object.assign(getBestOptions(resultsDir, featureOptions),
+    featureOptions);
   addCacheDir(options, resultsDir, options.selectedFeatures, '', featureOptions.doubletime);
   return options;
 }
 
-export function getBestGdOptions(resultsDir: string, featureOptions = getFeatureOptions()) {
+export function getBestOptions(resultsDir: string, featureOptions = getFeatureOptions()) {
   const options = getJohanBarsOptions(resultsDir,
     HEURISTICS.SIZE_AND_1D_COMPACTNESS_AXIS2(0), featureOptions.doubletime);
   options.minPatternLength = 3;

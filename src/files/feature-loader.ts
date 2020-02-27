@@ -40,7 +40,13 @@ export class FeatureLoader {
   }
 
   async getPointsForAudioFiles(audioFiles: string[], options: FeatureOptions) {
-    return mapSeries(audioFiles, a => this.getPointsFromAudio(a, options));
+    const points = await mapSeries(audioFiles, a =>
+      this.getPointsFromAudio(a, options));
+    return options.transpose ? this.transposePoints(points) : points;
+  }
+  
+  private transposePoints(points: any[][][]) {
+    return points;
   }
 
   async getPointsFromAudio(audioFile: string, options: FeatureOptions) {
@@ -96,7 +102,9 @@ export class FeatureLoader {
   }
 
   private addFeature(filename: string, feature: FeatureConfig, points: number[][]) {
-    if (feature.name === FEATURES.JOHAN_CHORDS.name) {
+    if (feature.name === FEATURES.CHORDS.name) {
+      return this.addVampChords(filename, points);
+    } else if (feature.name === FEATURES.JOHAN_CHORDS.name) {
       return this.addJohanChords(filename, points);
     } else if (feature.name === FEATURES.JOHAN_SEVENTHS.name) {
       return this.addJohanChords(filename, points, true);
@@ -141,6 +149,10 @@ export class FeatureLoader {
   private getEssentiaKey(filename: string) {
     const json = loadJsonFile(filename);
     return json["tonal"]["chords_key"] + " " + json["tonal"]["chords_scale"];
+  }
+  
+  private addVampChords(filename: string, points: number[][], add7ths?: boolean) {
+    return this.addChords(points, this.getVampChordValues(filename), add7ths);
   }
 
   private addJohanChords(filename: string, points: number[][], add7ths?: boolean) {
@@ -314,6 +326,12 @@ export class FeatureLoader {
     }))
     + _.sum(grid.points.map(g => _.min(times.map(h => Math.abs(g-h)))))
   }
+  
+  private getVampChordValues(filename: string): ChordLabel[] {
+    const vampChords = this.getVampValues(filename);
+    return this.addEnds(vampChords.map(c =>
+      ({start: c.time, label: c.value.toString(), end: 0})));
+  }
 
   private getJohanChordValues(filename: string): ChordLabel[] {
     return JSON.parse(fs.readFileSync(filename, 'utf8'))['chordSequence'];
@@ -325,8 +343,12 @@ export class FeatureLoader {
     const times: number[] = chords.map((_c,i) => (i*2048)/44100); //assuming 44100Hz
     const labels: ChordLabel[] = chords.reduce((cs, c, i) =>
       i == 0 || c !== chords[i-1] ? _.concat(cs, {start: times[i], label: c}) : cs, []);
-    return labels.map((l,i) => i < labels.length-1 ?
-      Object.assign(l, {end: labels[i+1].start}) : l);
+    return this.addEnds(labels);
+  }
+  
+  private addEnds(chords: ChordLabel[]) {
+    return chords.map((c,i) => i < chords.length-1 ?
+      Object.assign(c, {end: chords[i+1].start}) : c);
   }
 
   private getMadmomDownbeats(filename: string): number[] {

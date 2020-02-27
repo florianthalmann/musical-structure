@@ -9,7 +9,7 @@ import { loadJsonFile, saveJsonFile, saveTextFile,
   loadTextFile, getFilesInFolder } from '../files/file-manager';
 import { NodeGroupingOptions } from '../graphs/graph-analysis';
 import { loadGraph, DirectedGraph } from '../graphs/graph-theory';
-import { getOptionsWithCaching, getGdSiaOptions, getGdSwOptions,
+import { getOptionsWithCaching, getSiaOptions, getSwOptions,
   FullSIAOptions, FullSWOptions, FeatureOptions } from '../files/options';
 import { FeatureLoader } from '../files/feature-loader';
 import { createSimilarityPatternGraph, getPatternGroupNFs, getNormalFormsMap,
@@ -70,8 +70,8 @@ export class TimelineAnalysis {
   private points: Promise<any[][][]>;
   
   constructor(private tlo: TimelineOptions) {
-    this.siaOptions = getGdSiaOptions(tlo.patternsFolder, tlo.featureOptions);
-    this.swOptions = getGdSwOptions(tlo.patternsFolder, tlo.featureOptions);
+    this.siaOptions = getSiaOptions(tlo.patternsFolder, tlo.featureOptions);
+    this.swOptions = getSwOptions(tlo.patternsFolder, tlo.featureOptions);
     this.points = this.getPoints(tlo.featureOptions);
   }
 
@@ -81,14 +81,14 @@ export class TimelineAnalysis {
     saveJsonFile(this.tlo.filebase+'-ssm.json', matrixes);
   }
   
-  async saveGdMultinomialSequences() {
+  async saveMultinomialSequences() {
     if (!fs.existsSync(this.tlo.filebase+'-points.json')) {
       saveJsonFile(this.tlo.filebase+'-points.json',
         await this.getMultinomialSequences());
     }
   }
 
-  async saveGdFastaSequences() {
+  async saveFastaSequences() {
     if (!fs.existsSync(this.tlo.filebase+'.fa')) {
       const data = (await this.getMultinomialSequences()).data;//[16,25])).data;
       const fasta = _.flatten(data.map((d,i) => [">version"+i,
@@ -96,8 +96,21 @@ export class TimelineAnalysis {
       saveTextFile(this.tlo.filebase+'.fa', fasta);
     }
   }
+  
+  private async getMultinomialSequences(exclude?: number[]): Promise<MultinomialSequences> {
+    let points = await this.points;
+    /*points.forEach(p => console.log(JSON.stringify(
+      _.reverse(_.sortBy(
+        _.map(_.groupBy(p.map(s => JSON.stringify(s.slice(1)))), (v,k) => [k,v.length])
+    , a => a[1])).slice(0,3))));*/
+    points = exclude ? points.filter((_v,i) => !_.includes(exclude, i)) : points;
+    const values = points.map(s => s.map(p => JSON.stringify(p.slice(1))));
+    const distinct = _.uniq(_.flatten(values));
+    const data = values.map(vs => vs.map(v => distinct.indexOf(v)));
+    return {data: data, labels: distinct};
+  }
 
-  async saveGdRawSequences() {
+  async saveRawSequences() {
     if (!fs.existsSync(this.tlo.filebase+'-points.json')) {
       const points = await this.points;
       const sequences = {data: points.map(s => s.map(p => p[1]).filter(p=>p))};
@@ -330,7 +343,7 @@ export class TimelineAnalysis {
     const PATTERN_TYPES = 20;
 
     /*if (tryHalftime) {
-      const doubleOptions = getGdSwOptions(true);
+      const doubleOptions = getSwOptions(true);
       const doublePoints = await getPointsForAudioFiles(versions, doubleOptions);
       const doubleResults = await getSmithWatermanFromAudio(versions, doubleOptions);
 
@@ -519,7 +532,7 @@ export class TimelineAnalysis {
   /*private async getSlicedMultiCosiatec(name: string, size: number, index: number, audioFiles: string[]) {
     const pairs = getMultiConfig(name, size, index, audioFiles);
     //TODO UPDATE PATH!!!!
-    const options = getBestGdOptions(initDirRec(GD_PATTERNS+'/multi'+index));
+    const options = getBestOptions(initDirRec(GD_PATTERNS+'/multi'+index));
     return _.flatten(await mapSeries(pairs, async (pair,i) => {
       updateStatus('  ' + (i+1) + '/' + pairs.length);
       const points = await getPointsForAudioFiles(pair, options);
@@ -537,15 +550,6 @@ export class TimelineAnalysis {
     const end = array.slice(array.length/2);
     return [start, middle, end];
   }*/
-  
-  private async getMultinomialSequences(exclude?: number[]): Promise<MultinomialSequences> {
-    let points = await this.points;
-    points = exclude ? points.filter((_v,i) => !_.includes(exclude, i)) : points;
-    const values = points.map(s => s.map(p => JSON.stringify(p[1])));
-    const distinct = _.uniq(_.flatten(values));
-    const data = values.map(vs => vs.map(v => distinct.indexOf(v)));
-    return {data: data, labels: distinct};
-  }
   
   private async getPoints(featureOptions: FeatureOptions) {
     return new FeatureLoader(this.tlo.featuresFolder)

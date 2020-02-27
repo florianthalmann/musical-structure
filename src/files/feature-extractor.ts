@@ -82,7 +82,7 @@ export class FeatureExtractor {
   //extracts the given feature from the audio file (path) if it doesn't exist yet
   private extractVampFeature(audioPath: string, feature: VampFeatureConfig): Promise<any> {
     return this.extractAndMove(audioPath, feature,
-      () => 'sonic-annotator -d ' + feature.plugin + ' ' + audioPath + ' -w jams --jams-force');
+      () => 'sonic-annotator -d ' + feature.plugin + ' "' + audioPath + '" -w jams --jams-force');
   }
 
   //extracts the given feature from the audio file (path) if it doesn't exist yet
