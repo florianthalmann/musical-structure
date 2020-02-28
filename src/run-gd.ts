@@ -85,8 +85,10 @@ export class GdExperiment {
     else await ta.saveRawSequences();
     console.log('aligning using hmm')
     await hmmAlign(tlo.filebase, 50);
-    console.log('saving timeline')
-    await ta.saveTimelineFromMSAResults();
+    //console.log('saving timeline')
+    //await ta.saveTimelineFromMSAResults();
+    console.log('saving sssm');
+    await ta.saveSumSSMfromMSAResults();
   }
   
   /** shows that standard deviation of tuning frequency never goes below 2-3,
@@ -189,7 +191,7 @@ export class GdExperiment {
   getTunedSongs() {
     //return getFoldersInFolder('/Volumes/gspeed1/florian/musical-structure/thomas/')
     return getFoldersInFolder(GD_RAW.audio)
-      .filter(f => f !== 'temp' && f !== 'studio_reference' && f !== "good_lovin'")// && f !== "dancin'_in_the_street" && f !== "eyes_of_the_world")
+      .filter(f => f !== 'temp' && f !== 'studio_reference')// && f !== "good_lovin'" && f !== "me_and_my_uncle")
   }
 
   private async moveFeatures(tlo: TimelineOptions) {
@@ -229,6 +231,11 @@ export class GdExperiment {
       .map(s => audioFolder+s.recording+'/'
         +(extension ? _.replace(s.track, '.mp3', extension) : s.track))
       .filter(fs.existsSync);
+    if (extension && versions.length == 0) {//mp3 may always exist...
+      versions = this.songMap.get(songname)
+        .map(s => audioFolder+s.recording+'/'+s.track)
+        .filter(fs.existsSync);
+    }
     /*if (maxLength && options) {
       const points = new FeatureParser().getPointsForAudioFiles(versions, options);
       versions = versions.filter((_,i) => points[i].length <= maxLength);

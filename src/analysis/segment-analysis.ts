@@ -50,7 +50,7 @@ export function inferStructureFromMSA(msa: string[][], points: number[][][],
   //const graph = createSegmentGraphFromMSA(msa, points);
   graph = graph || createSegmentGraphFromAlignments(versionPairs, results, false)//, filebase+'-graph.json');
   const nodesByVersion = toSegmentNodes(points).map(v => v.map(n => graph.getNode(n.id)));
-  const partition = new GraphPartition(graph, toPartitions(msa, nodesByVersion));
+  const partition = new GraphPartition(graph, msaToPartitions(msa, nodesByVersion));
   //const partition = constructFullPartition(graph, DIFF_VERSIONS, filebase);
   const connectionMatrix = partition.getConnectionMatrix();
   if (filebase) {
@@ -309,7 +309,7 @@ export function createSegmentGraphFromMSA(msa: string[][], points: number[][][])
   const nodesByVersion = toSegmentNodes(points);
   let graph = new DirectedGraph(_.flatten(nodesByVersion), []);
   
-  const partitions = toPartitions(msa, nodesByVersion);
+  const partitions = msaToPartitions(msa, nodesByVersion);
   partitions.forEach(p => p.forEach(n => p.forEach(m =>
     m != n ? graph.addEdge(n, m) : null)))
   console.log("full", graph.getSize(), graph.getEdges().length)
@@ -319,7 +319,11 @@ export function createSegmentGraphFromMSA(msa: string[][], points: number[][][])
   return graph;
 }
 
-function toPartitions(msa: string[][], nodesByVersion: SegmentNode[][]): SegmentNode[][] {
+export function getMSAPartitions(msa: string[][], points: number[][][]) {
+  return msaToPartitions(msa, toSegmentNodes(points));
+}
+
+function msaToPartitions(msa: string[][], nodesByVersion: SegmentNode[][]): SegmentNode[][] {
   const matchStates = _.sortBy(_.uniq(_.flatten(msa))
     .filter(s => s.length > 0), s => parseInt(s.slice(1)));
   return matchStates.map(m => msa.map((v,i) =>

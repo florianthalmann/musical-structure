@@ -14,7 +14,7 @@ import { getOptionsWithCaching, getSiaOptions, getSwOptions,
 import { FeatureLoader } from '../files/feature-loader';
 import { createSimilarityPatternGraph, getPatternGroupNFs, getNormalFormsMap,
   getConnectednessByVersion, PatternNode } from '../analysis/pattern-analysis';
-import { inferStructureFromAlignments, inferStructureFromMSA } from '../analysis/segment-analysis';
+import { inferStructureFromAlignments, inferStructureFromMSA, getMSAPartitions } from '../analysis/segment-analysis';
 import { getSequenceRating } from '../analysis/sequence-heuristics';
 import { SegmentNode } from '../analysis/types';
 import { inferStructureFromTimeline } from '../analysis/structure-analysis';
@@ -120,16 +120,7 @@ export class TimelineAnalysis {
 
   async saveTimelineFromMSAResults(fasta?: boolean) {
     const points = this.loadPoints(this.tlo.filebase+'-points.json');
-    let msa: string[][];
-    if (fasta) {
-      const fasta = loadTextFile(this.tlo.filebase+'-msa.fa').split(">").slice(1)
-        .map(f => f.split("\n").slice(1).join(''));
-      msa = fasta.map(f => f.split('').map((c,i) => c === '-' ? "" : "M"+i));
-    } else {
-      let json = loadJsonFile(this.tlo.filebase+'-msa.json');
-      if (json["msa"]) json = json["msa"];
-      msa = json;
-    }
+    const msa = this.loadMSA(fasta);
     const alignments = await this.getAlignments();
     const timeline = inferStructureFromMSA(msa, points, alignments.versionTuples,
       alignments.alignments, this.tlo.filebase).getPartitions();
@@ -137,14 +128,39 @@ export class TimelineAnalysis {
       alignments.versions);
   }
   
+  async saveSumSSMfromMSAResults(fasta?: boolean) {
+    const points = this.loadPoints(this.tlo.filebase+'-points.json');
+    const msa = this.loadMSA(fasta);
+    const partitions = getMSAPartitions(msa, points)//.filter(p => p.length > 10);
+    const ssms = points.map(s => getSelfSimilarityMatrix(s));
+    const sssm = partitions.map(p => partitions.map(q =>
+      _.reduce(_.range(0, points.length).map(i => {
+        const s = p.filter(s => s.version == i)[0];
+        const t = q.filter(s => s.version == i)[0];
+        return s && t ? ssms[i][s.time][t.time] : 1
+      }), _.multiply, 1)));
+    saveJsonFile(this.tlo.filebase+'-sssm.json', sssm);
+  }
+  
   private loadPoints(path: string): number[][][] {
     let loaded = loadJsonFile(path);
     if (loaded.labels) {
       const sequences = <MultinomialSequences>loaded;
-      const labelPoints = sequences.labels.map(l => <number[]>JSON.parse(l));
+      const labelPoints = sequences.labels.map(l => _.flatten(<number[]>JSON.parse(l)));
       return sequences.data.map(s => s.map(p => labelPoints[p]));
     }
     return (<RawSequences>loaded).data;
+  }
+  
+  private loadMSA(fasta?: boolean): string[][] {
+    if (fasta) {
+      const fasta = loadTextFile(this.tlo.filebase+'-msa.fa').split(">").slice(1)
+        .map(f => f.split("\n").slice(1).join(''));
+      return fasta.map(f => f.split('').map((c,i) => c === '-' ? "" : "M"+i));
+    } else {
+      let json = loadJsonFile(this.tlo.filebase+'-msa.json');
+      return json["msa"] ? json["msa"] : json;
+    }
   }
 
   async saveRatingsFromMSAResults() {
