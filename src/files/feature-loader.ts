@@ -352,8 +352,10 @@ export class FeatureLoader {
   }
 
   private getMadmomDownbeats(filename: string): number[] {
-    return fs.readFileSync(filename, 'utf8').split('\n').map(l => l.split('\t'))
-      .filter(l => l[1] == '1').map(l => parseFloat(l[0]));
+    const downbeats = fs.readFileSync(filename, 'utf8').split('\n')
+      .map(l => l.split('\t')).filter(l => l[1] == '1').map(l => parseFloat(l[0]));
+    if (downbeats.length <= 1) throw new Error('faulty madmom file: '+ filename);
+    return downbeats;
   }
 
   private getMadmomBeats(filename: string): number[] {

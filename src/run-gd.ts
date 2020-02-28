@@ -25,6 +25,10 @@ interface GdFolders {
   patterns: string
 }
 
+interface GdOptions extends TimelineOptions {
+  appendix: string
+}
+
 //full path needed for docker...
 /*const DATA = '/Users/flo/Projects/Code/FAST/musical-structure/data/';
 const GD_SONG_MAP = DATA+'gd_raw/app_song_map.json';
@@ -49,6 +53,18 @@ export class GdExperiment {
     this.initGdSongMap();
     GD_RAW.audio += audioSubfolder;
     GD_TUNED.audio += audioSubfolder;
+  }
+  
+  async analyzeAllRaw(tlo: GdOptions) {
+    mapSeries(this.getTunedSongs(), async s => {
+      const folders = _.clone(GD_RAW);
+      folders.audio += s + "/";
+      console.log(folders.audio)
+      const options = _.clone(tlo);
+      options.filebase += s + tlo.appendix;
+      options.collectionName = s.split('_').join(' ');
+      return this.generateTimelineViaGaussianHMM(folders, options);
+    });
   }
   
   async analyzeRaw(tlo: TimelineOptions) {
@@ -170,9 +186,10 @@ export class GdExperiment {
     })));
   }
 
-  private getTunedSongs() {
-    return getFoldersInFolder('/Volumes/gspeed1/florian/musical-structure/thomas/')
-      .filter(f => f !== 'temp' && f !== 'studio_reference' && f !== "dancin'_in_the_street")
+  getTunedSongs() {
+    //return getFoldersInFolder('/Volumes/gspeed1/florian/musical-structure/thomas/')
+    return getFoldersInFolder(GD_RAW.audio)
+      .filter(f => f !== 'temp' && f !== 'studio_reference' && f !== "good_lovin'")// && f !== "dancin'_in_the_street" && f !== "eyes_of_the_world")
   }
 
   private async moveFeatures(tlo: TimelineOptions) {

@@ -25,9 +25,10 @@ getSongOptions("china cat sunflower", "china_cat_sunflower/", ".wav");
 
 
 
-const RESULTS_PATH = "results/ssd-test/";
+export const RESULTS_PATH = "results/ssd-test2/";
 const CURRENT_OPTIONS = (mv: number, variant?: string) => Object.assign(CURRENT_SONG, {
   filebase: RESULTS_PATH + CURRENT_SONG.results + mv + variant,
+  appendix: mv + variant,
   maxVersions: mv,
   count: 0,
   algorithm: AlignmentAlgorithm.SW,
@@ -43,7 +44,10 @@ const CURRENT_OPTIONS = (mv: number, variant?: string) => Object.assign(CURRENT_
 //saveMultiTimelineDecomposition(CURRENT_OPTIONS(30));
 
 const options = CURRENT_OPTIONS(100, "j0m");
-new GdExperiment(options.subfolder).analyzeRaw(options);
+//new GdExperiment(options.subfolder).analyzeRaw(options);
+options.filebase = RESULTS_PATH;
+options.extension = ".wav";
+new GdExperiment().analyzeAllRaw(options);
 
 //saveGdRawSequences(CURRENT_OPTIONS(100, "t"));
 //saveGdMultinomialSequences(CURRENT_OPTIONS(100));
