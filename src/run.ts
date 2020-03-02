@@ -2,6 +2,7 @@ import * as _ from 'lodash';
 //import { saveGdHists } from './histograms';
 import { QUANT_FUNCS as QF } from 'siafun';
 import { GdExperiment } from './run-gd';
+import { guidAndCopyFiles, getFoldersInFolder } from './files/file-manager';
 import { AlignmentAlgorithm } from './analysis/timeline-analysis';
 import { FEATURES } from './files/feature-extractor';
 
@@ -25,12 +26,12 @@ getSongOptions("me and my uncle", "me_and_my_uncle/");
 
 
 
-export const RESULTS_PATH = "results/ssd-test2/";
+export const RESULTS_PATH = "results/ssd-test4-mutual/";
 const CURRENT_OPTIONS = (mv: number, variant?: string) => Object.assign(CURRENT_SONG, {
   filebase: RESULTS_PATH + CURRENT_SONG.results + mv + variant,
   appendix: mv + variant,
   maxVersions: mv,
-  count: 0,
+  count: 5,
   algorithm: AlignmentAlgorithm.SW,
   includeSelfAlignments: true,
   featureOptions: {
@@ -43,7 +44,10 @@ const CURRENT_OPTIONS = (mv: number, variant?: string) => Object.assign(CURRENT_
 ////try cosmic charlie again with maxV 30, count 10, SW, false
 //saveMultiTimelineDecomposition(CURRENT_OPTIONS(30));
 
-const options = CURRENT_OPTIONS(100, "j0m");
+guidAndCopyFiles('/Volumes/FastSSD/gd_tuned/audio/',
+  '/Volumes/FastSSD/gd_tuned/audio-uuid/', ['mp3']);
+
+/*const options = CURRENT_OPTIONS(100, "j0m");
 //new GdExperiment(options.subfolder).analyzeRaw(options);
 options.filebase = RESULTS_PATH;
 options.extension = ".wav";

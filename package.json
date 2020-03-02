@@ -7,7 +7,9 @@
     "batch2": "node -r ts-node/register --max-old-space-size=65536 src/run.ts",
     "batch": "ts-node -O '{\"target\": \"es2015\"}' --max-old-space-size=8192 src/run.ts",
     "test": "ts-node node_modules/jasmine/bin/jasmine",
-    "visuals": "browser-sync plots/d3 -b \"Google Chrome\" -w"
+    "audio-server": "http-server /Volumes/FastSSD --port 3001",
+    "visuals-server": "browser-sync plots/d3 -b \"Google Chrome\" -w",
+    "visuals": "concurrently \"npm run audio-server\" \"npm run visuals-server\""
   },
   "repository": {
     "type": "git",
@@ -22,15 +24,18 @@
   "dependencies": {
     "dymo-core": "^0.12.0",
     "fs-extra": "^8.1.0",
+    "http-server": "^0.12.1",
     "ml-regression-simple-linear": "^2.0.2",
-    "siafun": "^0.3.2"
+    "siafun": "^0.3.2",
+    "uuid": "^7.0.1"
   },
   "devDependencies": {
     "@types/fs-extra": "^8.0.1",
     "@types/jasmine": "^3.5.0",
     "@types/lodash": "^4.14.119",
     "@types/node": "^10.12.12",
-    "browser-sync": "^2.26.5",
+    "@types/uuid": "^7.0.0",
+    "browser-sync": "^2.26.7",
     "jasmine": "^3.5.0",
     "ts-node": "^7.0.1",
     "typescript": "^3.2.2"

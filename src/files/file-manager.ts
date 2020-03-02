@@ -1,6 +1,7 @@
 import * as fs from 'fs';
 import * as fse from 'fs-extra';
 import * as _ from 'lodash';
+import { v4 as uuidv4 } from 'uuid';
 import { audioPathToDirName } from './util';
 
 export function initDirRecForFile(filePath: string) {
@@ -34,6 +35,16 @@ export function importFeaturesFolder(audioPath: string, fromPath: string, featur
   } else {
     console.log('NOT FOUND', source);
   }
+}
+
+export function guidAndCopyFiles(source: string, target: string,
+    fileTypes: string[]) {
+  initDirRec(target);
+  const files = recGetFilesInFolder(source, fileTypes);
+  const uuidMap = _.zipObject(files.map(_f => uuidv4()), files);
+  _.mapValues(uuidMap, (f,u) =>
+    fs.copyFileSync(f, target+u+"."+f.split('.').slice(-1)[0]));
+  saveJsonFile(target+'keys.json', uuidMap);
 }
 
 export function moveToFeaturesDir(currentDir: string, featuresDir: string) {
@@ -93,12 +104,22 @@ export function saveOutFile(filePath: string, content: string): Promise<any> {
   });
 }
 
+/** returns the full paths of all files recursively contained in the given folder */
+export function recGetFilesInFolder(folder: string, fileTypes: string[]): string[] {
+  const files = getFilesInFolder(folder, fileTypes).map(f => folder+f);
+  const folders = getFoldersInFolder(folder).map(f => folder+f+'/');
+  return _.concat(files, _.flatten(folders.map(f =>
+      recGetFilesInFolder(f, fileTypes))));
+}
+
+/** returns the names of all folders contained in the given folder */
 export function getFoldersInFolder(folder: string): string[] {
   return fs.readdirSync(folder, { withFileTypes: true })
     .filter(dirent => dirent.isDirectory())
     .map(dirent => dirent.name);
 }
 
+/** returns the names of all files of the given type contained in the given folder */
 export function getFilesInFolder(folder: string, fileTypes: string[]): string[] {
   try {
     return fs.readdirSync(folder).filter(f =>

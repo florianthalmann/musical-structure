@@ -85,10 +85,10 @@ export class GdExperiment {
     else await ta.saveRawSequences();
     console.log('aligning using hmm')
     await hmmAlign(tlo.filebase, 50);
-    //console.log('saving timeline')
-    //await ta.saveTimelineFromMSAResults();
-    console.log('saving sssm');
-    await ta.saveSumSSMfromMSAResults();
+    console.log('saving timeline')
+    await ta.saveTimelineFromMSAResults();
+    /*console.log('saving sssm');
+    await ta.saveSumSSMfromMSAResults();*/
   }
   
   /** shows that standard deviation of tuning frequency never goes below 2-3,
