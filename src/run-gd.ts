@@ -2,8 +2,8 @@ import * as fs from 'fs';
 import * as _ from 'lodash';
 import { ArrayMap } from 'siafun';
 import { mapSeries } from './files/util';
-import { initDirRec, getFoldersInFolder, importFeaturesFolder
-  } from './files/file-manager';
+import { initDirRec, getFoldersInFolder, importFeaturesFolder,
+  loadJsonFile } from './files/file-manager';
 import { getOptions } from './files/options';
 import { FeatureConfig, FEATURES } from './files/feature-extractor';
 import { FeatureLoader } from './files/feature-loader';
@@ -85,7 +85,8 @@ export class GdExperiment {
     else await ta.saveRawSequences();
     console.log('aligning using hmm')
     await hmmAlign(tlo.filebase, 50);
-    console.log('saving timeline')
+    ta.printMSAStats();
+    /*console.log('saving timeline')
     await ta.saveTimelineFromMSAResults();
     /*console.log('saving sssm');
     await ta.saveSumSSMfromMSAResults();*/
@@ -190,8 +191,13 @@ export class GdExperiment {
 
   getTunedSongs() {
     //return getFoldersInFolder('/Volumes/gspeed1/florian/musical-structure/thomas/')
-    return getFoldersInFolder(GD_RAW.audio)
-      .filter(f => f !== 'temp' && f !== 'studio_reference')// && f !== "good_lovin'" && f !== "me_and_my_uncle")
+    try {
+      const folders = getFoldersInFolder(GD_RAW.audio);
+      return folders.filter(f => f !== 'temp' && f !== 'studio_reference')// && f !== "good_lovin'" && f !== "me_and_my_uncle")
+    } catch (e) {
+      console.log('failed to load tuned songs');
+      return [];
+    }
   }
 
   private async moveFeatures(tlo: TimelineOptions) {
@@ -245,11 +251,13 @@ export class GdExperiment {
 
   private initGdSongMap() {
     if (!this.songMap) {
-      const json = JSON.parse(fs.readFileSync(GD_SONG_MAP, 'utf8'));
-      this.songMap = new Map<string, GdVersion[]>();
-      _.mapValues(json, (recs, song) => this.songMap.set(song,
-        _.flatten(_.map(recs, (tracks, rec) =>
-          _.map(tracks, track => ({recording: rec, track: track.filename}))))));
+      try {
+        const json = loadJsonFile(GD_SONG_MAP);
+        this.songMap = new Map<string, GdVersion[]>();
+        _.mapValues(json, (recs, song) => this.songMap.set(song,
+          _.flatten(_.map(recs, (tracks, rec) =>
+            _.map(tracks, track => ({recording: rec, track: track.filename}))))));
+      } catch (e) { console.log('failed to load song map'); }
     }
     return this.songMap;
   }

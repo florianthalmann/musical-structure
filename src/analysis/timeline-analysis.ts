@@ -21,6 +21,7 @@ import { inferStructureFromTimeline } from '../analysis/structure-analysis';
 import { getThomasTuningRatio } from '../files/tuning';
 import { getMostCommonPoints } from '../analysis/pattern-histograms';
 import { toIndexSeqMap } from '../graphs/util';
+import { getStandardDeviation } from './util';
 
 export enum AlignmentAlgorithm {
   SIA,
@@ -161,6 +162,29 @@ export class TimelineAnalysis {
       let json = loadJsonFile(this.tlo.filebase+'-msa.json');
       return json["msa"] ? json["msa"] : json;
     }
+  }
+  
+  async printMSAStats() {
+    const json = loadJsonFile(this.tlo.filebase+'-msa.json');
+    const msa: string[][] = json["msa"];
+    const logPs: number[] = json["logp"];
+    //this.printStats("logps", logPs);
+    const individualPs = msa.map(m => m.filter(s => s != "").length/m.length);
+    //this.printStats("individuals", individualPs);
+    const matchStates = _.sortBy(_.uniq(_.flatten(msa))
+      .filter(s => s.length > 0), s => parseInt(s.slice(1)));
+    const statePs = matchStates.map(m =>
+      _.sum(msa.map(v => v.filter(s => s === m).length))/msa.length);
+    //this.printStats("states", statePs);
+    const numProbIndividuals = individualPs.filter(p => p > 0.5).length;
+    const numProbStates = statePs.filter(p => p > 0.5).length;
+    console.log("probable individuals:", numProbIndividuals, "of", msa.length);
+    console.log("probable states:", numProbStates, "of", matchStates.length);
+  }
+  
+  private printStats(name: string, values: number[]) {
+    console.log(name+":", "["+_.min(values)+", "+_.max(values)+"]",
+      _.mean(values), getStandardDeviation(values));
   }
 
   async saveRatingsFromMSAResults() {

@@ -24,7 +24,7 @@ def plot_matrix(matrix, path):
             fig.savefig(path)
             fig.clf()
 
-def plot(paths, sw_segment=False, sw_score=False, multi=False, format='.png'):
+def plot(paths, sw_segment=False, sw_score=False, multi=False, format='.pdf'):
     for path in paths:
         target_path = path.replace('.json', format);
         with open(path) as ofile:

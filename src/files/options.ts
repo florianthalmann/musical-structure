@@ -32,7 +32,7 @@ const STANDARD_OPTIONS: FullSIAOptions = {
 const SW_OPTIONS: FullSWOptions = {
   quantizerFunctions: null,
   selectedFeatures: null,
-  maxIterations: 10,//true,
+  //maxIterations: 10,//true,
   fillGaps: true, //turn off for similarity graphs!!
   //similarityThreshold: .95,
   minSegmentLength: 5, //only take segments longer than this
@@ -40,9 +40,9 @@ const SW_OPTIONS: FullSWOptions = {
   //endThreshold: 0,
   onlyDiagonals: true,
   //nLongest: 10,
-  maxGapSize: 2,
+  maxGapSize: 0,
   //maxGaps: 5,
-  minDistance: 2
+  //minDistance: 2
 }
 
 export function getVariations(minPatternLengths: number[]): [string, any[]][] {
