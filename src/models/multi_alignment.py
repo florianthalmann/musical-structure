@@ -1,7 +1,7 @@
 import sys, json, operator, time, itertools
 import numpy as np
 from os import path
-from profile_hmm import ProfileHMM
+from profile_hmm import ProfileHMM, FlankedProfileHMM
 
 def load_json(path):
     with open(path) as ofile:
@@ -11,15 +11,16 @@ def load_data(path):
     return load_json(path)["data"]#, loaded["labels"]
 
 def train_model_from_data(data, verbose, match_match, delete_insert,
-        inertia, max_iterations, model_length_func=np.median):
-    target_length = int(model_length_func([len(d) for d in data]))
+        inertia, max_iterations, model_length_func=np.median,
+        model_type=ProfileHMM):
+    target_length = 50#int(model_length_func([len(d) for d in data]))
     #take sequence closest to target length as init sequence
     init_sequence = sorted(data, key=lambda d: abs(len(d) - target_length))[0]
     training_data = np.array(np.delete(data, data.index(init_sequence), 0))
     if verbose:
         print('version count', len(data))
         print('model length', len(init_sequence))
-    model = ProfileHMM(len(init_sequence), 24, init_sequence,
+    model = model_type(len(init_sequence), 24, init_sequence,
         match_match, delete_insert)
     if verbose:
         print('fitting model')
@@ -54,7 +55,8 @@ def save_results(data, model, filepath):
         json.dump({"msa": msa, "logp": logps}, f)
 
 def align_song_versions(filebase, match_match=0.999, delete_insert=0.01,
-        max_iterations=50, inertia=0.8, label="", verbose=True, realignTopP=0, force=False):
+        max_iterations=50, inertia=0.8, label="", verbose=True, realignTopP=0,
+        force=False, model_type=ProfileHMM):
     target_path = filebase+"-msa"+label+".json";
     if force or not path.exists(target_path):
         data = load_data(filebase+"-points.json")
@@ -62,12 +64,12 @@ def align_song_versions(filebase, match_match=0.999, delete_insert=0.01,
             for sequence in map(list, data[:10]):
                 print(''.join(str(chr(65+(s%26))) for s in sequence))
         model = train_model_from_data(data, verbose, match_match, delete_insert,
-            inertia, max_iterations, np.median)
+            inertia, max_iterations, np.median, model_type)
         #model.save_to_json("results/timeline-test7/meandmyuncle30-hmm.json")
         #model = ProfileHMM().load_from_json("results/timeline-test7/meandmyuncle30-hmm.json")
         print_viterbi_paths(data, model.model)
         save_results(data, model.model, target_path)
-    elif realignTopP > 0:
+    elif not path.exists(target_path) and realignTopP > 0:
         data = load_data(filebase+"-points.json")
         results = load_json(target_path)
         logps = results["logp"]
@@ -96,4 +98,8 @@ def sweep_align(filebase, max_iterations, inertias, match_matches, delete_insert
 #sweep_align("results/hmm-test3/cosmiccharlie100", [100], [0.4,0.8], [0.5,0.7,0.9,0.999], [0.01,0.1,0.2])
 #sweep_align("results/hmm-test3/cosmiccharlie100", [100], [0.4], [0.999], [0.2], realignTopP=0.3)
 #align_song_versions("results/tuning-test/meandmyuncle100c0", 0.999, 0.01, 50, 0.8, verbose=True, force=True)
-align_song_versions(filebase=str(sys.argv[1]), max_iterations=int(sys.argv[2]))
+
+align_song_versions("results/local-test/dark_star100j0m", force=True,
+    model_type=FlankedProfileHMM)
+#align_song_versions(filebase=str(sys.argv[1]), max_iterations=int(sys.argv[2]))
+
