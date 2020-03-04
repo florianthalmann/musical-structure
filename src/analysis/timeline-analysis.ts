@@ -82,15 +82,15 @@ export class TimelineAnalysis {
     saveJsonFile(this.tlo.filebase+'-ssm.json', matrixes);
   }
   
-  async saveMultinomialSequences() {
-    if (!fs.existsSync(this.tlo.filebase+'-points.json')) {
+  async saveMultinomialSequences(force?: boolean) {
+    if (force || !fs.existsSync(this.tlo.filebase+'-points.json')) {
       saveJsonFile(this.tlo.filebase+'-points.json',
         await this.getMultinomialSequences());
     }
   }
 
-  async saveFastaSequences() {
-    if (!fs.existsSync(this.tlo.filebase+'.fa')) {
+  async saveFastaSequences(force?: boolean) {
+    if (force || !fs.existsSync(this.tlo.filebase+'.fa')) {
       const data = (await this.getMultinomialSequences()).data;//[16,25])).data;
       const fasta = _.flatten(data.map((d,i) => [">version"+i,
         d.map(p => String.fromCharCode(65+p)).join('')])).join("\n");
@@ -111,36 +111,40 @@ export class TimelineAnalysis {
     return {data: data, labels: distinct};
   }
 
-  async saveRawSequences() {
-    if (!fs.existsSync(this.tlo.filebase+'-points.json')) {
+  async saveRawSequences(force?: boolean) {
+    if (force || !fs.existsSync(this.tlo.filebase+'-points.json')) {
       const points = await this.points;
       const sequences = {data: points.map(s => s.map(p => p[1]).filter(p=>p))};
       saveJsonFile(this.tlo.filebase+'-points.json', sequences);
     }
   }
 
-  async saveTimelineFromMSAResults(fasta?: boolean) {
-    const points = this.loadPoints(this.tlo.filebase+'-points.json');
-    const msa = this.loadMSA(fasta);
-    const alignments = await this.getAlignments();
-    const timeline = inferStructureFromMSA(msa, points, alignments.versionTuples,
-      alignments.alignments, this.tlo.filebase).getPartitions();
-    this.saveTimelineVisuals(timeline, alignments.versionPoints,
-      alignments.versions);
+  async saveTimelineFromMSAResults(fasta?: boolean, force?: boolean) {
+    if (force || !fs.existsSync(this.tlo.filebase+'-visuals2.json')) {
+      const points = this.loadPoints(this.tlo.filebase+'-points.json');
+      const msa = this.loadMSA(fasta);
+      const alignments = await this.getAlignments();
+      const timeline = inferStructureFromMSA(msa, points, alignments.versionTuples,
+        alignments.alignments, this.tlo.filebase).getPartitions();
+      this.saveTimelineVisuals(timeline, alignments.versionPoints,
+        alignments.versions);
+    }
   }
   
-  async saveSumSSMfromMSAResults(fasta?: boolean) {
-    const points = this.loadPoints(this.tlo.filebase+'-points.json');
-    const msa = this.loadMSA(fasta);
-    const partitions = getMSAPartitions(msa, points)//.filter(p => p.length > 10);
-    const ssms = points.map(s => getSelfSimilarityMatrix(s));
-    const sssm = partitions.map(p => partitions.map(q =>
-      _.reduce(_.range(0, points.length).map(i => {
-        const s = p.filter(s => s.version == i)[0];
-        const t = q.filter(s => s.version == i)[0];
-        return s && t ? ssms[i][s.time][t.time] : 1
-      }), _.multiply, 1)));
-    saveJsonFile(this.tlo.filebase+'-sssm.json', sssm);
+  async saveSumSSMfromMSAResults(fasta?: boolean, force?: boolean) {
+    if (force || !fs.existsSync(this.tlo.filebase+'-sssm.json')) {
+      const points = this.loadPoints(this.tlo.filebase+'-points.json');
+      const msa = this.loadMSA(fasta);
+      const partitions = getMSAPartitions(msa, points)//.filter(p => p.length > 10);
+      const ssms = points.map(s => getSelfSimilarityMatrix(s));
+      const sssm = partitions.map(p => partitions.map(q =>
+        _.reduce(_.range(0, points.length).map(i => {
+          const s = p.filter(s => s.version == i)[0];
+          const t = q.filter(s => s.version == i)[0];
+          return s && t ? ssms[i][s.time][t.time] : 1
+        }), _.multiply, 1)));
+      saveJsonFile(this.tlo.filebase+'-sssm.json', sssm);
+    }
   }
   
   private loadPoints(path: string): number[][][] {
