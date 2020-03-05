@@ -1,10 +1,16 @@
 import * as fs from 'fs';
 import { execute } from '../files/util';
 
-export async function hmmAlign(filebase: string, iterations = 50) {
+export enum MODELS {
+  PROFILE = "ProfileHMM", //global alignment
+  FLANKED = "FlankedProfileHMM" //local alignment
+}
+
+export async function hmmAlign(filebase: string, iterations = 50,
+    model=MODELS.FLANKED, edgeInertia=0.8) {
   if (!fs.existsSync(filebase+"-msa.json"))
-    return execute('python src/models/multi_alignment.py "'+filebase+'" '+iterations,
-    true);
+    return execute('python src/models/multi_alignment.py "'+filebase+'" '
+      +iterations+" "+model+" "+edgeInertia, true);
 }
 
 export async function clustaloAlign(filebase: string) {

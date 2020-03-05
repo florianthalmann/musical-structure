@@ -22,9 +22,10 @@ class ProfileHMM(object):
         #else:
         #    self.model = HiddenMarkovModel()
     
-    def fit(self, data, inertia=0.0, max_iterations=1e8):
+    def fit(self, data, distribution_inertia=0.0, edge_inertia=0.0, max_iterations=1e8):
         return self.model.fit(data, max_iterations=max_iterations,
-            lr_decay=LR_DECAY, inertia=inertia, return_history=True, pseudocount=0.2)[1]#, n_jobs=-1)
+            lr_decay=LR_DECAY, edge_inertia=edge_inertia,
+            distribution_inertia=distribution_inertia, return_history=True, pseudocount=0.2)[1]#, n_jobs=-1)
     
     def save_to_json(self, path):
         with open(path, 'w') as f:
@@ -53,7 +54,7 @@ class ProfileHMM(object):
         match_other = (1-match_match)/2
         delete_other = (1-delete_insert)/2
         if (i % 3 == 0) and (i <= j <= i+2): #insert
-            return 1/3
+            return 1/3 #0.002 if j == i else 0.499
         elif (i % 3) == 1 and i+2 <= j <= i+4: #match
             return match_match if j == i+3 else match_other
         elif (i % 3) == 2 and i+1 <= j <= i+3: #delete
@@ -92,7 +93,7 @@ class ProfileHMM(object):
 class FlankedProfileHMM(ProfileHMM):
     
     def __init__(self, length=None, n_features=None, initial=None,
-            match_match=0.9, delete_insert=0.1, flank_prob=0.9999):
+            match_match=0.9, delete_insert=0.1, flank_prob=0.9999999):
         super(ProfileHMM, self).__init__()
         if length is not None:
             n_states = 3*length+1
@@ -128,7 +129,6 @@ class FlankedProfileHMM(ProfileHMM):
         transmat = self.remove_state(len(transmat)-1, transmat)
         transmat = self.remove_state(2, transmat)
         transmat = self.remove_state(0, transmat)
-        
         #preflank
         transmat = self.prepend_state(transmat, #silent distribution state
             #lambda i, l: 1/2 if i == 1 else 1/(2*(l+1)) if i % 3 == 0 and i > 0 else 0)

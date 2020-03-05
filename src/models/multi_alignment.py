@@ -11,9 +11,9 @@ def load_data(path):
     return load_json(path)["data"]#, loaded["labels"]
 
 def train_model_from_data(data, verbose, match_match, delete_insert,
-        inertia, max_iterations, model_length_func=np.median,
-        model_type=ProfileHMM):
-    target_length = 50#int(model_length_func([len(d) for d in data]))
+        dist_inertia, edge_inertia, max_iterations,
+        model_length_func=np.median, model_type=ProfileHMM):
+    target_length = int(model_length_func([len(d) for d in data]))
     #take sequence closest to target length as init sequence
     init_sequence = sorted(data, key=lambda d: abs(len(d) - target_length))[0]
     training_data = np.array(np.delete(data, data.index(init_sequence), 0))
@@ -25,7 +25,7 @@ def train_model_from_data(data, verbose, match_match, delete_insert,
     if verbose:
         print('fitting model')
     before = time.time()
-    history = model.fit(data, inertia, max_iterations)
+    history = model.fit(data, dist_inertia, edge_inertia, max_iterations)
     if verbose:
         print('total improvement', history.total_improvement[-1],
             'epochs', history.epochs[-1])
@@ -36,11 +36,11 @@ def get_dist_max(dist):
     return max(dist.parameters[0], key=dist.parameters[0].get)
 
 def print_viterbi_paths(data, model):
-    for sequence in data[:10]:
+    for sequence in data[:20]:
         logp, path = model.viterbi(sequence)
-        print(''.join( '-' if state.name[0] == 'I'
-            #else str(get_dist_max(state.distribution)) if state.name[0] == 'M'
-            else str(chr(65+(int(state.name[1:])%61))) if state.name[0] == 'M'
+        print(''.join( '-' if state.name[0] == 'I' #or state.name[0] == 'F' #insert or flank
+            else str(chr(65+(get_dist_max(state.distribution)%26))) if state.name[0] == 'M'
+            #else str(chr(65+(int(state.name[1:])%61))) if state.name[0] == 'M'
             else ''#state.name[0]
             for idx, state in path[1:-1]))
 
@@ -55,16 +55,19 @@ def save_results(data, model, filepath):
         json.dump({"msa": msa, "logp": logps}, f)
 
 def align_song_versions(filebase, match_match=0.999, delete_insert=0.01,
-        max_iterations=50, inertia=0.8, label="", verbose=True, realignTopP=0,
+        max_iterations=50, dist_inertia=0.8, edge_inertia=1.0,
+        label="", verbose=True, realignTopP=0,
         force=False, model_type=ProfileHMM):
     target_path = filebase+"-msa"+label+".json";
     if force or not path.exists(target_path):
         data = load_data(filebase+"-points.json")
         if verbose and isinstance(data[0][0], int):
-            for sequence in map(list, data[:10]):
+            for sequence in map(list, data[:20]):
                 print(''.join(str(chr(65+(s%26))) for s in sequence))
         model = train_model_from_data(data, verbose, match_match, delete_insert,
-            inertia, max_iterations, np.median, model_type)
+            dist_inertia, edge_inertia, max_iterations, np.median, model_type)
+        #np.set_printoptions(edgeitems=10, linewidth=200)
+        #print(model.model.dense_transition_matrix().round(3))
         #model.save_to_json("results/timeline-test7/meandmyuncle30-hmm.json")
         #model = ProfileHMM().load_from_json("results/timeline-test7/meandmyuncle30-hmm.json")
         print_viterbi_paths(data, model.model)
@@ -87,7 +90,7 @@ def sweep_align(filebase, max_iterations, inertias, match_matches, delete_insert
     for i, n, m, d in itertools.product(*params):
         label = ""+str(i)+"-"+str(n)+"-"+str(m)+"-"+str(d)
         print("aligning", i, n, m, d)
-        align_song_versions(filebase, m, d, i, n, label, realignTopP=realignTopP)
+        align_song_versions(filebase, m, d, i, 1, n, label, realignTopP=realignTopP)
 
 #align_song_versions("results/hmm-test/cosmiccharlie100", verbose=True)
 #sweep_align("results/hmm-test2/cosmiccharlie100", [400], [0.0, 0.2, 0.4], [0.3, 0.4, 0.5], [0.1, 0.01, 0.001])
@@ -99,7 +102,9 @@ def sweep_align(filebase, max_iterations, inertias, match_matches, delete_insert
 #sweep_align("results/hmm-test3/cosmiccharlie100", [100], [0.4], [0.999], [0.2], realignTopP=0.3)
 #align_song_versions("results/tuning-test/meandmyuncle100c0", 0.999, 0.01, 50, 0.8, verbose=True, force=True)
 
-align_song_versions("results/local-test/dark_star100j0m", force=True,
-    model_type=FlankedProfileHMM)
-#align_song_versions(filebase=str(sys.argv[1]), max_iterations=int(sys.argv[2]))
+#align_song_versions("results/local-test2/dark_star100j0ml0", force=True,
+#    model_type=FlankedProfileHMM, max_iterations=10)
+
+align_song_versions(filebase=str(sys.argv[1]), max_iterations=int(sys.argv[2]),
+    model_type=getattr(sys.modules[__name__], str(sys.argv[3])), edge_inertia=float(sys.argv[4]))
 
