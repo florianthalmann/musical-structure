@@ -32,7 +32,7 @@ const STANDARD_OPTIONS: FullSIAOptions = {
 const SW_OPTIONS: FullSWOptions = {
   quantizerFunctions: null,
   selectedFeatures: null,
-  //maxIterations: 10,//true,
+  maxIterations: 10,//true,
   fillGaps: true, //turn off for similarity graphs!!
   //similarityThreshold: .95,
   minSegmentLength: 5, //only take segments longer than this

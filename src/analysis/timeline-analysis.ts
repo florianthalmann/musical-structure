@@ -279,7 +279,7 @@ export class TimelineAnalysis {
     const json = {title: _.startCase(this.tlo.collectionName), versions: short, tunings: tunings,
       segments: segments, timeline: timeline};
     saveJsonFile(this.tlo.filebase+'-output.json', json);
-    let visuals: VisualsPoint[] = _.flatten(versions.map((_v,i) => timeline.map(t => {
+    const visuals: VisualsPoint[] = _.flatten(versions.map((_v,i) => timeline.map(t => {
       const n = t.find(n => n.version === i);
       return n ? ({version:i, time:n.time, type:1, point:n.point, path: versions[i],
         start: segments[i][n.time].start, duration: segments[i][n.time].duration}) : undefined;
@@ -291,7 +291,7 @@ export class TimelineAnalysis {
     segments = points.map((v,i) => v.map((_p,j) =>
       ({start: points[i][j][0][0],
         duration: points[i][j+1] ? points[i][j+1][0][0]-points[i][j][0][0] : 1})));
-    visuals = _.flatten(points.map((v,i) =>
+    const visuals2 = _.flatten(points.map((v,i) =>
       v.map((_p,t) => {
         const type = segmentsByType.findIndex(s =>
           s.find(n => n.version === i && n.time === t) != null);
@@ -301,7 +301,7 @@ export class TimelineAnalysis {
             start: segments[i][n.time].start, duration: segments[i][n.time].duration});
         }
       }))).filter(p=>p);
-    saveJsonFile(this.tlo.filebase+'-visuals2.json', visuals);
+    saveJsonFile(this.tlo.filebase+'-visuals2.json', visuals2);
   }
   
   async analyzeSavedTimeline() {

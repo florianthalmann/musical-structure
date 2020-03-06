@@ -1,6 +1,7 @@
 import * as fs from 'fs';
+import * as _ from 'lodash';
 import { execute, mapSeries, audioPathToDirName } from './util';
-import { getAllFeatureFiles, initDirRec } from './file-manager';
+import { getAllFeatureFiles, initDirRec, loadJsonFile, getFilesInFolder } from './file-manager';
 
 export interface FeatureConfig {
   name: string,
@@ -48,7 +49,8 @@ export const FEATURES = {
   ESSENTIA_KEY: {name: 'essentiakey', file: 'essentia', isSegmentation: false},
   ESSENTIA_CHORDS: {name: 'essentiachords', file: 'freesound', isSegmentation: false},
   FLOSSENTIA_BARS: {name: 'flossentiabars', file: 'essentia', isSegmentation: true},
-  FLOSSHAN_BARS: {name: 'flosshanbars', file: 'essentia', isSegmentation: true}
+  FLOSSHAN_BARS: {name: 'flosshanbars', file: 'essentia', isSegmentation: true},
+  GO_CHORDS: {name: 'gochords', file: 'gochords', isSegmentation: false},
 }
 
 export class FeatureExtractor {
@@ -133,7 +135,7 @@ export class FeatureExtractor {
     const outFileName = audioPathToDirName(audioPath);
     const extension = audioPath.slice(audioPath.lastIndexOf('.'));
     const featureOutFile = audioPath.replace(extension, '.json');
-    const featureDestDir = this.targetDir+outFileName+'/';
+    const featureDestDir = this.getFeatureDestDir(audioPath);
     const featureDestPath = featureDestDir+outFileName+'_'+(feature.file||feature.name)+'.json';
     if (!fs.existsSync(featureDestPath)) {
       console.log('extracting '+feature.name+' for '+audioPath);
@@ -145,6 +147,25 @@ export class FeatureExtractor {
         console.log('failed to extract '+feature.name+' for '+audioPath);
       }
     }
+  }
+  
+  unGuidAndCopyFeatureFiles(source: string, search: string, keysPath: string) {
+    const keys = loadJsonFile(keysPath+"keys.json");
+    const files = getFilesInFolder(source, ["json"])
+      .filter(f => _.includes(f, search));
+    files.forEach(f => {
+      const guid = f.split('/').slice(-1)[0].slice(0, 36);
+      const audioPath: string = keys[guid];
+      const outfile = f.replace(guid, audioPathToDirName(audioPath));
+      const destdir = this.getFeatureDestDir(audioPath);
+      initDirRec(destdir);
+      console.log(source+f, destdir+outfile);
+      fs.copyFileSync(source+f, destdir+outfile);
+    });
+  }
+  
+  private getFeatureDestDir(audioPath: string) {
+    return this.targetDir+audioPathToDirName(audioPath)+'/';
   }
 
 }

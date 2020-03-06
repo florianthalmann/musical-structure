@@ -6,7 +6,7 @@ import { FEATURES, FeatureExtractor, FeatureConfig } from './feature-extractor';
 import { loadJsonFile } from './file-manager';
 import { FeatureOptions } from './options';
 import { mapSeries } from './util';
-import { labelToPCSet } from './theory';
+import { labelToPCSet, goIndexToPCSet } from './theory';
 
 interface VampValue {
   time: number,
@@ -17,7 +17,7 @@ interface VampValue {
 interface ChordLabel {
   start: number,
   end: number,
-  label: string
+  label: string | number[]
 }
 
 interface Grid {
@@ -112,6 +112,8 @@ export class FeatureLoader {
       return this.addEssentiaChords(filename, points);
     } else if (feature.name === FEATURES.TRANSCRIPTION.name) {
       return this.addVampTranscription(filename, points);
+    } else if (feature.name === FEATURES.GO_CHORDS.name) {
+      return this.addGoChords(filename, points);
     }
     return this.addVampFeatureMeans(filename, points);
   }
@@ -154,6 +156,10 @@ export class FeatureLoader {
   private addVampChords(filename: string, points: number[][], add7ths?: boolean) {
     return this.addChords(points, this.getVampChordValues(filename), add7ths);
   }
+  
+  private addGoChords(filename: string, points: number[][]) {
+    return this.addChords(points, this.getGoChordValues(filename));
+  }
 
   private addJohanChords(filename: string, points: number[][], add7ths?: boolean) {
     return this.addChords(points, this.getJohanChordValues(filename), add7ths);
@@ -169,7 +175,8 @@ export class FeatureLoader {
       this.intersectChordDuration(p[0], points[i+1][0], c)));
     const longest = durations.map(ds => chords[indexOfMax(ds)]);
     points.pop(); //remove helper point
-    const pcsets = longest.map(l => labelToPCSet(l.label, add7ths));
+    const pcsets = longest.map(l =>
+      typeof l.label == "string" ? labelToPCSet(l.label, add7ths) : l.label);
     return _.zip(points, pcsets);
   }
 
@@ -331,6 +338,12 @@ export class FeatureLoader {
     const vampChords = this.getVampValues(filename);
     return this.addEnds(vampChords.map(c =>
       ({start: c.time, label: c.value.toString(), end: 0})));
+  }
+  
+  private getGoChordValues(filename: string) {
+    const chords: [number,number][] = loadJsonFile(filename)[0];
+    return this.addEnds(chords.map(c =>
+      ({start: c[0], label: goIndexToPCSet(c[1]), end: 0})));
   }
 
   private getJohanChordValues(filename: string): ChordLabel[] {

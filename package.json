@@ -22,6 +22,7 @@
   },
   "homepage": "https://github.com/florianthalmann/musical-structure#readme",
   "dependencies": {
+    "concurrently": "^5.1.0",
     "dymo-core": "^0.12.0",
     "fs-extra": "^8.1.0",
     "http-server": "^0.12.1",

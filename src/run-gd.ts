@@ -193,7 +193,7 @@ export class GdExperiment {
     //return getFoldersInFolder('/Volumes/gspeed1/florian/musical-structure/thomas/')
     try {
       const folders = getFoldersInFolder(GD_RAW.audio);
-      return folders.filter(f => f !== 'temp' && f !== 'studio_reference' && f !== "dancin'_in_the_street")// && f !== "good_lovin'" && f !== "me_and_my_uncle")
+      return folders.filter(f => f !== 'temp' && f !== 'studio_reference' && f !== "good_lovin'" && f !== "me_and_my_uncle")// && f !== "dancin'_in_the_street" && f !== "dark_star")// && f !== "good_lovin'" && f !== "me_and_my_uncle")
     } catch (e) {
       console.log('failed to load tuned songs');
       return [];

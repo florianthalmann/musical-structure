@@ -3,6 +3,7 @@ import * as _ from 'lodash';
 import { QUANT_FUNCS as QF } from 'siafun';
 import { GdExperiment } from './run-gd';
 import { guidAndCopyFiles } from './files/file-manager';
+import { FeatureExtractor } from './files/feature-extractor';
 import { AlignmentAlgorithm } from './analysis/timeline-analysis';
 import { FEATURES } from './files/feature-extractor';
 
@@ -13,20 +14,20 @@ export function getSongOptions(name: string, subfolder?: string, extension?: str
 }
 
 const CURRENT_SONG =
-getSongOptions("me and my uncle", "me_and_my_uncle/");
+//getSongOptions("me and my uncle", "me_and_my_uncle/");
 //getSongOptions("box of rain", "box_of_rain/", ".wav");
 //getSongOptions("good lovin'", "good_lovin'/");
 //getSongOptions("brokedown palace", "brokedown_palace/", ".wav");
 //getSongOptions("casey jones", "casey_jones/", ".wav");
 //getSongOptions("china cat sunflower", "china_cat_sunflower/", ".wav");
-//getSongOptions("china doll", "china_doll/", ".wav");
+getSongOptions("china doll", "china_doll/", ".wav");
 //getSongOptions("cosmic charlie", "cosmic_charlie/", ".wav");
 //getSongOptions("cumberland blues", "cumberland_blues/", ".wav");
 //getSongOptions("dark star", "dark_star/", ".wav");
 
 
 
-export const RESULTS_PATH = "results/ssd-test5-maxnogap/";
+export const RESULTS_PATH = "results/local-test5/";
 const CURRENT_OPTIONS = (mv: number, variant?: string) => Object.assign(CURRENT_SONG, {
   filebase: RESULTS_PATH + CURRENT_SONG.results + mv + variant,
   appendix: mv + variant,
@@ -35,7 +36,7 @@ const CURRENT_OPTIONS = (mv: number, variant?: string) => Object.assign(CURRENT_
   algorithm: AlignmentAlgorithm.SW,
   includeSelfAlignments: true,
   featureOptions: {
-    selectedFeatures: [FEATURES.MADMOM_BARS, FEATURES.JOHAN_CHORDS],
+    selectedFeatures: [FEATURES.MADMOM_BARS, FEATURES.GO_CHORDS],
     quantizerFunctions: [QF.ORDER(), QF.IDENTITY()]
   },
   multinomial: true
@@ -45,9 +46,12 @@ const CURRENT_OPTIONS = (mv: number, variant?: string) => Object.assign(CURRENT_
 //saveMultiTimelineDecomposition(CURRENT_OPTIONS(30));
 
 /*guidAndCopyFiles('/Volumes/FastSSD/gd_tuned/audio/',
-  '/Volumes/FastSSD/gd_tuned/audio-uuid/', ['mp3']);*/
+  '/Volumes/FastSSD/gd_tuned/audio-uuid2/', ['wav']);*/
+/*new FeatureExtractor('/Volumes/FastSSD/gd_tuned/features/')
+  .unGuidAndCopyFeatureFiles('/Volumes/FastSSD/gd_tuned/chroma-uuid/',
+  'gochords', '/Volumes/FastSSD/gd_tuned/audio-uuid2/');*/
 
-const options = CURRENT_OPTIONS(100, "j0m");
+const options = CURRENT_OPTIONS(100, "j0mg");
 //new GdExperiment(options.subfolder).analyzeRaw(options);
 options.filebase = RESULTS_PATH;
 options.extension = ".wav";

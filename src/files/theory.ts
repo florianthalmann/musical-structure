@@ -60,6 +60,15 @@ export function labelToPCSet(chordLabel: string, add7ths?: boolean) {
   return pcset;
 }
 
+export function goIndexToPCSet(index: number): number[] {
+  const root = index%12;
+  const type = Math.floor(index/12);
+  let pcset = type == 0 ? [root, root+4, root+7] : [root, root+3, root+7];
+  pcset = pcset.map(p => p%12);
+  pcset.sort((a,b)=>a-b);
+  return pcset;
+}
+
 function getPitchClass(pitchOrChordLabel: string) {
   const n = pitchOrChordLabel[0];
   const name = n === 'C' ? 0 : n === 'D' ? 2 : n === 'E' ? 4 : n === 'F' ? 5
