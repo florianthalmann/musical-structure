@@ -50,10 +50,16 @@ const options = TEST;
 
 //assumes that the sequence is a valid one (no double occs, no double versions, lin ordered)
 export function getSequenceRating(sequence: GraphPartition<SegmentNode>) {
+  return getSequenceRatingFromMatrix(sequence.getConnectionMatrix(),
+    sequence.getPartitions().map(p => p.length));
+}
+
+//assumes that the sequence is a valid one (no double occs, no double versions, lin ordered)
+export function getSequenceRatingFromMatrix(connectionMatrix: number[][],
+    partitionSizes: number[]) {
   const factors: number[] = [];
   
-  const numNodes = sequence.getNodeCount();
-  const connectionMatrix = sequence.getConnectionMatrix();
+  const numNodes = _.sum(partitionSizes);
   const bins = _.flatten(connectionMatrix);
   const totalConnections = _.sum(bins);
   const nonEmptyBins = bins.filter(b => b > 0);
@@ -65,7 +71,6 @@ export function getSequenceRating(sequence: GraphPartition<SegmentNode>) {
   
   if (options.compactness) {
     //const numSegs = sequence.getPartitionCount();
-    const partitionSizes = sequence.getPartitions().map(p => p.length);
     const compactness = _.mean(partitionSizes) / (1+getStandardDeviation(partitionSizes)); //numNodes / numSegs;//Math.pow(numSegs+1, 0.8);
     factors.push(Math.pow(compactness, 1*options.compactness));
   }

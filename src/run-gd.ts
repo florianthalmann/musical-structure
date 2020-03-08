@@ -11,7 +11,7 @@ import { actuallyTuneFile } from './files/tuning';
 import { toHistogram } from './analysis/pattern-histograms';
 import { AlignmentAlgorithm, TimelineOptions, TimelineAnalysis
   } from './analysis/timeline-analysis';
-import { getStandardDeviation } from './analysis/util';
+import { getStandardDeviation, getMedian } from './analysis/util';
 import { hmmAlign } from './models/models';
 
 interface GdVersion {
@@ -67,6 +67,32 @@ export class GdExperiment {
     });
   }
   
+  async printOverallMSAStats(tlo: GdOptions) {
+    const songs = this.getTunedSongs();
+    const analyses = await mapSeries(songs, async s => {
+      const folders = _.clone(GD_RAW);
+      folders.audio += s + "/";
+      console.log(folders.audio)
+      const options = _.clone(tlo);
+      options.filebase += s + options.appendix;
+      options.collectionName = s.split('_').join(' ');
+      options.audioFiles = await this.getGdVersionsQuick(folders.audio, options);
+      return new TimelineAnalysis(Object.assign(options,
+        {featuresFolder: folders.features, patternsFolder: folders.patterns}));
+    });
+    
+    const stats = await mapSeries(analyses, async a => a.getMSAStats());
+    console.log("tracks", _.sum(stats.map(s => s.probableTracks)), "of",
+      _.sum(stats.map(s => s.totalTracks)));
+    console.log("states", _.sum(stats.map(s => s.probableStates)), "of",
+      _.sum(stats.map(s => s.totalStates)));
+    console.log("trackP", _.mean(_.flatten(stats.map(s => s.trackPs))));
+    console.log("stateP", _.mean(_.flatten(stats.map(s => s.statePs))));
+    
+    const ratings = await mapSeries(analyses, async a => a.getPartitionRating());
+    console.log("rating", _.mean(ratings), getMedian(ratings));
+  }
+  
   async analyzeRaw(tlo: TimelineOptions) {
     this.generateTimelineViaGaussianHMM(GD_RAW, tlo);
   }
@@ -84,7 +110,7 @@ export class GdExperiment {
     if (tlo.multinomial) await ta.saveMultinomialSequences();
     else await ta.saveRawSequences();
     console.log('aligning using hmm')
-    await hmmAlign(tlo.filebase, 50);
+    await hmmAlign(tlo.filebase);
     //ta.printMSAStats();
     console.log('saving timeline')
     await ta.saveTimelineFromMSAResults();

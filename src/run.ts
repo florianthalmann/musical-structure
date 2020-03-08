@@ -2,7 +2,7 @@ import * as _ from 'lodash';
 //import { saveGdHists } from './histograms';
 import { QUANT_FUNCS as QF } from 'siafun';
 import { GdExperiment } from './run-gd';
-import { guidAndCopyFiles } from './files/file-manager';
+import { guidAndCopyFiles, renameAndCopyFiles } from './files/file-manager';
 import { FeatureExtractor } from './files/feature-extractor';
 import { AlignmentAlgorithm } from './analysis/timeline-analysis';
 import { FEATURES } from './files/feature-extractor';
@@ -27,7 +27,7 @@ getSongOptions("china doll", "china_doll/", ".wav");
 
 
 
-export const RESULTS_PATH = "results/local-test5/";
+export const RESULTS_PATH = "results/local-test-quick/";
 const CURRENT_OPTIONS = (mv: number, variant?: string) => Object.assign(CURRENT_SONG, {
   filebase: RESULTS_PATH + CURRENT_SONG.results + mv + variant,
   appendix: mv + variant,
@@ -36,7 +36,7 @@ const CURRENT_OPTIONS = (mv: number, variant?: string) => Object.assign(CURRENT_
   algorithm: AlignmentAlgorithm.SW,
   includeSelfAlignments: true,
   featureOptions: {
-    selectedFeatures: [FEATURES.MADMOM_BARS, FEATURES.GO_CHORDS],
+    selectedFeatures: [FEATURES.MADMOM_BARS, FEATURES.JOHAN_CHORDS],
     quantizerFunctions: [QF.ORDER(), QF.IDENTITY()]
   },
   multinomial: true
@@ -51,11 +51,15 @@ const CURRENT_OPTIONS = (mv: number, variant?: string) => Object.assign(CURRENT_
   .unGuidAndCopyFeatureFiles('/Volumes/FastSSD/gd_tuned/chroma-uuid/',
   'gochords', '/Volumes/FastSSD/gd_tuned/audio-uuid2/');*/
 
-const options = CURRENT_OPTIONS(100, "j0mg");
+//renameAndCopyFiles('results/local-test6/', 'g0ml', 'j0ml')
+
+
+const options = CURRENT_OPTIONS(100, "j0ml");
 //new GdExperiment(options.subfolder).analyzeRaw(options);
 options.filebase = RESULTS_PATH;
 options.extension = ".wav";
 new GdExperiment().analyzeAllRaw(options);
+//new GdExperiment().printOverallMSAStats(options);
 
 //saveGdRawSequences(CURRENT_OPTIONS(100, "t"));
 //saveGdMultinomialSequences(CURRENT_OPTIONS(100));

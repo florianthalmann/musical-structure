@@ -55,6 +55,12 @@ export function moveToFeaturesDir(currentDir: string, featuresDir: string) {
   });
 }
 
+export function renameAndCopyFiles(dir: string, replace: string, withh: string) {
+  fs.readdirSync(dir).forEach(f => {
+    fs.copyFileSync(dir+f, dir+f.replace(replace, withh));
+  });
+}
+
 export function renameJohanChordFeatures(featuresDir: string) {
   fs.readdirSync(featuresDir).filter(d => d.indexOf('.DS_Store') < 0).forEach(d =>
     fs.readdirSync(featuresDir+d).filter(p => p.indexOf('johanchords') >= 0).forEach(j =>

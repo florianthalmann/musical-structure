@@ -6,8 +6,8 @@ export enum MODELS {
   FLANKED = "FlankedProfileHMM" //local alignment
 }
 
-export async function hmmAlign(filebase: string, iterations = 50,
-    model=MODELS.PROFILE, edgeInertia=0.8) {
+export async function hmmAlign(filebase: string, iterations = 10,
+    model=MODELS.FLANKED, edgeInertia=0.8) {
   if (!fs.existsSync(filebase+"-msa.json"))
     return execute('python src/models/multi_alignment.py "'+filebase+'" '
       +iterations+" "+model+" "+edgeInertia, true);

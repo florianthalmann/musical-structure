@@ -15,7 +15,7 @@ import { FeatureLoader } from '../files/feature-loader';
 import { createSimilarityPatternGraph, getPatternGroupNFs, getNormalFormsMap,
   getConnectednessByVersion, PatternNode } from '../analysis/pattern-analysis';
 import { inferStructureFromAlignments, inferStructureFromMSA, getMSAPartitions } from '../analysis/segment-analysis';
-import { getSequenceRating } from '../analysis/sequence-heuristics';
+import { getSequenceRating, getSequenceRatingFromMatrix } from '../analysis/sequence-heuristics';
 import { SegmentNode } from '../analysis/types';
 import { inferStructureFromTimeline } from '../analysis/structure-analysis';
 import { getThomasTuningRatio } from '../files/tuning';
@@ -73,11 +73,11 @@ export class TimelineAnalysis {
   constructor(private tlo: TimelineOptions) {
     this.siaOptions = getSiaOptions(tlo.patternsFolder, tlo.featureOptions);
     this.swOptions = getSwOptions(tlo.patternsFolder, tlo.featureOptions);
-    this.points = this.getPoints(tlo.featureOptions);
   }
 
   async saveSimilarityMatrices() {
-    const sequences = (await this.points).map(s => s.map(p => p[1]).filter(p=>p));
+    const sequences = (await this.getPoints())
+      .map(s => s.map(p => p[1]).filter(p=>p));
     const matrixes = sequences.map(s => getSelfSimilarityMatrix(s));
     saveJsonFile(this.tlo.filebase+'-ssm.json', matrixes);
   }
@@ -99,7 +99,7 @@ export class TimelineAnalysis {
   }
   
   private async getMultinomialSequences(exclude?: number[]): Promise<MultinomialSequences> {
-    let points = await this.points;
+    let points = await this.getPoints();
     /*points.forEach(p => console.log(JSON.stringify(
       _.reverse(_.sortBy(
         _.map(_.groupBy(p.map(s => JSON.stringify(s.slice(1)))), (v,k) => [k,v.length])
@@ -113,7 +113,7 @@ export class TimelineAnalysis {
 
   async saveRawSequences(force?: boolean) {
     if (force || !fs.existsSync(this.tlo.filebase+'-points.json')) {
-      const points = await this.points;
+      const points = await this.getPoints();
       const sequences = {data: points.map(s => s.map(p => p[1]).filter(p=>p))};
       saveJsonFile(this.tlo.filebase+'-points.json', sequences);
     }
@@ -168,22 +168,38 @@ export class TimelineAnalysis {
     }
   }
   
-  async printMSAStats() {
+  printMSAStats(full?: boolean) {
+    const stats = this.getMSAStats();
+    if (full) {
+      this.printStats("logPs:", stats.logPs);
+      this.printStats("trackPs:", stats.trackPs);
+      this.printStats("statePs:", stats.statePs);
+    }
+    console.log("probable tracks:", stats.probableTracks, "of", stats.totalTracks);
+    console.log("probable states:", stats.probableStates, "of", stats.totalStates);
+  }
+  
+  getMSAStats() {
     const json = loadJsonFile(this.tlo.filebase+'-msa.json');
     const msa: string[][] = json["msa"];
     const logPs: number[] = json["logp"];
-    //this.printStats("logps", logPs);
-    const individualPs = msa.map(m => m.filter(s => s != "").length/m.length);
-    //this.printStats("individuals", individualPs);
+    const trackPs = msa.map(m => m.filter(s => s != "").length/m.length);
     const matchStates = _.sortBy(_.uniq(_.flatten(msa))
       .filter(s => s.length > 0), s => parseInt(s.slice(1)));
     const statePs = matchStates.map(m =>
       _.sum(msa.map(v => v.filter(s => s === m).length))/msa.length);
-    //this.printStats("states", statePs);
-    const numProbIndividuals = individualPs.filter(p => p > 0.5).length;
+    const numProbTracks = trackPs.filter(p => p > 0.5).length;
     const numProbStates = statePs.filter(p => p > 0.5).length;
-    console.log("probable individuals:", numProbIndividuals, "of", msa.length);
-    console.log("probable states:", numProbStates, "of", matchStates.length);
+    return {totalTracks: msa.length, totalStates: matchStates.length,
+      logPs: logPs, trackPs: trackPs, statePs: statePs,
+      probableTracks: numProbTracks, probableStates: numProbStates};
+  }
+  
+  async getPartitionRating() {
+    const matrix: number[][] = loadJsonFile(this.tlo.filebase+'-matrix.json');
+    const partitionSizes = loadJsonFile(this.tlo.filebase+'-output.json')
+      ["segments"].map(s => s.length);
+    return getSequenceRatingFromMatrix(matrix, partitionSizes);
   }
   
   private printStats(name: string, values: number[]) {
@@ -264,7 +280,7 @@ export class TimelineAnalysis {
       }
     }
     return {versionTuples: tuples, alignments: multis,
-      versions: this.tlo.audioFiles, versionPoints: await this.points};
+      versions: this.tlo.audioFiles, versionPoints: await this.getPoints()};
   }
 
   private saveTimelineVisuals(timeline: SegmentNode[][], points: any[][][],
@@ -306,7 +322,7 @@ export class TimelineAnalysis {
   
   async analyzeSavedTimeline() {
     const segmentsByType = inferStructureFromTimeline(this.tlo.filebase);
-    const points = await this.points;
+    const points = await this.getPoints();
     const segments = points.map((v,i) => v.map((_p,j) =>
       ({start: points[i][j][0][0],
         duration: points[i][j+1] ? points[i][j+1][0][0]-points[i][j][0][0] : 1})));
@@ -410,7 +426,7 @@ export class TimelineAnalysis {
 
     const grouping: NodeGroupingOptions<PatternNode> = { maxDistance: 4, condition: (n,_c) => n.size > 6};
     const patsec = _.flatten(await this.getPatternSequences(this.tlo.audioFiles,
-      await this.points, results, grouping, PATTERN_TYPES, MIN_OCCURRENCE, graphFile));
+      await this.getPoints(), results, grouping, PATTERN_TYPES, MIN_OCCURRENCE, graphFile));
     //patsec.forEach(s => s.version = s.version*2);
 
     //TODO TAKE MOST CONNECTED ONES :)
@@ -423,7 +439,7 @@ export class TimelineAnalysis {
     const graphFile = filebase+"-graph.json";
     console.log("\n"+this.tlo.collectionName+" "+this.tlo.audioFiles.length+"\n")
 
-    const points = await this.points;
+    const points = await this.getPoints();
     const results = await this.getCosiatecFromAudio();
     results.forEach(r => this.removeNonParallelOccurrences(r));
 
@@ -466,7 +482,7 @@ export class TimelineAnalysis {
     const results = await this.getCosiatecFromAudio();
     results.forEach(r => this.removeNonParallelOccurrences(r));
     const sequences = await this.getPatternSequences(this.tlo.audioFiles,
-      await this.points, results, {maxDistance: 3}, 10);
+      await this.getPoints(), results, {maxDistance: 3}, 10);
     fs.writeFileSync(file, JSON.stringify(_.flatten(sequences)));
     //visuals.map(v => v.join('')).slice(0, 10).forEach(v => console.log(v));
   }
@@ -505,7 +521,7 @@ export class TimelineAnalysis {
 
   async saveVectorSequences(file: string, typeCount?: number) {
     const sequences = await this.getVectorSequences(this.tlo.audioFiles,
-      await this.points, this.siaOptions, typeCount);
+      await this.getPoints(), this.siaOptions, typeCount);
     fs.writeFileSync(file, JSON.stringify(_.flatten(sequences)));
   }
 
@@ -529,7 +545,7 @@ export class TimelineAnalysis {
   }
   
   async getSmithWatermanFromAudio() {
-    const points = await this.points;
+    const points = await this.getPoints();
     return mapSeries(this.tlo.audioFiles, async (a,i) => {
       updateStatus('  ' + (i+1) + '/' + this.tlo.audioFiles.length);
       if (!this.tlo.maxPointsLength || points.length < this.tlo.maxPointsLength) {
@@ -539,7 +555,7 @@ export class TimelineAnalysis {
   }
 
   async getCosiatecFromAudio(points?: any[][][]) {
-    points = points || await this.points;
+    points = points || await this.getPoints();
     return mapSeries(this.tlo.audioFiles, async (a,i) => {
       updateStatus('  ' + (i+1) + '/' + this.tlo.audioFiles.length);
       if (!this.tlo.maxPointsLength || points.length < this.tlo.maxPointsLength) {
@@ -550,7 +566,7 @@ export class TimelineAnalysis {
 
   private async getMultiSW(index: number, count?: number) {
     const tuples = this.getMultiConfig(2, index, count);
-    const points = await this.points;
+    const points = await this.getPoints();
     return mapSeries(tuples, async (tuple,i) => {
       updateStatus('  ' + (i+1) + '/' + tuples.length);
       const currentPoints = tuple.map(a => points[this.tlo.audioFiles.indexOf(a)]);
@@ -563,7 +579,7 @@ export class TimelineAnalysis {
   }
 
   private async getMultiCosiatecs(size: number, index: number, count?: number) {
-    const points = await this.points;
+    const points = await this.getPoints();
     const tuples = this.getMultiConfig(size, index, count);
     return mapSeries(tuples, async (tuple,i) => {
       updateStatus('  ' + (i+1) + '/' + tuples.length);
@@ -595,9 +611,10 @@ export class TimelineAnalysis {
     return [start, middle, end];
   }*/
   
-  private async getPoints(featureOptions: FeatureOptions) {
-    return new FeatureLoader(this.tlo.featuresFolder)
+  private async getPoints(featureOptions = this.tlo.featureOptions) {
+    if (!this.points) this.points = new FeatureLoader(this.tlo.featuresFolder)
       .getPointsForAudioFiles(this.tlo.audioFiles, featureOptions);
+    return this.points;
   }
 
   private getMultiCacheDir(...audio: string[]) {
