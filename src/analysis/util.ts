@@ -60,3 +60,8 @@ export function getStandardDeviation(data: number[]) {
   const mean = _.mean(data);
   return Math.sqrt(_.sum(data.map(d => Math.pow(d-mean, 2))) / (data.length-1));
 }
+
+export function getMode(data: any[]) {
+  const occs = _.sortBy(_.toPairs(_.groupBy(data, d => JSON.stringify(d))), 1);
+  return occs.length ? JSON.parse(_.last(occs)[0]) : null;
+}

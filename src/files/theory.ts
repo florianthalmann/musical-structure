@@ -44,6 +44,21 @@ export function toPCSet(pitchSet: number[]) {
   return _.sortBy(_.uniq(pitchSet.map(p => p % 12)));
 }
 
+export function pcSetToLabel(pcset: number[]) {
+  if (pcset && pcset.length) {
+    const intervals = pcset.reduce<number[]>((iv,p,i) =>
+      i > 0 ? _.concat(iv, p - pcset[i-1]) : iv, []);
+    if (intervals[0] > 4) pcset.push(pcset.shift());
+    else if (intervals[1] > 4) pcset.unshift(pcset.pop());
+    const third = modForReal(pcset[1] - pcset[0], 12);
+    return getPitchName(pcset[0]) + (third == 4 ? MAJ : MIN);
+  }
+}
+
+function modForReal(n: number, mod: number) {
+  return ((n%mod)+mod)%mod;
+}
+
 export function labelToPCSet(chordLabel: string, add7ths?: boolean) {
   const quality = getChordQuality(chordLabel);
   const rootString = quality.length > 0 ? chordLabel.split(quality)[0]
@@ -74,6 +89,13 @@ function getPitchClass(pitchOrChordLabel: string) {
   const name = n === 'C' ? 0 : n === 'D' ? 2 : n === 'E' ? 4 : n === 'F' ? 5
     : n === 'G' ? 7 : n === 'A' ? 9 : 11;
   return pitchOrChordLabel[1] === 'b' ? name-1 : name;
+}
+
+function getPitchName(pitchClass: number) {
+  return pitchClass == 0 ? 'C' : pitchClass == 1 ? 'Db' : pitchClass == 2 ? 'D' :
+    pitchClass == 3 ? 'Eb' : pitchClass == 4 ? 'E' : pitchClass == 5 ? 'F' :
+    pitchClass == 6 ? 'F#' : pitchClass == 7 ? 'G' : pitchClass == 8 ? 'Ab' :
+    pitchClass == 9 ? 'A' : pitchClass == 10 ? 'Bb' : 'B'
 }
 
 function getChordQuality(chordLabel: string) {

@@ -112,6 +112,7 @@ export class GdExperiment {
     console.log('aligning using hmm')
     await hmmAlign(tlo.filebase);
     //ta.printMSAStats();
+    ta.getStructure();
     console.log('saving timeline')
     await ta.saveTimelineFromMSAResults();
     /*console.log('saving sssm');

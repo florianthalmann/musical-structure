@@ -168,6 +168,10 @@ export class TimelineAnalysis {
     }
   }
   
+  getStructure() {
+    return inferStructureFromTimeline(this.tlo.filebase);
+  }
+  
   printMSAStats(full?: boolean) {
     const stats = this.getMSAStats();
     if (full) {
