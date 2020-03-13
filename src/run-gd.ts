@@ -112,11 +112,11 @@ export class GdExperiment {
     console.log('aligning using hmm')
     await hmmAlign(tlo.filebase);
     //ta.printMSAStats();
-    ta.getStructure();
     console.log('saving timeline')
     await ta.saveTimelineFromMSAResults();
     /*console.log('saving sssm');
     await ta.saveSumSSMfromMSAResults();*/
+    ta.getStructure();
   }
   
   /** shows that standard deviation of tuning frequency never goes below 2-3,

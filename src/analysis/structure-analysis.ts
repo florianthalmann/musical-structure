@@ -10,6 +10,7 @@ export function inferStructureFromTimeline(filebase: string) {
   const matrix: number[][] = loadJsonFile(filebase+'-matrix.json');
   const boundaries = getSectionBoundariesFromMSA(timeline);
   const sections = getSectionGroupsFromTimelineMatrix(matrix);
+  const hierarchy = inferHierarchyFromSectionGroups(sections);
   const boundaries2 = _.sortBy(_.flatten(sections.map(g => g.map(s => s[0]))));
   console.log(JSON.stringify(boundaries2));
   
@@ -23,13 +24,77 @@ export function inferStructureFromTimeline(filebase: string) {
   return sections.map(type => _.flatten(_.flatten(type).map(s => timeline[s])));
 }
 
+function inferHierarchyFromSectionGroups(sections: number[][][]) {
+  //iteratively/recursively
+  //find all commonly occurring combinations
+  const typeSequence = _.sortBy(_.flatten((sections)), s => _.min(s)).map(s =>
+    _.findIndex(sections, t => _.includes(t, s)));
+  
+  console.log(JSON.stringify(typeSequence));
+  
+  //generate new types by merging into binary tree
+  const newTypes = new Map<number, [number, number]>();
+  let currentSequence = _.clone(typeSequence);
+  let currentIndex = _.max(typeSequence)+1;
+  let currentPair = getMostCommonPair(currentSequence);
+  
+  while (currentPair != null) {
+    currentSequence = currentSequence.reduce<number[]>((s,t,i) =>
+      i > 0 && _.isEqual([currentSequence[i-1], t], currentPair) ?
+      _.concat(_.initial(s), currentIndex)
+      : _.concat(s, t), []);
+    const otherPreviousTypes = _.difference([...newTypes.values()],
+      [newTypes.get(currentPair[1])]);
+    //amend type if possible
+    if (newTypes.get(currentPair[1])
+        && currentPair.every(u => !_.includes(currentSequence, u)
+          && !_.includes(_.flatten(otherPreviousTypes), u))) {
+      newTypes.get(currentPair[1]).unshift(currentPair[0]);
+      console.log(newTypes.get(currentPair[1]));
+      currentSequence = currentSequence.map(s => s === currentIndex ? currentPair[1] : s);
+    //else add a new type
+    } else {
+      newTypes.set(currentIndex, currentPair);
+      console.log(newTypes.get(currentIndex));
+      currentIndex++;
+    }
+    console.log(JSON.stringify(currentSequence));
+    currentPair = getMostCommonPair(currentSequence);
+  }
+  
+  _.reverse(_.sortBy([...newTypes.keys()])).forEach(t =>
+    currentSequence = replaceInTree(currentSequence, t, newTypes.get(t)));
+  
+  console.log(JSON.stringify(currentSequence));
+}
+
+function replaceInTree(tree: any[], pattern: any, replacement: any) {
+  if (!tree.length) return tree;
+  return tree.map(n => _.isEqual(n, pattern) ? replacement
+    : replaceInTree(n, pattern, replacement));
+}
+
+function getMostCommonPair<T>(array: T[]): [T, T] {
+  const pairs = array.map<[T, T]>((a,i) =>
+    i > 0 ? [array[i-1], a] : null).filter(a => a);
+  const mostFreq = _.toPairs(_.groupBy(pairs))
+    .filter(p => p[1].length > 1)
+    .map<[[T, T], number]>(p => [p[1][0], p[1].length]);
+  return _.reverse(_.sortBy(mostFreq, p => p[1])).map(p => p[0])[0];
+}
+
 function getSectionBoundariesFromMSA(timeline: SegmentNode[][]) {
-  const inserts = timeline.map((t,i) => i > 0 ? _.sum(t.map(s => {
+  /*const inserts = timeline.map((t,i) => i > 0 ? _.sum(t.map(s => {
     const prev = timeline[i-1].filter(r => r.version == s.version)[0];
     return prev ? s.time - prev.time - 1 : 1;
   })) : 0);
-  //}).filter(s => s > 0) : 0);
-  const boundaries = inserts.map((g,i) => g > 7 ? i : null).filter(g => g != null);
+  //}).filter(s => s > 0) : 0);*/
+  const inserts = timeline.map((t,i) => i > 0 ? _.sum(t.map(s => {
+    const prev = timeline[i-1].find(r => r.version == s.version);
+    return prev && s.time - prev.time > 1 ? 1 : 0;
+  })) : 0);
+  
+  const boundaries = inserts.map((g,i) => g > 5 ? i : null).filter(g => g != null);
   console.log(JSON.stringify(inserts));
   console.log(JSON.stringify(boundaries));
   return boundaries;
@@ -88,9 +153,10 @@ function getSectionsFromGraph(graph: DirectedGraph<Node>) {
   console.log(JSON.stringify(grouped));
   //create sections
   let sections = grouped.map(t => _.sortBy(_.zip(...t), c => _.min(c)));
+  console.log(JSON.stringify(sections));
   //merge adjacents within type? but only short ones????
   sections = _.flatten(sections.map(t => mergeShortSectionsAndSplitIntoTypes(t)));
-  sections = _.sortBy(sections, s => _.min(_.flatten(s)))
+  sections = _.sortBy(sections, s => _.min(_.flatten(s)));
   //group sections that always occur successively!!!
   sections = groupAlwaysAdjacent(sections);
   return sections;
