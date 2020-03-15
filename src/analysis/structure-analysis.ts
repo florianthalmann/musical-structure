@@ -2,7 +2,7 @@ import * as _ from 'lodash';
 import { DirectedGraph, Node } from '../graphs/graph-theory';
 import { SegmentNode } from './types';
 import { loadJsonFile } from '../files/file-manager';
-import { getMode } from './util';
+import { getMode, allIndexesOf } from './util';
 import { pcSetToLabel } from '../files/theory';
 
 export function inferStructureFromTimeline(filebase: string) {
@@ -33,35 +33,56 @@ function inferHierarchyFromSectionGroups(sections: number[][][]) {
   console.log(JSON.stringify(typeSequence));
   
   //generate new types by merging into binary tree
-  const newTypes = new Map<number, [number, number]>();
+  const newTypes = new Map<number, number[]>();
   let currentSequence = _.clone(typeSequence);
   let currentIndex = _.max(typeSequence)+1;
   let currentPair = getMostCommonPair(currentSequence);
   
   while (currentPair != null) {
-    currentSequence = currentSequence.reduce<number[]>((s,t,i) =>
-      i > 0 && _.isEqual([currentSequence[i-1], t], currentPair) ?
+    console.log(currentPair)
+    currentSequence = currentSequence.reduce<number[]>((s,t) =>
+      s.length > 0 && _.isEqual([_.last(s), t], currentPair) ?
       _.concat(_.initial(s), currentIndex)
       : _.concat(s, t), []);
     const otherPreviousTypes = _.difference([...newTypes.values()],
-      [newTypes.get(currentPair[1])]);
+      [newTypes.get(currentPair[0]), newTypes.get(currentPair[1])]);
+    //console.log(JSON.stringify(currentSequence));
+    /*console.log(newTypes.get(currentPair[0]), newTypes.get(currentPair[1]),
+      currentPair.every(u => !_.includes(currentSequence, u)),
+        currentPair.every(u => !_.includes(_.flatten(otherPreviousTypes), u)))*/
     //amend type if possible
-    if (newTypes.get(currentPair[1])
+    if ((newTypes.get(currentPair[0]) || newTypes.get(currentPair[1]))
         && currentPair.every(u => !_.includes(currentSequence, u)
           && !_.includes(_.flatten(otherPreviousTypes), u))) {
-      newTypes.get(currentPair[1]).unshift(currentPair[0]);
-      console.log(newTypes.get(currentPair[1]));
-      currentSequence = currentSequence.map(s => s === currentIndex ? currentPair[1] : s);
+      if (newTypes.get(currentPair[0]) && newTypes.get(currentPair[1])) {
+        newTypes.set(currentIndex,
+          _.concat(newTypes.get(currentPair[0]), newTypes.get(currentPair[1])));
+        newTypes.delete(currentPair[0]);
+        newTypes.delete(currentPair[1]);
+        console.log(currentIndex, ': concat', JSON.stringify(newTypes.get(currentIndex)));
+        //currentSequence = currentSequence.map(s => s === currentIndex ? currentPair[0] : s);
+      } else if (newTypes.get(currentPair[0])) {
+        newTypes.set(currentIndex, _.concat(newTypes.get(currentPair[0]), currentPair[1]));
+        newTypes.delete(currentPair[0]);
+        console.log(currentIndex, ': push', JSON.stringify(newTypes.get(currentIndex)));
+        //currentSequence = currentSequence.map(s => s === currentIndex ? currentPair[0] : s);
+      } else {
+        newTypes.set(currentIndex, _.concat([currentPair[1]], newTypes.get(currentPair[0])));
+        newTypes.delete(currentPair[1]);
+        console.log(currentIndex, ': unshift', JSON.stringify(newTypes.get(currentIndex)));
+        //currentSequence = currentSequence.map(s => s === currentIndex ? currentPair[1] : s);
+      }
     //else add a new type
     } else {
       newTypes.set(currentIndex, currentPair);
-      console.log(newTypes.get(currentIndex));
-      currentIndex++;
+      console.log(currentIndex, ':', JSON.stringify(newTypes.get(currentIndex)));
     }
     console.log(JSON.stringify(currentSequence));
     currentPair = getMostCommonPair(currentSequence);
+    currentIndex++;
   }
   
+  console.log(_.reverse(_.sortBy([...newTypes.keys()])))
   _.reverse(_.sortBy([...newTypes.keys()])).forEach(t =>
     currentSequence = replaceInTree(currentSequence, t, newTypes.get(t)));
   
@@ -75,12 +96,17 @@ function replaceInTree(tree: any[], pattern: any, replacement: any) {
 }
 
 function getMostCommonPair<T>(array: T[]): [T, T] {
-  const pairs = array.map<[T, T]>((a,i) =>
-    i > 0 ? [array[i-1], a] : null).filter(a => a);
-  const mostFreq = _.toPairs(_.groupBy(pairs))
-    .filter(p => p[1].length > 1)
-    .map<[[T, T], number]>(p => [p[1][0], p[1].length]);
-  return _.reverse(_.sortBy(mostFreq, p => p[1])).map(p => p[0])[0];
+  let pairs = array.map<[T, T]>((a,i) =>
+    i > 0 ? [array[i-1], a] : null).filter(a => a).map(p => JSON.stringify(p));
+  const uniq = _.uniq(pairs);
+  const indexes = uniq.map(u => allIndexesOf(pairs, u));
+  const disjunct = indexes.map(u =>
+    u.reduce<number[]>((ii,i) => i == _.last(ii)+1 ? ii : _.concat(ii, i), []));
+  const freqs = disjunct.map(d => d.length);
+  console.log(JSON.stringify(_.reverse(_.sortBy(_.zip(uniq, freqs), p => p[1])).slice(0,5)))
+  const maxFreq = _.max(freqs);
+  if (maxFreq > 1)
+    return JSON.parse(uniq[freqs.indexOf(maxFreq)]);
 }
 
 function getSectionBoundariesFromMSA(timeline: SegmentNode[][]) {
