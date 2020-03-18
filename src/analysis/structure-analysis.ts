@@ -4,6 +4,7 @@ import { SegmentNode } from './types';
 import { loadJsonFile } from '../files/file-manager';
 import { getMode, allIndexesOf } from './util';
 import { pcSetToLabel } from '../files/theory';
+import { indicesOfNMax } from 'arrayutils';
 
 export function inferStructureFromTimeline(filebase: string) {
   const timeline: SegmentNode[][] = loadJsonFile(filebase+'-output.json').timeline;
@@ -127,7 +128,7 @@ function getSectionBoundariesFromMSA(timeline: SegmentNode[][]) {
 }
 
 function getSectionGroupsFromTimelineMatrix(matrix: number[][],
-    threshold = .1, minDist = 0, maxLevels = 10) {
+    threshold = .1, minDist = 0, maxLevels = 2) {
   //preprocess matrix
   const max = _.max(_.flatten(matrix));
   matrix = matrix.map(r => r.map(c => c >= threshold*max ? c : 0));
@@ -137,7 +138,8 @@ function getSectionGroupsFromTimelineMatrix(matrix: number[][],
 }
 
 function getSegmentation(matrix: number[][], minDist: number, numLevels: number) {
-  const connections = getIterativeMostConnected(matrix, minDist);
+  //const connections = getIterativeMostConnected(matrix, minDist);
+  const connections = _.zip(...getNMostConnected(matrix, minDist, numLevels));
   return getSectionsViaGraph(connections.slice(0, numLevels));
 }
 
@@ -254,6 +256,16 @@ function toTypes(sections: number[][][]) {
     .map(i => _.findIndex(flat.map(f => _.includes(f, i))));
 }
 
+/** minDist: min distance from diagonal */
+function getNMostConnected(matrix: number[][], minDist: number, n = 1) {
+  const upper = matrix.map((r,i) => r.map((c,j) => j > i+minDist ? c : 0));
+  const lower = matrix.map((r,i) => r.map((c,j) => j+minDist < i ? c : 0));
+  const laterConns = upper.map(r => _.max(r) > 0 ? indicesOfNMax(r, n) : []);
+  const earlierConns = lower.map(r => _.max(r) > 0 ? indicesOfNMax(r, n) : []);
+  return laterConns.map((c,i) => c.filter(j => _.includes(earlierConns[j], i)));
+}
+
+/** minDist: min distance from diagonal */
 function getMostConnected(matrix: number[][], minDist: number) {
   const upper = matrix.map((r,i) => r.map((c,j) => j > i+minDist ? c : 0));
   const lower = matrix.map((r,i) => r.map((c,j) => j+minDist < i ? c : 0));
