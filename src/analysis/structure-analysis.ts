@@ -40,7 +40,6 @@ function inferHierarchyFromSectionGroups(sections: number[][][]) {
   let currentPair = getMostCommonPair(currentSequence);
   
   while (currentPair != null) {
-    console.log(currentPair)
     currentSequence = currentSequence.reduce<number[]>((s,t) =>
       s.length > 0 && _.isEqual([_.last(s), t], currentPair) ?
       _.concat(_.initial(s), currentIndex)
@@ -83,11 +82,13 @@ function inferHierarchyFromSectionGroups(sections: number[][][]) {
     currentIndex++;
   }
   
+  const hierarchy: any[] = _.clone(currentSequence);
   console.log(_.reverse(_.sortBy([...newTypes.keys()])))
   _.reverse(_.sortBy([...newTypes.keys()])).forEach(t =>
     currentSequence = replaceInTree(currentSequence, t, newTypes.get(t)));
   
   console.log(JSON.stringify(currentSequence));
+  return hierarchy;
 }
 
 function replaceInTree(tree: any[], pattern: any, replacement: any) {
@@ -111,19 +112,23 @@ function getMostCommonPair<T>(array: T[]): [T, T] {
 }
 
 function getSectionBoundariesFromMSA(timeline: SegmentNode[][]) {
-  /*const inserts = timeline.map((t,i) => i > 0 ? _.sum(t.map(s => {
-    const prev = timeline[i-1].filter(r => r.version == s.version)[0];
-    return prev ? s.time - prev.time - 1 : 1;
-  })) : 0);
-  //}).filter(s => s > 0) : 0);*/
-  const inserts = timeline.map((t,i) => i > 0 ? _.sum(t.map(s => {
-    const prev = timeline[i-1].find(r => r.version == s.version);
-    return prev && s.time - prev.time > 1 ? 1 : 0;
-  })) : 0);
+  const maxVersion = _.max(_.flatten(timeline).map(n => n.version));
+  const diffs = _.zip(..._.range(0, maxVersion+1).map(v => {
+    const nodes = timeline.map(t => t.find(n => n.version == v));
+    return nodes.map((n,i) => {
+      const nextIndex = nodes.slice(i+1).findIndex(m => m != null) + i+1;
+      return nextIndex && n ? (nodes[nextIndex].time - n.time) - (nextIndex - i) : 0;
+    });
+  }));
+  const inserts = diffs.map(d => _.sum(d.map(d => d > 0 ? 1 : 0)));
+  const deletes = diffs.map(d => _.sum(d.map(d => d < 0 ? 1 : 0)));
   
-  const boundaries = inserts.map((g,i) => g > 5 ? i : null).filter(g => g != null);
+  const boundaries = inserts.map((g,i) => g > 5 ? i+1 : null).filter(g => g != null);
+  const boundaries2 = deletes.map((g,i) => g > 5 ? i+1 : null).filter(g => g != null);
   console.log(JSON.stringify(inserts));
+  console.log(JSON.stringify(deletes));
   console.log(JSON.stringify(boundaries));
+  console.log(JSON.stringify(boundaries2));
   return boundaries;
 }
 
