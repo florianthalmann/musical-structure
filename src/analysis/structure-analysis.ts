@@ -11,7 +11,7 @@ export function inferStructureFromTimeline(filebase: string) {
   const matrix: number[][] = loadJsonFile(filebase+'-matrix.json');
   const boundaries = getSectionBoundariesFromMSA(timeline);
   const sections = getSectionGroupsFromTimelineMatrix(matrix);
-  const hierarchy = inferHierarchyFromSectionGroups(sections);
+  const hierarchy = inferHierarchyFromSectionGroups(sections, true);
   const boundaries2 = _.sortBy(_.flatten(sections.map(g => g.map(s => s[0]))));
   console.log(JSON.stringify(boundaries2));
   
@@ -25,7 +25,7 @@ export function inferStructureFromTimeline(filebase: string) {
   return sections.map(type => _.flatten(_.flatten(type).map(s => timeline[s])));
 }
 
-function inferHierarchyFromSectionGroups(sections: number[][][]) {
+function inferHierarchyFromSectionGroups(sections: number[][][], unequalPairsOnly: boolean) {
   //iteratively/recursively
   //find all commonly occurring combinations
   const typeSequence = _.sortBy(_.flatten((sections)), s => _.min(s)).map(s =>
@@ -37,7 +37,7 @@ function inferHierarchyFromSectionGroups(sections: number[][][]) {
   const newTypes = new Map<number, number[]>();
   let currentSequence = _.clone(typeSequence);
   let currentIndex = _.max(typeSequence)+1;
-  let currentPair = getMostCommonPair(currentSequence);
+  let currentPair = getMostCommonPair(currentSequence, unequalPairsOnly);
   
   while (currentPair != null) {
     currentSequence = currentSequence.reduce<number[]>((s,t) =>
@@ -78,7 +78,7 @@ function inferHierarchyFromSectionGroups(sections: number[][][]) {
       console.log(currentIndex, ':', JSON.stringify(newTypes.get(currentIndex)));
     }
     console.log(JSON.stringify(currentSequence));
-    currentPair = getMostCommonPair(currentSequence);
+    currentPair = getMostCommonPair(currentSequence, unequalPairsOnly);
     currentIndex++;
   }
   
@@ -97,10 +97,12 @@ function replaceInTree(tree: any[], pattern: any, replacement: any) {
     : replaceInTree(n, pattern, replacement));
 }
 
-function getMostCommonPair<T>(array: T[]): [T, T] {
+function getMostCommonPair<T>(array: T[], unequalOnly = false): [T, T] {
   let pairs = array.map<[T, T]>((a,i) =>
     i > 0 ? [array[i-1], a] : null).filter(a => a).map(p => JSON.stringify(p));
-  const uniq = _.uniq(pairs);
+  let uniq = _.uniq(pairs);
+  if (unequalOnly) uniq = uniq.filter(p =>
+    {const q: [T,T] = JSON.parse(p); return q[0] != q[1]});
   const indexes = uniq.map(u => allIndexesOf(pairs, u));
   const disjunct = indexes.map(u =>
     u.reduce<number[]>((ii,i) => i == _.last(ii)+1 ? ii : _.concat(ii, i), []));
