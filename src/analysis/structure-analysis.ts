@@ -135,7 +135,7 @@ function getSectionBoundariesFromMSA(timeline: SegmentNode[][]) {
 }
 
 function getSectionGroupsFromTimelineMatrix(matrix: number[][],
-    threshold = .1, minDist = 0, maxLevels = 2) {
+    threshold = .1, minDist = 1, maxLevels = 10) {
   //preprocess matrix
   const max = _.max(_.flatten(matrix));
   matrix = matrix.map(r => r.map(c => c >= threshold*max ? c : 0));
@@ -175,7 +175,7 @@ function getSectionsViaGraph(connectionLevels: number[][]) {
 function getSectionsFromGraph(graph: DirectedGraph<Node>) {
   //get connected components (corresponding sections)
   const components = _.sortBy(graph.getConnectedComponents()
-    .map(c => c.map(n => parseInt(n.id))), c => _.min(c));
+    .map(c => _.sortBy(c.map(n => parseInt(n.id)))), c => _.min(c));
   console.log(JSON.stringify(components));
   //group successive components
   const grouped = components.reduce<number[][][]>((g,c) => {
