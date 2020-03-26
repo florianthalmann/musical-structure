@@ -12,6 +12,9 @@ export function inferStructureFromTimeline(filebase: string) {
   const boundaries = getSectionBoundariesFromMSA(timeline);
   const sections = getSectionGroupsFromTimelineMatrix(matrix);
   const hierarchy = inferHierarchyFromSectionGroups(sections, true);
+  const repl = h => h.map(s => Array.isArray(s) ? repl(s) : sections[s][0].map(_i => s));
+  console.log(JSON.stringify(sections.length))
+  console.log(JSON.stringify(repl(hierarchy)))
   const boundaries2 = _.sortBy(_.flatten(sections.map(g => g.map(s => s[0]))));
   console.log(JSON.stringify(boundaries2));
   
@@ -51,23 +54,33 @@ function inferHierarchyFromSectionGroups(sections: number[][][], unequalPairsOnl
       currentPair.every(u => !_.includes(currentSequence, u)),
         currentPair.every(u => !_.includes(_.flatten(otherPreviousTypes), u)))*/
     //amend type if possible
-    if ((newTypes.get(currentPair[0]) || newTypes.get(currentPair[1]))
+    const firstNew = newTypes.get(currentPair[0]);
+    const secondNew = newTypes.get(currentPair[1]);
+    if ((firstNew || secondNew)
         && currentPair.every(u => !_.includes(currentSequence, u)
           && !_.includes(_.flatten(otherPreviousTypes), u))) {
-      if (newTypes.get(currentPair[0]) && newTypes.get(currentPair[1])) {
-        newTypes.set(currentIndex,
-          _.concat(newTypes.get(currentPair[0]), newTypes.get(currentPair[1])));
+      let operation: 'concat' | 'push' | 'unshift';
+      if (firstNew && secondNew) {
+        //check if first/second type contain each other
+        operation = _.intersection(firstNew, currentPair).length > 0 ? 'push'
+          : _.intersection(secondNew, currentPair).length > 0 ? 'unshift'
+          : 'concat';
+      } else {
+        operation = firstNew ? 'push' : 'unshift';
+      }
+      if (operation === 'concat') {
+        newTypes.set(currentIndex, _.concat(firstNew, secondNew));
         newTypes.delete(currentPair[0]);
         newTypes.delete(currentPair[1]);
         console.log(currentIndex, ': concat', JSON.stringify(newTypes.get(currentIndex)));
         //currentSequence = currentSequence.map(s => s === currentIndex ? currentPair[0] : s);
-      } else if (newTypes.get(currentPair[0])) {
-        newTypes.set(currentIndex, _.concat(newTypes.get(currentPair[0]), currentPair[1]));
+      } else if (operation === 'push') {
+        newTypes.set(currentIndex, _.concat(firstNew, currentPair[1]));
         newTypes.delete(currentPair[0]);
         console.log(currentIndex, ': push', JSON.stringify(newTypes.get(currentIndex)));
         //currentSequence = currentSequence.map(s => s === currentIndex ? currentPair[0] : s);
       } else {
-        newTypes.set(currentIndex, _.concat([currentPair[1]], newTypes.get(currentPair[0])));
+        newTypes.set(currentIndex, _.concat([currentPair[0]], secondNew));
         newTypes.delete(currentPair[1]);
         console.log(currentIndex, ': unshift', JSON.stringify(newTypes.get(currentIndex)));
         //currentSequence = currentSequence.map(s => s === currentIndex ? currentPair[1] : s);
@@ -82,12 +95,12 @@ function inferHierarchyFromSectionGroups(sections: number[][][], unequalPairsOnl
     currentIndex++;
   }
   
-  const hierarchy: any[] = _.clone(currentSequence);
+  let hierarchy: any[] = _.clone(currentSequence);
   console.log(_.reverse(_.sortBy([...newTypes.keys()])))
   _.reverse(_.sortBy([...newTypes.keys()])).forEach(t =>
-    currentSequence = replaceInTree(currentSequence, t, newTypes.get(t)));
+    hierarchy = replaceInTree(hierarchy, t, newTypes.get(t)));
   
-  console.log(JSON.stringify(currentSequence));
+  console.log(JSON.stringify(hierarchy));
   return hierarchy;
 }
 
@@ -135,7 +148,7 @@ function getSectionBoundariesFromMSA(timeline: SegmentNode[][]) {
 }
 
 function getSectionGroupsFromTimelineMatrix(matrix: number[][],
-    threshold = .1, minDist = 1, maxLevels = 10) {
+    threshold = .1, minDist = 1, maxLevels = 4) {
   //preprocess matrix
   const max = _.max(_.flatten(matrix));
   matrix = matrix.map(r => r.map(c => c >= threshold*max ? c : 0));
@@ -193,7 +206,7 @@ function getSectionsFromGraph(graph: DirectedGraph<Node>) {
   sections = _.flatten(sections.map(t => mergeShortSectionsAndSplitIntoTypes(t)));
   sections = _.sortBy(sections, s => _.min(_.flatten(s)));
   //group sections that always occur successively!!!
-  sections = groupAlwaysAdjacent(sections);
+  sections = mergeAlwaysAdjacent(sections);
   return sections;
 }
 
@@ -209,7 +222,7 @@ function mergeShortSectionsAndSplitIntoTypes(sections: number[][]) {
   return _.values(_.groupBy(sections, s => s.length));
 }
 
-function groupAlwaysAdjacent(sectionTypes: number[][][]) {
+function mergeAlwaysAdjacent(sectionTypes: number[][][]) {
   return sectionTypes.reduce<number[][][]>((nt,t,i) => {
     if (i > 0) {
       const concat = concatIfPossible(_.last(nt), t);

@@ -19,8 +19,8 @@ const CURRENT_SONG =
 //getSongOptions("good lovin'", "good_lovin'/");
 //getSongOptions("brokedown palace", "brokedown_palace/", ".wav");
 //getSongOptions("casey jones", "casey_jones/", ".wav");
-//getSongOptions("china cat sunflower", "china_cat_sunflower/", ".wav");
-getSongOptions("china doll", "china_doll/", ".wav");
+getSongOptions("china cat sunflower", "china_cat_sunflower/", ".wav");
+//getSongOptions("china doll", "china_doll/", ".wav");
 //getSongOptions("cosmic charlie", "cosmic_charlie/", ".wav");
 //getSongOptions("cumberland blues", "cumberland_blues/", ".wav");
 //getSongOptions("dark star", "dark_star/", ".wav");
