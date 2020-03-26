@@ -12,7 +12,8 @@ export function inferStructureFromTimeline(filebase: string) {
   const boundaries = getSectionBoundariesFromMSA(timeline);
   const sections = getSectionGroupsFromTimelineMatrix(matrix);
   const hierarchy = inferHierarchyFromSectionGroups(sections, true);
-  const repl = h => h.map(s => Array.isArray(s) ? repl(s) : sections[s][0].map(_i => s));
+  const repl = h => h.reduce((r,s) => Array.isArray(s) ? _.concat(r, [repl(s)])
+    : _.concat(r, sections[s][0].map(_i => s)), []);
   console.log(JSON.stringify(sections.length))
   console.log(JSON.stringify(repl(hierarchy)))
   const boundaries2 = _.sortBy(_.flatten(sections.map(g => g.map(s => s[0]))));
@@ -148,7 +149,7 @@ function getSectionBoundariesFromMSA(timeline: SegmentNode[][]) {
 }
 
 function getSectionGroupsFromTimelineMatrix(matrix: number[][],
-    threshold = .1, minDist = 1, maxLevels = 4) {
+    threshold = .1, minDist = 1, maxLevels = 2) {
   //preprocess matrix
   const max = _.max(_.flatten(matrix));
   matrix = matrix.map(r => r.map(c => c >= threshold*max ? c : 0));
