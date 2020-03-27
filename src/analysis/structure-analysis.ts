@@ -8,6 +8,17 @@ import { indicesOfNMax } from 'arrayutils';
 
 export function inferStructureFromTimeline(filebase: string) {
   const timeline: SegmentNode[][] = loadJsonFile(filebase+'-output.json').timeline;
+  const chords = timeline.map(t => pcSetToLabel(getMode(t.map(n => n.point.slice(1)))));
+  console.log(JSON.stringify(chords));
+  const uniq = _.uniq(chords);
+  const types = chords.map(c => uniq.indexOf(c));
+  console.log(JSON.stringify(types));
+  const hierarchy = inferHierarchyFromSectionTypes(types, false);
+  console.log(JSON.stringify(hierarchy));
+}
+
+export function inferStructureFromTimeline2(filebase: string) {
+  const timeline: SegmentNode[][] = loadJsonFile(filebase+'-output.json').timeline;
   const matrix: number[][] = loadJsonFile(filebase+'-matrix.json');
   const boundaries = getSectionBoundariesFromMSA(timeline);
   const sections = getSectionGroupsFromTimelineMatrix(matrix);
@@ -18,8 +29,6 @@ export function inferStructureFromTimeline(filebase: string) {
   console.log(JSON.stringify(repl(hierarchy)))
   const boundaries2 = _.sortBy(_.flatten(sections.map(g => g.map(s => s[0]))));
   console.log(JSON.stringify(boundaries2));
-  
-  //TRY HIERARCHICAL GROUPING..... get most sim and remove all corresponding from matrix....
   
   //see if sections can be completed if just a few missing in beginning or end....
   
@@ -37,6 +46,10 @@ function inferHierarchyFromSectionGroups(sections: number[][][], unequalPairsOnl
   
   console.log(JSON.stringify(typeSequence));
   
+  return inferHierarchyFromSectionTypes(typeSequence, unequalPairsOnly);
+}
+
+function inferHierarchyFromSectionTypes(typeSequence: number[], unequalPairsOnly: boolean) {
   //generate new types by merging into binary tree
   const newTypes = new Map<number, number[]>();
   let currentSequence = _.clone(typeSequence);
@@ -57,9 +70,11 @@ function inferHierarchyFromSectionGroups(sections: number[][][], unequalPairsOnl
     //amend type if possible
     const firstNew = newTypes.get(currentPair[0]);
     const secondNew = newTypes.get(currentPair[1]);
+    const occursPreviously = (t: number) => _.includes(currentSequence, t)
+      || _.includes(_.flatten(otherPreviousTypes), t);
     if ((firstNew || secondNew)
-        && currentPair.every(u => !_.includes(currentSequence, u)
-          && !_.includes(_.flatten(otherPreviousTypes), u))) {
+        && (!firstNew || !occursPreviously(currentPair[0]))
+        && (!secondNew || !occursPreviously(currentPair[1]))) {
       let operation: 'concat' | 'push' | 'unshift';
       if (firstNew && secondNew) {
         //check if first/second type contain each other
@@ -96,12 +111,44 @@ function inferHierarchyFromSectionGroups(sections: number[][][], unequalPairsOnl
     currentIndex++;
   }
   
+  //combine types that only occur in one context
+  _.reverse(_.sortBy([...newTypes.keys()])).forEach(t => {
+    const parents = [...newTypes.keys()]
+      .filter(n => _.includes(_.flattenDeep(newTypes.get(n)), t));
+    const occs = _.flattenDeep(_.concat([...newTypes.values()], currentSequence))
+      .reduce((c: number,u)=>u==t?c+1:c, 0);
+    if (parents.length == 1 && occs <= 1) {
+      newTypes.set(parents[0],
+        replaceInTree(newTypes.get(parents[0]), t, newTypes.get(t)));
+      newTypes.delete(t);
+    }
+  });
+  
+  //now flatten all types
+  [...newTypes.keys()].forEach(t =>
+    newTypes.set(t, _.flattenDeep(newTypes.get(t))));
+  
+  //create hierarchy
   let hierarchy: any[] = _.clone(currentSequence);
   console.log(_.reverse(_.sortBy([...newTypes.keys()])))
-  _.reverse(_.sortBy([...newTypes.keys()])).forEach(t =>
-    hierarchy = replaceInTree(hierarchy, t, newTypes.get(t)));
+  
+  hierarchy = replaceTypesRecursively(hierarchy, newTypes);
+  
+  //print types and occurrences
+  _.reverse(_.sortBy([...newTypes.keys()])).forEach(t => {
+    const seq = JSON.stringify(replaceTypesRecursively([t], newTypes)[0]);
+    const occs = JSON.stringify(hierarchy).split(seq).length-1;
+    if (occs) console.log(t, occs, seq);
+  });
   
   console.log(JSON.stringify(hierarchy));
+  return hierarchy;
+}
+
+function replaceTypesRecursively(hierarchy: any[], types: Map<number,number[]>) {
+  hierarchy = _.cloneDeep(hierarchy);
+  _.reverse(_.sortBy([...types.keys()])).forEach(t =>
+    hierarchy = replaceInTree(hierarchy, t, types.get(t)));
   return hierarchy;
 }
 
@@ -149,7 +196,7 @@ function getSectionBoundariesFromMSA(timeline: SegmentNode[][]) {
 }
 
 function getSectionGroupsFromTimelineMatrix(matrix: number[][],
-    threshold = .1, minDist = 1, maxLevels = 2) {
+    threshold = .1, minDist = 1, maxLevels = 1) {
   //preprocess matrix
   const max = _.max(_.flatten(matrix));
   matrix = matrix.map(r => r.map(c => c >= threshold*max ? c : 0));

@@ -62,6 +62,7 @@ export function getStandardDeviation(data: number[]) {
 }
 
 export function getMode(data: any[]) {
-  const occs = _.sortBy(_.toPairs(_.groupBy(data, d => JSON.stringify(d))), 1);
-  return occs.length ? JSON.parse(_.last(occs)[0]) : null;
+  const grouped = _.mapValues(_.groupBy(data, d => JSON.stringify(d)), v => v.length);
+  const sorted = _.sortBy(_.toPairs(grouped), 1);
+  return sorted.length ? JSON.parse(_.last(sorted)[0]) : null;
 }
