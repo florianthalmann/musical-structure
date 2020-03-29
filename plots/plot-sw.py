@@ -26,7 +26,7 @@ def plot_matrix(matrix, path):
 
 def plot(paths, sw_segment=False, sw_score=False, multi=False, format='.png'):
     for path in paths:
-        target_path = path.replace('.json', format);
+        target_path = path.replace('.json', str(sw_segment)[:1]+format);
         with open(path) as ofile:
             loaded = json.load(ofile)
             if sw_segment: loaded = loaded['segmentMatrix']
@@ -47,5 +47,6 @@ basedir = sys.argv[1] #'server/lib/output/jack57-nonit/'
 paths = [y for x in os.walk(basedir) for y in glob(os.path.join(x[0], '*.json'))]
 plot([p for p in paths if 'matrix' in p])
 plot([p for p in paths if 'sw_' in p], sw_segment=True)
+plot([p for p in paths if 'sw_' in p], sw_score=True)
 plot([p for p in paths if '-ssm' in p], multi=True)
 plot([p for p in paths if '-sssm' in p])

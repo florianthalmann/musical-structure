@@ -15,14 +15,14 @@ export function getSongOptions(name: string, subfolder?: string, extension?: str
 
 const CURRENT_SONG =
 //getSongOptions("me and my uncle", "me_and_my_uncle/");
-getSongOptions("box of rain", "box_of_rain/", ".wav");
+//getSongOptions("box of rain", "box_of_rain/", ".wav");
 //getSongOptions("good lovin'", "good_lovin'/");
 //getSongOptions("brokedown palace", "brokedown_palace/", ".wav");
 //getSongOptions("casey jones", "casey_jones/", ".wav");
 //getSongOptions("china cat sunflower", "china_cat_sunflower/", ".wav");
 //getSongOptions("china doll", "china_doll/", ".wav");
 //getSongOptions("cosmic charlie", "cosmic_charlie/", ".wav");
-//getSongOptions("cumberland blues", "cumberland_blues/", ".wav");
+getSongOptions("cumberland blues", "cumberland_blues/", ".wav");
 //getSongOptions("dark star", "dark_star/", ".wav");
 //getSongOptions("mountains of the moon", "mountains_of_the_moon/", ".wav");
 

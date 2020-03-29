@@ -1,23 +1,81 @@
 import * as _ from 'lodash';
+import { getSmithWaterman, QUANT_FUNCS as QF } from 'siafun';
 import { DirectedGraph, Node } from '../graphs/graph-theory';
 import { SegmentNode } from './types';
-import { loadJsonFile } from '../files/file-manager';
+import { loadJsonFile, initDirRec } from '../files/file-manager';
 import { getMode, allIndexesOf } from './util';
 import { pcSetToLabel } from '../files/theory';
 import { indicesOfNMax } from 'arrayutils';
 
-export function inferStructureFromTimeline(filebase: string) {
+export enum METHOD {
+  MSA_HIERARCHY,
+  MSA_SW_HIERARCHY,
+  MSA_GRAPH_HIERARCHY
+}
+
+export function inferStructureFromTimeline(filebase: string,
+    method: METHOD = METHOD.MSA_GRAPH_HIERARCHY) {
+  switch(method) {
+    case METHOD.MSA_HIERARCHY:
+      return inferStructureFromTimelineSimple(filebase);
+    case METHOD.MSA_SW_HIERARCHY:
+      return inferStructureFromTimelineWithSW(filebase);
+    case METHOD.MSA_GRAPH_HIERARCHY:
+      return inferStructureFromTimelineWithAlignmentGraph(filebase);
+  }
+}
+
+export function inferStructureFromTimelineSimple(filebase: string) {
   const timeline: SegmentNode[][] = loadJsonFile(filebase+'-output.json').timeline;
+  const types = getTypesFromTimelineModes(timeline);
+  const hierarchy = inferHierarchyFromSectionTypes(types, false);
+  console.log(JSON.stringify(hierarchy));
+  
+  //TODO: refactor return values for all methods.... use hierarchies...
+  const sections = _.toPairs(_.groupBy(types.map((t,i) => [t,i]), 0)).map(p => p[1]);
+  return sections.map(type => _.flatten(_.flatten(type).map(s => timeline[s])));
+}
+
+function getTypesFromTimelineModes(timeline: SegmentNode[][]) {
   const chords = timeline.map(t => pcSetToLabel(getMode(t.map(n => n.point.slice(1)))));
   console.log(JSON.stringify(chords));
   const uniq = _.uniq(chords);
   const types = chords.map(c => uniq.indexOf(c));
   console.log(JSON.stringify(types));
-  const hierarchy = inferHierarchyFromSectionTypes(types, false);
-  console.log(JSON.stringify(hierarchy));
+  return types;
 }
 
-export function inferStructureFromTimeline2(filebase: string) {
+export function inferStructureFromTimelineWithSW(filebase: string) {
+  const timeline: SegmentNode[][] = loadJsonFile(filebase+'-output.json').timeline;
+  const types = getTypesFromTimelineModes(timeline);
+  //try self-alignment
+  initDirRec(filebase);
+  const sw = getSmithWaterman(types.map((t,i) => [i,t]), {
+    cacheDir: filebase+'/',
+    quantizerFunctions: [QF.ORDER(), QF.IDENTITY()],
+    maxIterations: 1,//true,
+    fillGaps: true, //turn off for similarity graphs!!
+    //similarityThreshold: .95,
+    minSegmentLength: 5, //only take segments longer than this
+    maxThreshold: 10, //stop when max value below this
+    //endThreshold: 0,
+    onlyDiagonals: true,
+    nLongest: 5,
+    maxGapSize: 0,
+    //maxGaps: 0,
+    minDistance: 2
+  });
+  //sw.patterns.map(p => console.log(JSON.stringify(p.occurrences.map(o => o.map(p => p[1])))));
+  const sections = getSectionGroupsFromTimelineMatrix(sw.segmentMatrix, 2);
+  const hierarchy = inferHierarchyFromSectionGroups(sections, false);
+  console.log(JSON.stringify(hierarchy));
+  const repl = h => h.reduce((r,s) => Array.isArray(s) ? _.concat(r, [repl(s)])
+    : _.concat(r, sections[s][0].map(_i => s)), []);
+  console.log(JSON.stringify(repl(hierarchy)));
+  return sections.map(type => _.flatten(_.flatten(type).map(s => timeline[s])));
+}
+
+export function inferStructureFromTimelineWithAlignmentGraph(filebase: string) {
   const timeline: SegmentNode[][] = loadJsonFile(filebase+'-output.json').timeline;
   const matrix: number[][] = loadJsonFile(filebase+'-matrix.json');
   const boundaries = getSectionBoundariesFromMSA(timeline);
@@ -196,10 +254,10 @@ function getSectionBoundariesFromMSA(timeline: SegmentNode[][]) {
 }
 
 function getSectionGroupsFromTimelineMatrix(matrix: number[][],
-    threshold = .1, minDist = 1, maxLevels = 1) {
+    maxLevels = 1, minDist = 1, maskThreshold = .1) {
   //preprocess matrix
   const max = _.max(_.flatten(matrix));
-  matrix = matrix.map(r => r.map(c => c >= threshold*max ? c : 0));
+  matrix = matrix.map(r => r.map(c => c >= maskThreshold*max ? c : 0));
   const levels = getSegmentation(matrix, minDist, maxLevels);
   console.log(JSON.stringify(levels));
   return levels;
@@ -327,7 +385,7 @@ function toTypes(sections: number[][][]) {
 /** minDist: min distance from diagonal */
 function getNMostConnected(matrix: number[][], minDist: number, n = 1) {
   const upper = matrix.map((r,i) => r.map((c,j) => j > i+minDist ? c : 0));
-  const lower = matrix.map((r,i) => r.map((c,j) => j+minDist < i ? c : 0));
+  const lower = _.zip(...matrix).map((r,i) => r.map((c,j) => j+minDist < i ? c : 0));
   const laterConns = upper.map(r => _.max(r) > 0 ? indicesOfNMax(r, n) : []);
   const earlierConns = lower.map(r => _.max(r) > 0 ? indicesOfNMax(r, n) : []);
   return laterConns.map((c,i) => c.filter(j => _.includes(earlierConns[j], i)));
