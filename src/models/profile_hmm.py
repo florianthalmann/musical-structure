@@ -8,7 +8,7 @@ LR_DECAY = 0.0
 class ProfileHMM(object):
 
     def __init__(self, length=None, n_features=None, initial=None,
-            match_match=0.9, delete_insert=0.1):
+            match_match=0.9, delete_insert=0.1, flank_prob=0):#last is polymorphism dummy
         super(ProfileHMM, self).__init__()
         if length is not None:
             n_states = 3*length+1

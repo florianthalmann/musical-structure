@@ -7,10 +7,12 @@ export enum MODELS {
 }
 
 export async function hmmAlign(filebase: string, iterations = 10,
-    model=MODELS.FLANKED, edgeInertia=0.8) {
+    model=MODELS.FLANKED, edgeInertia=0.8, distInertia=0.8, matchMatch=0.999,
+    deleteInsert=0.01, flankProb=undefined) {
   if (!fs.existsSync(filebase+"-msa.json"))
     return execute('python src/models/multi_alignment.py "'+filebase+'" '
-      +iterations+" "+model+" "+edgeInertia, true);
+      +[iterations, model, edgeInertia, distInertia, matchMatch, deleteInsert,
+        flankProb].join(' '), true);
 }
 
 export async function clustaloAlign(filebase: string) {

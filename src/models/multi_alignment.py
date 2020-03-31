@@ -1,6 +1,7 @@
 import sys, json, operator, time, itertools
 import numpy as np
 from os import path
+import argparse
 from profile_hmm import ProfileHMM, FlankedProfileHMM
 
 def load_json(path):
@@ -12,7 +13,7 @@ def load_data(path):
 
 def train_model_from_data(data, verbose, match_match, delete_insert,
         dist_inertia, edge_inertia, max_iterations,
-        model_length_func=np.median, model_type=ProfileHMM):
+        model_length_func=np.median, model_type=ProfileHMM, flank_prob=0.999999):
     target_length = int(model_length_func([len(d) for d in data]))
     #take sequence closest to target length as init sequence
     init_sequence = sorted(data, key=lambda d: abs(len(d) - target_length))[0]
@@ -21,7 +22,7 @@ def train_model_from_data(data, verbose, match_match, delete_insert,
         print('version count', len(data))
         print('model length', len(init_sequence))
     model = model_type(len(init_sequence), 24, init_sequence,
-        match_match, delete_insert)
+        match_match, delete_insert, flank_prob)
     if verbose:
         print('fitting model')
     before = time.time()
@@ -57,7 +58,7 @@ def save_results(data, model, filepath):
 def align_song_versions(filebase, match_match=0.999, delete_insert=0.01,
         max_iterations=50, dist_inertia=0.8, edge_inertia=1.0,
         label="", verbose=True, realignTopP=0,
-        force=False, model_type=ProfileHMM):
+        force=False, model_type=ProfileHMM, flank_prob=0.999999):
     target_path = filebase+"-msa"+label+".json";
     if force or not path.exists(target_path):
         data = load_data(filebase+"-points.json")
@@ -65,7 +66,7 @@ def align_song_versions(filebase, match_match=0.999, delete_insert=0.01,
             for sequence in map(list, data[:20]):
                 print(''.join(str(chr(65+(s%26))) for s in sequence))
         model = train_model_from_data(data, verbose, match_match, delete_insert,
-            dist_inertia, edge_inertia, max_iterations, np.median, model_type)
+            dist_inertia, edge_inertia, max_iterations, np.median, model_type, flank_prob)
         #np.set_printoptions(edgeitems=10, linewidth=200)
         #print(model.model.dense_transition_matrix().round(3))
         #model.save_to_json("results/timeline-test7/meandmyuncle30-hmm.json")
@@ -105,6 +106,28 @@ def sweep_align(filebase, max_iterations, inertias, match_matches, delete_insert
 #align_song_versions("results/local-test2/dark_star100j0ml0", force=True,
 #    model_type=FlankedProfileHMM, max_iterations=10)
 
-align_song_versions(filebase=str(sys.argv[1]), max_iterations=int(sys.argv[2]),
-    model_type=getattr(sys.modules[__name__], str(sys.argv[3])), edge_inertia=float(sys.argv[4]))
+parser = argparse.ArgumentParser()
+parser.add_argument('filebase', type=str)
+parser.add_argument('max_iterations', type=int)
+parser.add_argument('model_type', type=str)
+parser.add_argument('edge_inertia', type=float)
+parser.add_argument('dist_inertia', type=float)
+parser.add_argument('match_match', type=float)
+parser.add_argument('delete_insert', type=float)
+parser.add_argument('flank_prob', type=float, nargs='?')
+args = parser.parse_args()
+
+align_song_versions(
+    filebase=args.filebase,
+    max_iterations=args.max_iterations,
+    model_type=getattr(sys.modules[__name__], args.model_type),
+    edge_inertia=args.edge_inertia,
+    dist_inertia=args.dist_inertia,
+    match_match=args.match_match,
+    delete_insert=args.delete_insert,
+    flank_prob=args.flank_prob,
+    label = "-"+args.model_type+"-"+str(args.max_iterations)
+        +"-"+str(args.edge_inertia)+"-"+str(args.dist_inertia)
+        +"-"+str(args.match_match)+"-"+str(args.delete_insert)
+        +"-"+str(args.flank_prob))
 
