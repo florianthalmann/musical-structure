@@ -128,7 +128,7 @@ function trim(patterns: number[][][]) {
   });
 }
 
-export function cartesianProduct(arr: any[][]): any[] {
+export function cartesianProduct<T>(arr: T[][]): T[][] {
   return arr.reduce((a, b) =>
     a.map(x => b.map(y => x.concat([y])))
       .reduce((a, b) => a.concat(b), []), [[]]);

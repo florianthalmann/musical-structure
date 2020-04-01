@@ -79,7 +79,7 @@ export function inferStructureFromTimelineWithAlignmentGraph(filebase: string) {
   const timeline: SegmentNode[][] = loadJsonFile(filebase+'-output.json').timeline;
   const matrix: number[][] = loadJsonFile(filebase+'-matrix.json');
   const boundaries = getSectionBoundariesFromMSA(timeline);
-  const sections = getSectionGroupsFromTimelineMatrix(matrix);
+  const sections = getSectionGroupsFromTimelineMatrix(matrix, 2);
   const hierarchy = inferHierarchyFromSectionGroups(sections, true);
   const repl = h => h.reduce((r,s) => Array.isArray(s) ? _.concat(r, [repl(s)])
     : _.concat(r, sections[s][0].map(_i => s)), []);

@@ -21,7 +21,7 @@ import { inferStructureFromTimeline } from '../analysis/structure-analysis';
 import { getThomasTuningRatio } from '../files/tuning';
 import { getMostCommonPoints } from '../analysis/pattern-histograms';
 import { toIndexSeqMap } from '../graphs/util';
-import { getStandardDeviation } from './util';
+import { DataFrame } from '../files/data';
 
 export enum AlignmentAlgorithm {
   SIA,
@@ -172,43 +172,11 @@ export class TimelineAnalysis {
     return inferStructureFromTimeline(this.tlo.filebase);
   }
   
-  printMSAStats(full?: boolean) {
-    const stats = this.getMSAStats();
-    if (full) {
-      this.printStats("logPs:", stats.logPs);
-      this.printStats("trackPs:", stats.trackPs);
-      this.printStats("statePs:", stats.statePs);
-    }
-    console.log("probable tracks:", stats.probableTracks, "of", stats.totalTracks);
-    console.log("probable states:", stats.probableStates, "of", stats.totalStates);
-  }
-  
-  getMSAStats() {
-    const json = loadJsonFile(this.tlo.filebase+'-msa.json');
-    const msa: string[][] = json["msa"];
-    const logPs: number[] = json["logp"];
-    const trackPs = msa.map(m => m.filter(s => s != "").length/m.length);
-    const matchStates = _.sortBy(_.uniq(_.flatten(msa))
-      .filter(s => s.length > 0), s => parseInt(s.slice(1)));
-    const statePs = matchStates.map(m =>
-      _.sum(msa.map(v => v.filter(s => s === m).length))/msa.length);
-    const numProbTracks = trackPs.filter(p => p > 0.5).length;
-    const numProbStates = statePs.filter(p => p > 0.5).length;
-    return {totalTracks: msa.length, totalStates: matchStates.length,
-      logPs: logPs, trackPs: trackPs, statePs: statePs,
-      probableTracks: numProbTracks, probableStates: numProbStates};
-  }
-  
   async getPartitionRating() {
     const matrix: number[][] = loadJsonFile(this.tlo.filebase+'-matrix.json');
     const partitionSizes = loadJsonFile(this.tlo.filebase+'-output.json')
       ["segments"].map(s => s.length);
     return getSequenceRatingFromMatrix(matrix, partitionSizes);
-  }
-  
-  private printStats(name: string, values: number[]) {
-    console.log(name+":", "["+_.min(values)+", "+_.max(values)+"]",
-      _.mean(values), getStandardDeviation(values));
   }
 
   async saveRatingsFromMSAResults() {
@@ -216,7 +184,7 @@ export class TimelineAnalysis {
     const folder = this.tlo.filebase.split("/").slice(0, -1).join("/")+"/";
     const alignments = await this.getAlignments();
     
-    const results = loadJsonFile(this.tlo.filebase+'-ratings.json') || [];
+    const data = new DataFrame().load(this.tlo.filebase+'-ratings.json');
     const files = getFilesInFolder(folder, ["json"])
       .filter(f => _.includes(f, "msa")
         && _.includes(f, _.last(this.tlo.filebase.split("/")))
@@ -224,8 +192,9 @@ export class TimelineAnalysis {
     
     let graph: DirectedGraph<SegmentNode>;
     files.forEach(f => {
-      const config = f.slice(f.indexOf("msa")+3, f.indexOf(".json")).split('-');
-      if (!this.isInDataTable(config, results)) {
+      const config: (number | string)[] =
+        f.slice(f.indexOf("msa")+4, f.indexOf(".json")).split('-');
+      if (!data.hasRow(config)) {
         console.log("rating", config.join(" "));
         const json = loadJsonFile(folder+f);
         const msa: string[][] = json["msa"] ? json["msa"] : json;
@@ -234,19 +203,10 @@ export class TimelineAnalysis {
           alignments.versionTuples, alignments.alignments, matrixBase, graph);
         if (!graph) graph = partition.getGraph();
         const rating = getSequenceRating(partition);
-        this.addToDataTable(config, rating, results);
+        data.addRow(_.concat(config, [rating]));
       }
     });
-    saveJsonFile(this.tlo.filebase+'-ratings.json', results);
-  }
-
-  private addToDataTable(keys: string[], value: any, table: any[][]) {
-    table.push(_.concat(keys, value));
-  }
-
-  private isInDataTable(keys: string[], table: any[][]) {
-    keys.forEach((k,i) => table = table.filter(r => r[i] === k));
-    return table.length > 0;
+    data.save(this.tlo.filebase+'-ratings.json');
   }
 
   async saveMultiTimelineDecomposition() {
