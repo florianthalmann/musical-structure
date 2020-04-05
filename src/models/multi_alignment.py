@@ -57,9 +57,9 @@ def save_results(data, model, filepath):
 
 def align_song_versions(filebase, match_match=0.999, delete_insert=0.01,
         max_iterations=50, dist_inertia=0.8, edge_inertia=1.0,
-        label="", verbose=True, realignTopP=0,
+        filename="-msa.json", verbose=True, realignTopP=0,
         force=False, model_type=ProfileHMM, flank_prob=0.999999):
-    target_path = filebase+"-msa"+label+".json";
+    target_path = filebase+filename;
     if force or not path.exists(target_path):
         data = load_data(filebase+"-points.json")
         if verbose and isinstance(data[0][0], int):
@@ -84,14 +84,14 @@ def align_song_versions(filebase, match_match=0.999, delete_insert=0.01,
         model = train_model_from_data(data, verbose, match_match, delete_insert,
             inertia, max_iterations, np.median)
         print_viterbi_paths(data, model.model)
-        save_results(data, model.model, filebase+"-msa"+label+"RE.json")
+        save_results(data, model.model, filebase+filename.replace(".json","RE.json")
 
 def sweep_align(filebase, max_iterations, inertias, match_matches, delete_inserts, realignTopP=0):
     params = [max_iterations, inertias, match_matches, delete_inserts]
     for i, n, m, d in itertools.product(*params):
-        label = ""+str(i)+"-"+str(n)+"-"+str(m)+"-"+str(d)
+        filename = "-msa-"+str(i)+"-"+str(n)+"-"+str(m)+"-"+str(d)+".json"
         print("aligning", i, n, m, d)
-        align_song_versions(filebase, m, d, i, 1, n, label, realignTopP=realignTopP)
+        align_song_versions(filebase, m, d, i, 1, n, filename, realignTopP=realignTopP)
 
 #align_song_versions("results/hmm-test/cosmiccharlie100", verbose=True)
 #sweep_align("results/hmm-test2/cosmiccharlie100", [400], [0.0, 0.2, 0.4], [0.3, 0.4, 0.5], [0.1, 0.01, 0.001])
@@ -108,6 +108,7 @@ def sweep_align(filebase, max_iterations, inertias, match_matches, delete_insert
 
 parser = argparse.ArgumentParser()
 parser.add_argument('filebase', type=str)
+parser.add_argument('filename', type=str)
 parser.add_argument('max_iterations', type=int)
 parser.add_argument('model_type', type=str)
 parser.add_argument('edge_inertia', type=float)
@@ -126,8 +127,5 @@ align_song_versions(
     match_match=args.match_match,
     delete_insert=args.delete_insert,
     flank_prob=args.flank_prob,
-    label = "-"+args.model_type+"-"+str(args.max_iterations)
-        +"-"+str(args.edge_inertia)+"-"+str(args.dist_inertia)
-        +"-"+str(args.match_match)+"-"+str(args.delete_insert)
-        +"-"+str(args.flank_prob))
+    filename = args.filename)
 

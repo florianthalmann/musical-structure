@@ -24,14 +24,14 @@ function audioPathToUniqueName(audioPath: string) {
 //realtime logging slows down execute significantly, so no longer doing it
 export async function execute(command: string, log = false) {
   let options = {shell: '/bin/bash'};//{stdio: ['pipe', 'pipe', 'ignore']};
-  return new Promise<void>((resolve, reject) =>
+  return new Promise<string>((resolve, reject) =>
     exec(command, options, (error, stdout, stderr) => {
       if (error) {
         console.log(stderr);
-        reject();
+        reject(stderr);
       } else {
         if (log) console.log(stdout);
-        resolve();
+        resolve(stdout);
       }
     }));
   /*const p = spawn(command, args, {stdio: ['inherit', 'pipe', 'inherit']});
