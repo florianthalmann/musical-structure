@@ -58,14 +58,14 @@ export class GdExperiment {
   
   async sweepMSA(tlo: GdOptions) {
     //iteration, edges, dists, mm, di, flanks
-    const configs = cartesianProduct([[1,3,5,7,9],//iterations
-      [0.8,1],//edge inertias
-      [0.8,1],//dist inertias
-      [0.999],//matchmatch
-      [0.01],//deleteinsert
-      [.999999]]);//flankprobs
+    const configs = cartesianProduct([[1,3,5,7,9,10,20,30],//iterations
+      [0.6,0.8,1],//edge inertias
+      [0.6,0.8,1],//dist inertias
+      [0.9,0.999],//matchmatch
+      [0.01,0.1],//deleteinsert
+      [undefined]]);//flankprobs
     mapSeries(this.getTunedSongs(), async song => {
-      const [folders, options] = this.getAmmendedFoldersAndTlo(tlo, song);
+      const [folders, options] = this.getSongFoldersAndOptions(tlo, song);
       options.audioFiles = await this.getGdVersionsQuick(folders.audio, options);
       console.log('saving raw sequences')
       const ta = new TimelineAnalysis(Object.assign(options,
@@ -73,38 +73,50 @@ export class GdExperiment {
       if (options.multinomial) await ta.saveMultinomialSequences();
       else await ta.saveRawSequences();
       console.log('aligning using hmm')
-      return mapSeries(configs, config => {
-        return hmmAlign(options.filebase, config[0], MODELS.FLANKED, config[1],
+      await mapSeries(configs, config => {
+        return hmmAlign(options.filebase, config[0], MODELS.PROFILE, config[1],
           config[2], config[3], config[4], config[5]);
-      })
+      });
     });
   }
   
   async analyzeAllRaw(tlo: GdOptions) {
     mapSeries(this.getTunedSongs(), async s => {
-      const [folders, options] = this.getAmmendedFoldersAndTlo(tlo, s);
+      const [folders, options] = this.getSongFoldersAndOptions(tlo, s);
       return this.generateTimelineViaGaussianHMM(folders, options);
     });
   }
   
-  private getAmmendedFoldersAndTlo(tlo: GdOptions, songname: string) {
+  private getSongFoldersAndOptions(options: GdOptions, songname: string) {
     const folders = _.clone(GD_RAW);
     folders.audio += songname + "/";
     console.log(folders.audio)
-    const options = _.clone(tlo);
-    options.filebase += songname + tlo.appendix;
+    options = _.clone(options);
+    options.filebase += songname + options.appendix;
     options.collectionName = songname.split('_').join(' ');
     return <[GdFolders,GdOptions]>[folders, options];
   }
   
-  async compileAllMSAStats(path: string) {
+  async compileAllMSAStats(path: string, tlo: GdOptions) {
     const columnNames = ["song", "version", "model", "iterations",
       "edge inertia", "dist inertia", "match match", "delete insert",
       "flank prob", "state count", "avg state p", "prob states", "log p",
-      "track p"];
+      "track p", "rating"];
     let data: DataFrame;
-    fs.readdirSync(path).filter(f => _.includes(f, 'msa')
-    && !_.includes(f, '_msa-stats')).map(f => {
+    const msaFiles = fs.readdirSync(path).filter(f => _.includes(f, 'msa')
+        && !_.includes(f, '_msa-stats'));
+    
+    const bySong = _.groupBy(msaFiles, f =>
+      f.split('-')[0].replace(tlo.appendix, ''));
+    const ratings = _.flatten(await mapSeries(_.keys(bySong), async s => {
+      const [folders, options] = this.getSongFoldersAndOptions(tlo, s);
+      options.audioFiles = await this.getGdVersionsQuick(folders.audio, options);
+      return new TimelineAnalysis(Object.assign(options,
+        {featuresFolder: folders.features, patternsFolder: folders.patterns}))
+        .getRatingsFromMSAResults(bySong[s].map(f => path+f));
+    }));
+    
+    msaFiles.forEach((f,i) => {
       const config: (number | string)[]
         = f.slice(f.indexOf("msa")+4, f.indexOf(".json")).split('-');
       const song = f.split('-')[0];
@@ -112,17 +124,18 @@ export class GdExperiment {
       if (!data) {
         data = new DataFrame(columnNames);
       }
-      stats.logPs.forEach((p,i) => data.addRow(_.concat([song, i], config,
+      stats.logPs.forEach((p,j) => data.addRow(_.concat([song, j], config,
         [stats.totalStates, _.mean(stats.statePs), stats.probableStates,
-          p, stats.trackPs[i]])));
+          p, stats.trackPs[j], ratings[i]])));
     });
+    
     data.save(path+'_msa-stats.json');
   }
   
   async printOverallMSAStats(tlo: GdOptions) {
     const songs = this.getTunedSongs();
     const filebases = songs.map(s =>
-      this.getAmmendedFoldersAndTlo(tlo, s)[1].filebase);
+      this.getSongFoldersAndOptions(tlo, s)[1].filebase);
     
     const stats = await mapSeries(filebases, async f => this.getMSAStats(f+"-msa.json"));
     console.log("tracks", _.sum(stats.map(s => s.probableTracks)), "of",
@@ -133,7 +146,7 @@ export class GdExperiment {
     console.log("stateP", _.mean(_.flatten(stats.map(s => s.statePs))));
     
     const analyses = await mapSeries(songs, async s => {
-      const [folders, options] = this.getAmmendedFoldersAndTlo(tlo, s);
+      const [folders, options] = this.getSongFoldersAndOptions(tlo, s);
       options.audioFiles = await this.getGdVersionsQuick(folders.audio, options);
       return new TimelineAnalysis(Object.assign(options,
         {featuresFolder: folders.features, patternsFolder: folders.patterns}));
@@ -185,6 +198,23 @@ export class GdExperiment {
   }
   
   private async generateTimelineViaGaussianHMM(folders: GdFolders, tlo: TimelineOptions) {
+    tlo.audioFiles = await this.getGdVersionsQuick(folders.audio, tlo);
+    console.log('saving raw sequences')
+    const ta = new TimelineAnalysis(Object.assign(tlo,
+      {featuresFolder: folders.features, patternsFolder: folders.patterns}));
+    if (tlo.multinomial) await ta.saveMultinomialSequences();
+    else await ta.saveRawSequences();
+    console.log('aligning using hmm')
+    await hmmAlign(tlo.filebase);
+    //ta.printMSAStats();
+    console.log('saving timeline')
+    await ta.saveTimelineFromMSAResults();
+    /*console.log('saving sssm');
+    await ta.saveSumSSMfromMSAResults();*/
+    ta.getStructure();
+  }
+  
+  private async generateTimelineFromGaussianHMM(folders: GdFolders, tlo: TimelineOptions) {
     tlo.audioFiles = await this.getGdVersionsQuick(folders.audio, tlo);
     console.log('saving raw sequences')
     const ta = new TimelineAnalysis(Object.assign(tlo,

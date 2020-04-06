@@ -179,34 +179,22 @@ export class TimelineAnalysis {
     return getSequenceRatingFromMatrix(matrix, partitionSizes);
   }
 
-  async saveRatingsFromMSAResults() {
+  async getRatingsFromMSAResults(files?: string[]) {
     const points = this.loadPoints(this.tlo.filebase+'-points.json');
-    const folder = this.tlo.filebase.split("/").slice(0, -1).join("/")+"/";
     const alignments = await this.getAlignments();
-    
-    const data = new DataFrame().load(this.tlo.filebase+'-ratings.json');
-    const files = getFilesInFolder(folder, ["json"])
-      .filter(f => _.includes(f, "msa")
-        && _.includes(f, _.last(this.tlo.filebase.split("/")))
-        && !_.includes(f, "matrix"));
-    
     let graph: DirectedGraph<SegmentNode>;
-    files.forEach(f => {
+    return files.map(f => {
       const config: (number | string)[] =
         f.slice(f.indexOf("msa")+4, f.indexOf(".json")).split('-');
-      if (!data.hasRow(config)) {
         console.log("rating", config.join(" "));
-        const json = loadJsonFile(folder+f);
+        const json = loadJsonFile(f);
         const msa: string[][] = json["msa"] ? json["msa"] : json;
         const matrixBase = this.tlo.filebase+f.replace('.json','');
         const partition = inferStructureFromMSA(msa, points,
           alignments.versionTuples, alignments.alignments, matrixBase, graph);
         if (!graph) graph = partition.getGraph();
-        const rating = getSequenceRating(partition);
-        data.addRow(_.concat(config, [rating]));
-      }
+        return getSequenceRating(partition);
     });
-    data.save(this.tlo.filebase+'-ratings.json');
   }
 
   async saveMultiTimelineDecomposition() {
