@@ -57,15 +57,15 @@ export class GdExperiment {
     GD_TUNED.audio += audioSubfolder;
   }
   
-  async sweepMSA(tlo: GdOptions) {
+  async sweepMSA(tlo: GdOptions, songs = this.getTunedSongs()) {
     //iteration, edges, dists, mm, di, flanks
-    const configs = cartesianProduct([[1,3,5,7,9,10,20,30],//iterations
-      [0.6,0.8,1],//edge inertias
-      [0.6,0.8,1],//dist inertias
-      [0.9,0.999],//matchmatch
-      [0.01,0.1],//deleteinsert
-      [undefined]]);//flankprobs
-    mapSeries(this.getTunedSongs(), async song => {
+    const configs = cartesianProduct([[1,5,10,20],//iterations
+      [0.6, 0.8, 1],//edge inertias
+      [0.6, 0.8, 1],//dist inertias
+      [0.9, 0.99, 0.999],//matchmatch
+      [0.1, 0.01, 0.001],//deleteinsert
+      [undefined, 0.9, 0.999, 0.999999]]);//flankprobs
+    mapSeries(songs, async song => {
       const [folders, options] = this.getSongFoldersAndOptions(tlo, song);
       options.audioFiles = await this.getGdVersionsQuick(folders.audio, options);
       console.log('saving raw sequences')
@@ -75,13 +75,13 @@ export class GdExperiment {
       else await ta.saveRawSequences();
       console.log('aligning using hmm')
       const points = options.filebase+"-points.json";
-      const outbase = initDirRec(
-        MSA_BASE+options.filebase.split('/').slice(-1)[0]+'/');
-      await mapSeries(configs, config => {
-        return hmmAlign(points, outbase, config[0], MODELS.PROFILE, config[1],
-          config[2], config[3], config[4], config[5]);
-      });
+      await mapSeries(configs, config =>
+        hmmAlign(points, this.getMSAFolder(options), ...config));
     });
+  }
+  
+  private getMSAFolder(options: GdOptions) {
+    return initDirRec(MSA_BASE+options.filebase.split('/').slice(-1)[0]+'/');
   }
   
   async analyzeAllRaw(tlo: GdOptions) {
@@ -101,39 +101,32 @@ export class GdExperiment {
     return <[GdFolders,GdOptions]>[folders, options];
   }
   
-  async compileAllMSAStats(path: string, tlo: GdOptions) {
+  async compileAllMSAStats(tlo: GdOptions, songname: string,
+      statsFile = tlo.filebase+"_msa-stats.json") {
     const columnNames = ["song", "version", "model", "iterations",
       "edge inertia", "dist inertia", "match match", "delete insert",
       "flank prob", "state count", "avg state p", "prob states", "log p",
       "track p", "rating"];
-    let data: DataFrame;
-    const msaFiles = fs.readdirSync(path).filter(f => _.includes(f, 'msa')
-        && !_.includes(f, '_msa-stats'));
+    let data = new DataFrame(columnNames).load(statsFile);
+    const msaFolder = this.getMSAFolder(tlo);
+    const msaFiles = fs.readdirSync(msaFolder);
     
-    const bySong = _.groupBy(msaFiles, f =>
-      f.split('-')[0].replace(tlo.appendix, ''));
-    const ratings = _.flatten(await mapSeries(_.keys(bySong), async s => {
-      const [folders, options] = this.getSongFoldersAndOptions(tlo, s);
-      options.audioFiles = await this.getGdVersionsQuick(folders.audio, options);
-      return new TimelineAnalysis(Object.assign(options,
-        {featuresFolder: folders.features, patternsFolder: folders.patterns}))
-        .getRatingsFromMSAResults(bySong[s].map(f => path+f));
-    }));
+    const [folders, options] = this.getSongFoldersAndOptions(tlo, songname);
+    options.audioFiles = await this.getGdVersionsQuick(folders.audio, options);
+    const ratings = new TimelineAnalysis(Object.assign(options,
+      {featuresFolder: folders.features, patternsFolder: folders.patterns}))
+      .getRatingsFromMSAResults(msaFiles.map(f => msaFolder+f));
     
     msaFiles.forEach((f,i) => {
       const config: (number | string)[]
         = f.slice(f.indexOf("msa")+4, f.indexOf(".json")).split('-');
       const song = f.split('-')[0];
-      const stats = this.getMSAStats(path+f);
-      if (!data) {
-        data = new DataFrame(columnNames);
-      }
+      const stats = this.getMSAStats(msaFolder+f);
       stats.logPs.forEach((p,j) => data.addRow(_.concat([song, j], config,
         [stats.totalStates, _.mean(stats.statePs), stats.probableStates,
           p, stats.trackPs[j], ratings[i]])));
+      data.save(statsFile);
     });
-    
-    data.save(path+'_msa-stats.json');
   }
   
   async printOverallMSAStats(tlo: GdOptions) {
