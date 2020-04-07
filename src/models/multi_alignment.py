@@ -55,13 +55,12 @@ def save_results(data, model, filepath):
     with open(filepath, 'w') as f:
         json.dump({"msa": msa, "logp": logps}, f)
 
-def align_song_versions(filebase, match_match=0.999, delete_insert=0.01,
+def align_song_versions(infile, outfile, match_match=0.999, delete_insert=0.01,
         max_iterations=50, dist_inertia=0.8, edge_inertia=1.0,
-        filename="-msa.json", verbose=True, realignTopP=0,
+        verbose=True, realignTopP=0,
         force=False, model_type=ProfileHMM, flank_prob=0.999999):
-    target_path = filebase+filename;
-    if force or not path.exists(target_path):
-        data = load_data(filebase+"-points.json")
+    if force or not path.exists(outfile):
+        data = load_data(infile)
         if verbose and isinstance(data[0][0], int):
             for sequence in map(list, data[:20]):
                 print(''.join(str(chr(65+(s%26))) for s in sequence))
@@ -72,10 +71,10 @@ def align_song_versions(filebase, match_match=0.999, delete_insert=0.01,
         #model.save_to_json("results/timeline-test7/meandmyuncle30-hmm.json")
         #model = ProfileHMM().load_from_json("results/timeline-test7/meandmyuncle30-hmm.json")
         print_viterbi_paths(data, model.model)
-        save_results(data, model.model, target_path)
-    elif not path.exists(target_path) and realignTopP > 0:
-        data = load_data(filebase+"-points.json")
-        results = load_json(target_path)
+        save_results(data, model.model, outfile)
+    elif not path.exists(outfile) and realignTopP > 0:
+        data = load_data(infile)
+        results = load_json(outfile)
         logps = results["logp"]
         top_logps = sorted(logps, reverse=True)[:int(len(logps)*realignTopP)]
         print(top_logps)
@@ -84,14 +83,7 @@ def align_song_versions(filebase, match_match=0.999, delete_insert=0.01,
         model = train_model_from_data(data, verbose, match_match, delete_insert,
             inertia, max_iterations, np.median)
         print_viterbi_paths(data, model.model)
-        save_results(data, model.model, filebase+filename.replace(".json","RE.json")
-
-def sweep_align(filebase, max_iterations, inertias, match_matches, delete_inserts, realignTopP=0):
-    params = [max_iterations, inertias, match_matches, delete_inserts]
-    for i, n, m, d in itertools.product(*params):
-        filename = "-msa-"+str(i)+"-"+str(n)+"-"+str(m)+"-"+str(d)+".json"
-        print("aligning", i, n, m, d)
-        align_song_versions(filebase, m, d, i, 1, n, filename, realignTopP=realignTopP)
+        save_results(data, model.model, outfile.replace(".json","RE.json"))
 
 #align_song_versions("results/hmm-test/cosmiccharlie100", verbose=True)
 #sweep_align("results/hmm-test2/cosmiccharlie100", [400], [0.0, 0.2, 0.4], [0.3, 0.4, 0.5], [0.1, 0.01, 0.001])
@@ -107,8 +99,8 @@ def sweep_align(filebase, max_iterations, inertias, match_matches, delete_insert
 #    model_type=FlankedProfileHMM, max_iterations=10)
 
 parser = argparse.ArgumentParser()
-parser.add_argument('filebase', type=str)
-parser.add_argument('filename', type=str)
+parser.add_argument('infile', type=str)
+parser.add_argument('outfile', type=str)
 parser.add_argument('max_iterations', type=int)
 parser.add_argument('model_type', type=str)
 parser.add_argument('edge_inertia', type=float)
@@ -119,13 +111,13 @@ parser.add_argument('flank_prob', type=float, nargs='?')
 args = parser.parse_args()
 
 align_song_versions(
-    filebase=args.filebase,
+    infile=args.infile,
+    outfile=args.outfile,
     max_iterations=args.max_iterations,
     model_type=getattr(sys.modules[__name__], args.model_type),
     edge_inertia=args.edge_inertia,
     dist_inertia=args.dist_inertia,
     match_match=args.match_match,
     delete_insert=args.delete_insert,
-    flank_prob=args.flank_prob,
-    filename = args.filename)
+    flank_prob=args.flank_prob)
 

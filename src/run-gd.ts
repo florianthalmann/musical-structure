@@ -45,6 +45,7 @@ const GD_RAW: GdFolders = { audio: DATA+'audio/',
   features: DATA+'features/', patterns: DATA+'patterns/' };
 const GD_TUNED: GdFolders = { audio: DATA+'gd_retuned/',//no longer used
   features: DATA+'gd_retuned_features/', patterns: DATA+'gd_retuned_patterns/' };
+const MSA_BASE = DATA+'msa/';
 
 export class GdExperiment {
   
@@ -73,8 +74,11 @@ export class GdExperiment {
       if (options.multinomial) await ta.saveMultinomialSequences();
       else await ta.saveRawSequences();
       console.log('aligning using hmm')
+      const points = options.filebase+"-points.json";
+      const outbase = initDirRec(
+        MSA_BASE+options.filebase.split('/').slice(-1)[0]+'/');
       await mapSeries(configs, config => {
-        return hmmAlign(options.filebase, config[0], MODELS.PROFILE, config[1],
+        return hmmAlign(points, outbase, config[0], MODELS.PROFILE, config[1],
           config[2], config[3], config[4], config[5]);
       });
     });
@@ -205,7 +209,8 @@ export class GdExperiment {
     if (tlo.multinomial) await ta.saveMultinomialSequences();
     else await ta.saveRawSequences();
     console.log('aligning using hmm')
-    await hmmAlign(tlo.filebase);
+    await hmmAlign(tlo.filebase+'-points-json',
+      MSA_BASE+tlo.filebase.split('/').slice(-1)[0]+'/');
     //ta.printMSAStats();
     console.log('saving timeline')
     await ta.saveTimelineFromMSAResults();
@@ -222,7 +227,8 @@ export class GdExperiment {
     if (tlo.multinomial) await ta.saveMultinomialSequences();
     else await ta.saveRawSequences();
     console.log('aligning using hmm')
-    await hmmAlign(tlo.filebase);
+    await hmmAlign(tlo.filebase+'-points-json',
+      MSA_BASE+tlo.filebase.split('/').slice(-1)[0]+'/');
     //ta.printMSAStats();
     console.log('saving timeline')
     await ta.saveTimelineFromMSAResults();

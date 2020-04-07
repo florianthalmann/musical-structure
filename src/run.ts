@@ -28,7 +28,7 @@ getSongOptions("cosmic charlie", "cosmic_charlie/", ".wav");
 
 
 
-export const RESULTS_PATH = "results/msa-sweep/";
+export const RESULTS_PATH = "results/msa-sweep2/";
 const CURRENT_OPTIONS = (mv: number, variant?: string) => Object.assign(CURRENT_SONG, {
   filebase: RESULTS_PATH + CURRENT_SONG.results + mv + variant,
   appendix: mv + variant,
@@ -60,8 +60,8 @@ const options = CURRENT_OPTIONS(100, "j0ml");
 options.filebase = RESULTS_PATH;
 options.extension = ".wav";
 //new GdExperiment().analyzeAllRaw(options);
-//new GdExperiment().sweepMSA(options);
-new GdExperiment().compileAllMSAStats(RESULTS_PATH, options)//.sweepMSA(options);
+new GdExperiment().sweepMSA(options);
+//new GdExperiment().compileAllMSAStats(RESULTS_PATH, options)//.sweepMSA(options);
 //new GdExperiment().printOverallMSAStats(options);
 
 //saveGdRawSequences(CURRENT_OPTIONS(100, "t"));

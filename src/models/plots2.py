@@ -11,9 +11,10 @@ with open(path) as f:
 #data = data.groupby(['song']).mean().plot(kind='box', x='avg state p', y='track p')#.groupby(['iterations']).mean().plot(y='track p')
 #data = data.groupby(['song','iterations']).mean()['track p'].unstack().T
 #data = data.groupby(['song','iterations']).mean()['avg state p'].unstack().T
+data = data.groupby(['model','iterations']).mean()['rating'].unstack().T
 
-data = data[data['song'] == 'dark_star100j0ml']
-data = data.groupby(['model','edge inertia','dist inertia']).mean()['track p'].unstack().T
+#data = data[data['song'] == 'dark_star100j0ml']
+#data = data.groupby(['model','edge inertia','dist inertia']).mean()['rating'].unstack().T
 data.plot()
 #print(data)
 
