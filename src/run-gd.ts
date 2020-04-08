@@ -118,14 +118,15 @@ export class GdExperiment {
       .getRatingsFromMSAResults(msaFiles.map(f => msaFolder+f));
     
     msaFiles.forEach((f,i) => {
+      updateStatus("msa stats "+i+" of "+msaFiles.length);
       const config: (number | string)[]
-        = f.slice(f.indexOf("msa")+4, f.indexOf(".json")).split('-');
+        = f.slice(f.indexOf("msa")+4, f.indexOf(".json")).split('-')
+            .map(c => c === parseFloat(c).toString() ? parseFloat(c) : c);
       const song = f.split('-')[0];
       const stats = this.getMSAStats(msaFolder+f);
       stats.logPs.forEach((p,j) => data.addRow(_.concat([song, j], config,
         [stats.totalStates, _.mean(stats.statePs), stats.probableStates,
           p, stats.trackPs[j], ratings[i]])));
-      updateStatus("msa stats "+i+" of "+msaFiles.length);
     });
     data.save(statsFile);
   }
