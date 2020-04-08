@@ -183,17 +183,15 @@ export class TimelineAnalysis {
     const points = this.loadPoints(this.tlo.filebase+'-points.json');
     const alignments = await this.getAlignments();
     let graph: DirectedGraph<SegmentNode>;
-    return files.map(f => {
-      const config: (number | string)[] =
-        f.slice(f.indexOf("msa")+4, f.indexOf(".json")).split('-');
-        console.log("rating", config.join(" "));
-        const json = loadJsonFile(f);
-        const msa: string[][] = json["msa"] ? json["msa"] : json;
-        const matrixBase = this.tlo.filebase+f.replace('.json','');
-        const partition = inferStructureFromMSA(msa, points,
-          alignments.versionTuples, alignments.alignments, matrixBase, graph);
-        if (!graph) graph = partition.getGraph();
-        return getSequenceRating(partition);
+    return files.map((f,i) => {
+      updateStatus("rating "+i+" of "+files.length);
+      const json = loadJsonFile(f);
+      const msa: string[][] = json["msa"] ? json["msa"] : json;
+      const matrixBase = this.tlo.filebase+f.replace('.json','');
+      const partition = inferStructureFromMSA(msa, points,
+        alignments.versionTuples, alignments.alignments, matrixBase, graph);
+      if (!graph) graph = partition.getGraph();
+      return getSequenceRating(partition);
     });
   }
 

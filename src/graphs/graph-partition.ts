@@ -208,13 +208,18 @@ function calculateConnectionMatrix<NodeType extends Node>(
     graph: DirectedGraph<NodeType>, partitions: NodeType[][]): number[][] {
   //assumes the nodes in the sequence may be clones of the nodes in the graph
   const nodes = _.zipObject(graph.getNodes().map(n => n.id), graph.getNodes());
-  const halfMatrix = partitions.map((t,i) => partitions.map((s,j) => {
-    if (i > j) return 0;
-    const tn = t.map(n => nodes[n.id]);
-    const sn = s.map(n => nodes[n.id]);
-    return _.uniq(_.flatten(_.flatten(
-      tn.map(t => sn.map(s => graph.findEdgesBetween(t,s)))))).length;
-  }));
-  //copy below diagonal (symmetric)
-  return halfMatrix.map((t,i) => t.map((s,j) => i > j ? halfMatrix[j][i] : s));
+  partitions = partitions.map(p => p.map(n => nodes[n.id]));
+  //record partition indexes of all nodes
+  const nodeIndexes = new Map<NodeType, number>();
+  partitions.forEach((p,i) => p.forEach(n => nodeIndexes.set(n, i)));
+  const matrix = partitions.map(_p => partitions.map(_q => 0));
+  graph.getEdges().forEach(e => {
+    const i = nodeIndexes.get(e.source);
+    const j = nodeIndexes.get(e.target);
+    if (i != null && j != null) {
+      matrix[i][j]++;
+      matrix[j][i]++;
+    }
+  });
+  return matrix;
 }

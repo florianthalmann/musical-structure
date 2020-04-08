@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import * as _ from 'lodash';
 import { ArrayMap } from 'siafun';
-import { mapSeries, cartesianProduct } from './files/util';
+import { mapSeries, cartesianProduct, updateStatus } from './files/util';
 import { initDirRec, getFoldersInFolder, importFeaturesFolder,
   loadJsonFile } from './files/file-manager';
 import { getOptions } from './files/options';
@@ -12,7 +12,7 @@ import { toHistogram } from './analysis/pattern-histograms';
 import { AlignmentAlgorithm, TimelineOptions, TimelineAnalysis
   } from './analysis/timeline-analysis';
 import { getStandardDeviation, getMedian } from './analysis/util';
-import { hmmAlign, MODELS } from './models/models';
+import { hmmAlign } from './models/models';
 import { DataFrame } from './files/data';
 
 interface GdVersion {
@@ -101,19 +101,19 @@ export class GdExperiment {
     return <[GdFolders,GdOptions]>[folders, options];
   }
   
-  async compileAllMSAStats(tlo: GdOptions, songname: string,
-      statsFile = tlo.filebase+"_msa-stats.json") {
+  async compileAllMSAStats(tlo: GdOptions, songname: string) {
     const columnNames = ["song", "version", "model", "iterations",
       "edge inertia", "dist inertia", "match match", "delete insert",
       "flank prob", "state count", "avg state p", "prob states", "log p",
       "track p", "rating"];
-    let data = new DataFrame(columnNames).load(statsFile);
-    const msaFolder = this.getMSAFolder(tlo);
-    const msaFiles = fs.readdirSync(msaFolder);
     
     const [folders, options] = this.getSongFoldersAndOptions(tlo, songname);
     options.audioFiles = await this.getGdVersionsQuick(folders.audio, options);
-    const ratings = new TimelineAnalysis(Object.assign(options,
+    const statsFile = options.filebase+"_msa-stats.json";
+    let data = new DataFrame(columnNames).load(statsFile)
+    const msaFolder = this.getMSAFolder(options);
+    const msaFiles = fs.readdirSync(msaFolder).filter(f=>!_.includes(f,'.DS_Store'));
+    const ratings = await new TimelineAnalysis(Object.assign(options,
       {featuresFolder: folders.features, patternsFolder: folders.patterns}))
       .getRatingsFromMSAResults(msaFiles.map(f => msaFolder+f));
     
@@ -125,8 +125,9 @@ export class GdExperiment {
       stats.logPs.forEach((p,j) => data.addRow(_.concat([song, j], config,
         [stats.totalStates, _.mean(stats.statePs), stats.probableStates,
           p, stats.trackPs[j], ratings[i]])));
-      data.save(statsFile);
+      updateStatus("msa stats "+i+" of "+msaFiles.length);
     });
+    data.save(statsFile);
   }
   
   async printOverallMSAStats(tlo: GdOptions) {
@@ -170,7 +171,6 @@ export class GdExperiment {
   
   getMSAStats(filepath: string) {
     const json = loadJsonFile(filepath);
-    console.log(filepath);
     const msa: string[][] = json["msa"];
     const logPs: number[] = json["logp"];
     const trackPs = msa.map(m => m.filter(s => s != "").length/m.length);
