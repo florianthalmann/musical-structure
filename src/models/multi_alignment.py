@@ -18,10 +18,12 @@ def train_model_from_data(data, verbose, match_match, delete_insert,
     #take sequence closest to target length as init sequence
     init_sequence = sorted(data, key=lambda d: abs(len(d) - target_length))[0]
     training_data = np.array(np.delete(data, data.index(init_sequence), 0))
+    num_features = max([d for r in data for d in r])+1
     if verbose:
         print('version count', len(data))
         print('model length', len(init_sequence))
-    model = model_type(len(init_sequence), 24, init_sequence,
+        print('num features', num_features)
+    model = model_type(len(init_sequence), num_features, init_sequence,
         match_match, delete_insert, flank_prob)
     if verbose:
         print('fitting model')

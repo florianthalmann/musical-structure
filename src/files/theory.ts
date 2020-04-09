@@ -78,7 +78,10 @@ export function labelToPCSet(chordLabel: string, add7ths?: boolean) {
 export function goIndexToPCSet(index: number): number[] {
   const root = index%12;
   const type = Math.floor(index/12);
-  let pcset = type == 0 ? [root, root+4, root+7] : [root, root+3, root+7];
+  let pcset = type == 0 ? [root, root+4, root+7]
+    : type == 1 ? [root, root+3, root+7]
+    : type == 2 ? [root, root+4, root+8]
+    : [root, root+3, root+6];
   pcset = pcset.map(p => p%12);
   pcset.sort((a,b)=>a-b);
   return pcset;
