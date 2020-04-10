@@ -60,7 +60,7 @@ const options = CURRENT_OPTIONS(100, "j0ml");
 options.filebase = RESULTS_PATH;
 options.extension = ".wav";
 //new GdExperiment().analyzeAllRaw(options);
-//new GdExperiment().sweepMSA(options, ["cosmic_charlie"]);
+//new GdExperiment().sweepMSA(options, ["casey_jones"]);
 new GdExperiment().compileAllMSAStats(options, "casey_jones")//.sweepMSA(options);
 //new GdExperiment().printOverallMSAStats(options);
 

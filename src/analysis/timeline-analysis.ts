@@ -3,10 +3,8 @@ import * as _ from 'lodash';
 import { pointsToIndices, StructureResult, MultiStructureResult, getCosiatec,
   getSmithWaterman, getDualSmithWaterman, getMultiCosiatec, getSelfSimilarityMatrix,
   Quantizer } from 'siafun';
-//import { GD_AUDIO as GDA, GD_SONG_MAP, GD_PATTERNS, GD_GRAPHS } from '../files/config';
 import { mapSeries, updateStatus, audioPathToDirName } from '../files/util';
-import { loadJsonFile, saveJsonFile, saveTextFile,
-  loadTextFile, getFilesInFolder } from '../files/file-manager';
+import { loadJsonFile, saveJsonFile, saveTextFile, loadTextFile } from '../files/file-manager';
 import { NodeGroupingOptions } from '../graphs/graph-analysis';
 import { loadGraph, DirectedGraph } from '../graphs/graph-theory';
 import { getOptionsWithCaching, getSiaOptions, getSwOptions,
@@ -15,13 +13,12 @@ import { FeatureLoader } from '../files/feature-loader';
 import { createSimilarityPatternGraph, getPatternGroupNFs, getNormalFormsMap,
   getConnectednessByVersion, PatternNode } from '../analysis/pattern-analysis';
 import { inferStructureFromAlignments, inferStructureFromMSA, getMSAPartitions } from '../analysis/segment-analysis';
-import { getSequenceRating, getSequenceRatingFromMatrix } from '../analysis/sequence-heuristics';
+import { getSequenceRatingWithFactors, getSequenceRatingFromMatrix } from '../analysis/sequence-heuristics';
 import { SegmentNode } from '../analysis/types';
 import { inferStructureFromTimeline } from '../analysis/structure-analysis';
 import { getThomasTuningRatio } from '../files/tuning';
 import { getMostCommonPoints } from '../analysis/pattern-histograms';
 import { toIndexSeqMap } from '../graphs/util';
-import { DataFrame } from '../files/data';
 
 export enum AlignmentAlgorithm {
   SIA,
@@ -175,7 +172,7 @@ export class TimelineAnalysis {
   async getPartitionRating() {
     const matrix: number[][] = loadJsonFile(this.tlo.filebase+'-matrix.json');
     const partitionSizes = loadJsonFile(this.tlo.filebase+'-output.json')
-      ["segments"].map(s => s.length);
+      ["segments"].map((s: any[]) => s.length);
     return getSequenceRatingFromMatrix(matrix, partitionSizes);
   }
 
@@ -191,7 +188,7 @@ export class TimelineAnalysis {
       const partition = inferStructureFromMSA(msa, points,
         alignments.versionTuples, alignments.alignments, matrixBase, graph);
       if (!graph) graph = partition.getGraph();
-      return getSequenceRating(partition);
+      return getSequenceRatingWithFactors(partition);
     });
   }
 

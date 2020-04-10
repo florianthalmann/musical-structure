@@ -11,6 +11,7 @@ import { actuallyTuneFile } from './files/tuning';
 import { toHistogram } from './analysis/pattern-histograms';
 import { AlignmentAlgorithm, TimelineOptions, TimelineAnalysis
   } from './analysis/timeline-analysis';
+import { getFactorNames } from './analysis/sequence-heuristics';
 import { getStandardDeviation, getMedian } from './analysis/util';
 import { hmmAlign } from './models/models';
 import { DataFrame } from './files/data';
@@ -102,10 +103,11 @@ export class GdExperiment {
   }
   
   async compileAllMSAStats(tlo: GdOptions, songname: string) {
+    const factorNames = getFactorNames();
     const columnNames = ["song", "version", "model", "iterations",
       "edge inertia", "dist inertia", "match match", "delete insert",
       "flank prob", "state count", "avg state p", "prob states", "log p",
-      "track p", "rating"];
+      "track p", "rating"].concat(factorNames);
     
     const [folders, options] = this.getSongFoldersAndOptions(tlo, songname);
     options.audioFiles = await this.getGdVersionsQuick(folders.audio, options);
@@ -126,7 +128,8 @@ export class GdExperiment {
       const stats = this.getMSAStats(msaFolder+f);
       stats.logPs.forEach((p,j) => data.addRow(_.concat([song, j], config,
         [stats.totalStates, _.mean(stats.statePs), stats.probableStates,
-          p, stats.trackPs[j], ratings[i]])));
+          p, stats.trackPs[j], ratings[i].rating,
+          ...factorNames.map(f => ratings[i].factors[f])])));
     });
     data.save(statsFile);
   }

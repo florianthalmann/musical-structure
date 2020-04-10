@@ -16,6 +16,12 @@ interface SequenceRatingOptions {
   adjacentsMax?: number, //proportion of max connections to adjacent bins
   diagonals?: number, //proportion of lone diagonals
 }
+type KeysEnum<T> = { [P in keyof Required<T>]: true };
+const SequenceRatingOptionsKeys: KeysEnum<SequenceRatingOptions> = {
+  nodeCount: true, compactness: true, selfconnectedness: true,
+  connectedness: true, nonEmpty: true, gapEntropy: true, gapSize: true,
+  adjacentsMin: true, adjacentsMax: true, diagonals: true
+};
 
 //pretty good options achieved early on
 const GOOD: SequenceRatingOptions = {
@@ -46,7 +52,7 @@ const TEST: SequenceRatingOptions = {
   diagonals: quality
 }
 
-const options = TEST;
+const OPTIONS = TEST;
 
 //assumes that the sequence is a valid one (no double occs, no double versions, lin ordered)
 export function getSequenceRating(sequence: GraphPartition<SegmentNode>) {
@@ -54,9 +60,24 @@ export function getSequenceRating(sequence: GraphPartition<SegmentNode>) {
     sequence.getPartitions().map(p => p.length));
 }
 
+export function getSequenceRatingWithFactors(sequence: GraphPartition<SegmentNode>) {
+  const connectionMatrix = sequence.getConnectionMatrix();
+  const partitionSizes = sequence.getPartitions().map(p => p.length);
+  const factors = Object.keys(SequenceRatingOptionsKeys);
+  return {
+    rating: getSequenceRatingFromMatrix(connectionMatrix, partitionSizes, OPTIONS),
+    factors: _.zipObject(factors, factors.map(k =>
+      getSequenceRatingFromMatrix(connectionMatrix, partitionSizes, {[k]: 1})))
+  };
+}
+
+export function getFactorNames() {
+  return Object.keys(SequenceRatingOptionsKeys);
+}
+
 //assumes that the sequence is a valid one (no double occs, no double versions, lin ordered)
 export function getSequenceRatingFromMatrix(connectionMatrix: number[][],
-    partitionSizes: number[]) {
+    partitionSizes: number[], options = OPTIONS) {
   const factors: number[] = [];
   
   const numNodes = _.sum(partitionSizes);
