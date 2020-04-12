@@ -14,7 +14,7 @@ import { AlignmentAlgorithm, TimelineOptions, TimelineAnalysis
 import { getFactorNames } from './analysis/sequence-heuristics';
 import { getStandardDeviation, getMedian } from './analysis/util';
 import { hmmAlign } from './models/models';
-import { DataFrame } from './files/data';
+import { DataFrame } from './experiments/data';
 
 interface GdVersion {
   recording: string,
@@ -112,7 +112,7 @@ export class GdExperiment {
     const [folders, options] = this.getSongFoldersAndOptions(tlo, songname);
     options.audioFiles = await this.getGdVersionsQuick(folders.audio, options);
     const statsFile = options.filebase+"_msa-stats.json";
-    let data = new DataFrame(columnNames).load(statsFile)
+    let data = new DataFrame(statsFile, columnNames);
     const msaFolder = this.getMSAFolder(options);
     const msaFiles = fs.readdirSync(msaFolder).filter(f=>!_.includes(f,'.DS_Store'));
     const ratings = await new TimelineAnalysis(Object.assign(options,
@@ -125,13 +125,15 @@ export class GdExperiment {
         = f.slice(f.indexOf("msa")+4, f.indexOf(".json")).split('-')
             .map(c => c === parseFloat(c).toString() ? parseFloat(c) : c);
       const song = f.split('-')[0];
-      const stats = this.getMSAStats(msaFolder+f);
-      stats.logPs.forEach((p,j) => data.addRow(_.concat([song, j], config,
-        [stats.totalStates, _.mean(stats.statePs), stats.probableStates,
-          p, stats.trackPs[j], ratings[i].rating,
-          ...factorNames.map(f => ratings[i].factors[f])])));
+      if (!data.hasRow(_.concat([song, 0], config))) {
+        const stats = this.getMSAStats(msaFolder+f);
+        stats.logPs.forEach((p,j) => data.addRow(_.concat([song, j], config,
+          [stats.totalStates, _.mean(stats.statePs), stats.probableStates,
+            p, stats.trackPs[j], ratings[i].rating,
+            ...factorNames.map(f => ratings[i].factors[f])])));
+      }
     });
-    data.save(statsFile);
+    data.save();
   }
   
   async printOverallMSAStats(tlo: GdOptions) {
