@@ -12,7 +12,8 @@ import { getOptionsWithCaching, getSiaOptions, getSwOptions,
 import { FeatureLoader } from '../files/feature-loader';
 import { createSimilarityPatternGraph, getPatternGroupNFs, getNormalFormsMap,
   getConnectednessByVersion, PatternNode } from '../analysis/pattern-analysis';
-import { inferStructureFromAlignments, inferStructureFromMSA, getMSAPartitions } from '../analysis/segment-analysis';
+import { inferStructureFromAlignments, inferStructureFromMSA, getMSAPartitions,
+  createSegmentGraphFromAlignments } from '../analysis/segment-analysis';
 import { getSequenceRatingWithFactors, getSequenceRatingFromMatrix } from '../analysis/sequence-heuristics';
 import { SegmentNode } from '../analysis/types';
 import { inferStructureFromTimeline } from '../analysis/structure-analysis';
@@ -51,6 +52,13 @@ interface RawSequences {
   data: number[][][]
 }
 
+interface Alignments {
+  versionTuples: [number, number][],
+  alignments: MultiStructureResult[],
+  versions: string[],
+  versionPoints: any[][][]
+}
+
 interface VisualsPoint {
   version: number,
   time: number,
@@ -66,6 +74,8 @@ export class TimelineAnalysis {
   private siaOptions: FullSIAOptions;
   private swOptions: FullSWOptions;
   private points: Promise<any[][][]>;
+  private alignments: Promise<Alignments>;
+  private alignmentGraph: DirectedGraph<SegmentNode>;
   
   constructor(private tlo: TimelineOptions) {
     this.siaOptions = getSiaOptions(tlo.patternsFolder, tlo.featureOptions);
@@ -176,20 +186,16 @@ export class TimelineAnalysis {
     return getSequenceRatingFromMatrix(matrix, partitionSizes);
   }
 
-  async getRatingsFromMSAResults(files?: string[]) {
-    const points = this.loadPoints(this.tlo.filebase+'-points.json');
+  async getRatingsFromMSAResult(file: string) {
+    const points = await this.getPoints();
     const alignments = await this.getAlignments();
-    let graph: DirectedGraph<SegmentNode>;
-    return files.map((f,i) => {
-      updateStatus("rating "+i+" of "+files.length);
-      const json = loadJsonFile(f);
-      const msa: string[][] = json["msa"] ? json["msa"] : json;
-      const matrixBase = this.tlo.filebase+f.replace('.json','');
-      const partition = inferStructureFromMSA(msa, points,
-        alignments.versionTuples, alignments.alignments, matrixBase, graph);
-      if (!graph) graph = partition.getGraph();
-      return getSequenceRatingWithFactors(partition);
-    });
+    const graph = await this.getAlignmentGraph();
+    const json = loadJsonFile(file);
+    const msa: string[][] = json["msa"] ? json["msa"] : json;
+    const matrixBase = this.tlo.filebase+file.replace('.json','');
+    const partition = inferStructureFromMSA(msa, points,
+      alignments.versionTuples, alignments.alignments, matrixBase, graph);
+    return getSequenceRatingWithFactors(partition);
   }
 
   async saveMultiTimelineDecomposition() {
@@ -203,6 +209,20 @@ export class TimelineAnalysis {
   }
 
   private async getAlignments() {
+    if (!this.alignments) this.alignments = this.extractAlignments();
+    return this.alignments;
+  }
+  
+  private async getAlignmentGraph() {
+    if (!this.alignmentGraph) {
+      const alignments = await this.getAlignments();
+      this.alignmentGraph = createSegmentGraphFromAlignments(
+        alignments.versionTuples, alignments.alignments, false);
+    }
+    return this.alignmentGraph;
+  }
+  
+  private async extractAlignments() {
     let tuples = <[number,number][]>_.flatten(_.range(this.tlo.count)
       .map(c => this.getMultiConfig(2, c, this.tlo.maxVersions)
       .map(pair => pair.map(s => this.tlo.audioFiles.indexOf(s)))));
@@ -229,7 +249,7 @@ export class TimelineAnalysis {
     return {versionTuples: tuples, alignments: multis,
       versions: this.tlo.audioFiles, versionPoints: await this.getPoints()};
   }
-
+  
   private saveTimelineVisuals(timeline: SegmentNode[][], points: any[][][],
       versions: string[]) {
     let segments = points.map((v,i) => v.map((_p,j) =>

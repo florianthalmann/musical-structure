@@ -1,13 +1,12 @@
 import * as _ from 'lodash';
 import { saveJsonFile, loadJsonFile } from '../files/file-manager';
 
-type ColumnData = Map<number, Value>;
 type Value = number | string;
 
 export class DataFrame {
   
   private columnNames: string[] = [];
-  private columnData = new Map<string, ColumnData>();
+  private columnData = new Map<string, Value[]>();
   private nextRowIndex = 0;
   
   constructor(private path: string, columnNames?: string[]) {
@@ -22,7 +21,7 @@ export class DataFrame {
       columnNames = this.columnNames.slice(0, values.length);
     }
     _.zip(columnNames, values).forEach(([n,v]) =>
-      this.columnData.get(n).set(this.nextRowIndex, v));
+      this.columnData.get(n)[this.nextRowIndex] = v);
     this.nextRowIndex++;
   }
   
@@ -32,7 +31,7 @@ export class DataFrame {
     while (valueArray.length > 0 && candidateRows.length > 0) {
       const currentColumn = this.columnData.get(valueArray[0][0]);
       candidateRows = candidateRows.filter(i =>
-        currentColumn.get(i) === valueArray[0][1]);
+        currentColumn[i] === valueArray[0][1]);
       valueArray.splice(0, 1);
     }
     return candidateRows.length > 0;
@@ -47,7 +46,7 @@ export class DataFrame {
           indexOfLastCommon = currentIndex;
         } else {
           this.columnNames.splice(indexOfLastCommon+1, 0, n);
-          this.columnData.set(n, new Map<number, Value>());
+          this.columnData.set(n, []);
           indexOfLastCommon++;
         }
       });
@@ -65,7 +64,7 @@ export class DataFrame {
       this.columnNames = json.columns;
       this.nextRowIndex = json.data.length;
       const loadedColumns = this.rowsToData(json.data);
-      this.columnData = new Map<string, ColumnData>();
+      this.columnData = new Map<string, Value[]>();
       this.columnNames.forEach((n,i) =>
         this.columnData.set(n, loadedColumns[i]));
     }
@@ -84,8 +83,8 @@ export class DataFrame {
   private rowsToData(rows: Value[][]) {
     const columns = _.range(0, rows[0].length);
     return columns.map(c => {
-      const column = new Map<number, Value>();
-      rows.map(r => r[c]).forEach((v,i) => v == null || column.set(i, v));
+      const column = [];
+      rows.map(r => r[c]).forEach((v,i) => v == null || (column[i] = v));
       return column;
     });
   }

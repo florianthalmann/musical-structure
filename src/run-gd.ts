@@ -115,11 +115,10 @@ export class GdExperiment {
     let data = new DataFrame(statsFile, columnNames);
     const msaFolder = this.getMSAFolder(options);
     const msaFiles = fs.readdirSync(msaFolder).filter(f=>!_.includes(f,'.DS_Store'));
-    const ratings = await new TimelineAnalysis(Object.assign(options,
-      {featuresFolder: folders.features, patternsFolder: folders.patterns}))
-      .getRatingsFromMSAResults(msaFiles.map(f => msaFolder+f));
+    const analysis = await new TimelineAnalysis(Object.assign(options,
+      {featuresFolder: folders.features, patternsFolder: folders.patterns}));
     
-    msaFiles.forEach((f,i) => {
+    await mapSeries(msaFiles, async (f,i) => {
       updateStatus("msa stats "+i+" of "+msaFiles.length);
       const config: (number | string)[]
         = f.slice(f.indexOf("msa")+4, f.indexOf(".json")).split('-')
@@ -127,10 +126,12 @@ export class GdExperiment {
       const song = f.split('-')[0];
       if (!data.hasRow(_.concat([song, 0], config))) {
         const stats = this.getMSAStats(msaFolder+f);
+        const rating = await analysis
+          .getRatingsFromMSAResult(msaFolder+f);
         stats.logPs.forEach((p,j) => data.addRow(_.concat([song, j], config,
           [stats.totalStates, _.mean(stats.statePs), stats.probableStates,
-            p, stats.trackPs[j], ratings[i].rating,
-            ...factorNames.map(f => ratings[i].factors[f])])));
+            p, stats.trackPs[j], rating.rating,
+            ...factorNames.map(f => rating.factors[f])])));
       }
     });
     data.save();
