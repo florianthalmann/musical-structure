@@ -4,7 +4,7 @@ import { ArrayMap } from 'siafun';
 import { mapSeries, cartesianProduct, updateStatus } from './files/util';
 import { initDirRec, getFoldersInFolder, importFeaturesFolder,
   loadJsonFile } from './files/file-manager';
-import { getOptions } from './files/options';
+import { getOptions, getSwOptions } from './files/options';
 import { FeatureConfig, FEATURES } from './files/feature-extractor';
 import { FeatureLoader } from './files/feature-loader';
 import { actuallyTuneFile } from './files/tuning';
@@ -14,7 +14,7 @@ import { AlignmentAlgorithm, TimelineOptions, TimelineAnalysis
 import { getFactorNames } from './analysis/sequence-heuristics';
 import { getStandardDeviation, getMedian } from './analysis/util';
 import { hmmAlign } from './models/models';
-import { DataFrame } from './experiments/data';
+import { Experiment } from './experiments/experiment';
 
 interface GdVersion {
   recording: string,
@@ -59,7 +59,6 @@ export class GdExperiment {
   }
   
   async sweepMSA(tlo: GdOptions, songs = this.getTunedSongs()) {
-    //iteration, edges, dists, mm, di, flanks
     const configs = cartesianProduct([[1,5,10,20],//iterations
       [0.6, 0.8, 1],//edge inertias
       [0.6, 0.8, 1],//dist inertias
@@ -103,38 +102,40 @@ export class GdExperiment {
   }
   
   async compileAllMSAStats(tlo: GdOptions, songname: string) {
-    const factorNames = getFactorNames();
-    const columnNames = ["song", "version", "model", "iterations",
-      "edge inertia", "dist inertia", "match match", "delete insert",
-      "flank prob", "state count", "avg state p", "prob states", "log p",
-      "track p", "rating"].concat(factorNames);
+    const configNames = ["song", "model", "iterations", "edge inertia",
+      "dist inertia", "match match", "delete insert", "flank prob"];
+    const ratingFactorNames = getFactorNames();
+    const resultNames = ["state count", "avg state p", "prob states", "log p",
+      "track p", "rating"].concat(ratingFactorNames);
     
     const [folders, options] = this.getSongFoldersAndOptions(tlo, songname);
     options.audioFiles = await this.getGdVersionsQuick(folders.audio, options);
     const statsFile = options.filebase+"_msa-stats.json";
-    let data = new DataFrame(statsFile, columnNames);
     const msaFolder = this.getMSAFolder(options);
     const msaFiles = fs.readdirSync(msaFolder).filter(f=>!_.includes(f,'.DS_Store'));
     const analysis = await new TimelineAnalysis(Object.assign(options,
       {featuresFolder: folders.features, patternsFolder: folders.patterns}));
     
-    await mapSeries(msaFiles, async (f,i) => {
-      updateStatus("msa stats "+i+" of "+msaFiles.length);
+    const configs = msaFiles.map(f => {
       const config: (number | string)[]
         = f.slice(f.indexOf("msa")+4, f.indexOf(".json")).split('-')
-            .map(c => c === parseFloat(c).toString() ? parseFloat(c) : c);
+          .map(c => c === parseFloat(c).toString() ? parseFloat(c) : c);
       const song = f.split('-')[0];
-      if (!data.hasRow(_.concat([song, 0], config))) {
-        const stats = this.getMSAStats(msaFolder+f);
+      return _.concat([song], config);
+    })
+    
+    await new Experiment(configs.map(c => _.zipObject(configNames, c)),
+      async (i,t) => {
+        const file = msaFiles[i];
+        updateStatus("msa stats "+i+" of "+t);
+        const stats = this.getMSAStats(msaFolder+file);
         const rating = await analysis
-          .getRatingsFromMSAResult(msaFolder+f);
-        stats.logPs.forEach((p,j) => data.addRow(_.concat([song, j], config,
+          .getRatingsFromMSAResult(msaFolder+file);
+        return _.zipObject(resultNames,
           [stats.totalStates, _.mean(stats.statePs), stats.probableStates,
-            p, stats.trackPs[j], rating.rating,
-            ...factorNames.map(f => rating.factors[f])])));
-      }
-    });
-    data.save();
+            _.mean(stats.logPs), _.mean(stats.trackPs), rating.rating,
+            ...ratingFactorNames.map(f => rating.factors[f])]);
+      }).run(statsFile);
   }
   
   async printOverallMSAStats(tlo: GdOptions) {
