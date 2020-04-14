@@ -42,7 +42,7 @@ const SW_OPTIONS: FullSWOptions = {
   nLongest: 5,
   maxGapSize: 1,
   //maxGaps: 5,
-  minDistance: 2
+  minDistance: 0
 }
 
 export function getVariations(minPatternLengths: number[]): [string, any[]][] {

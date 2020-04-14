@@ -192,7 +192,7 @@ export class TimelineAnalysis {
     const graph = await this.getAlignmentGraph();
     const json = loadJsonFile(file);
     const msa: string[][] = json["msa"] ? json["msa"] : json;
-    const matrixBase = this.tlo.filebase+file.replace('.json','');
+    const matrixBase = this.tlo.filebase+'/'+file.split('/').slice(-1)[0].replace('.json','');
     const partition = inferStructureFromMSA(msa, points,
       alignments.versionTuples, alignments.alignments, matrixBase, graph);
     return getSequenceRatingWithFactors(partition);

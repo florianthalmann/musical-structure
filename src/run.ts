@@ -37,7 +37,7 @@ const CURRENT_OPTIONS = (mv: number, variant?: string) => Object.assign(CURRENT_
   algorithm: AlignmentAlgorithm.SW,
   includeSelfAlignments: true,
   featureOptions: {
-    selectedFeatures: [FEATURES.MADMOM_BARS, FEATURES.JOHAN_CHORDS],
+    selectedFeatures: [FEATURES.MADMOM_BARS, FEATURES.GO_CHORDS],
     quantizerFunctions: [QF.ORDER(), QF.IDENTITY()]
   },
   multinomial: true
@@ -55,12 +55,12 @@ const CURRENT_OPTIONS = (mv: number, variant?: string) => Object.assign(CURRENT_
 //renameAndCopyFiles('results/local-test6/', 'g0ml', 'j0ml')
 
 
-const options = CURRENT_OPTIONS(100, "j0ml");
+const options = CURRENT_OPTIONS(100, "g0ml");
 //new GdExperiment(options.subfolder).analyzeRaw(options);
 options.filebase = RESULTS_PATH;
 options.extension = ".wav";
 //new GdExperiment().analyzeAllRaw(options);
-//new GdExperiment().sweepMSA(options, ["casey_jones"]);
+//new GdExperiment().sweepMSA(options, ["cosmic_charlie"]);
 new GdExperiment().compileAllMSAStats(options, "casey_jones")//.sweepMSA(options);
 //new GdExperiment().printOverallMSAStats(options);
 

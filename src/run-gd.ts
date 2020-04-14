@@ -102,11 +102,11 @@ export class GdExperiment {
   }
   
   async compileAllMSAStats(tlo: GdOptions, songname: string) {
-    const configNames = ["song", "model", "iterations", "edge inertia",
-      "dist inertia", "match match", "delete insert", "flank prob"];
+    const configNames = ["song", "model", "iterations", "edgeInertia",
+      "distInertia", "matchMatch", "deleteInsert", "flankProb"];
     const ratingFactorNames = getFactorNames();
-    const resultNames = ["state count", "avg state p", "prob states", "log p",
-      "track p", "rating"].concat(ratingFactorNames);
+    const resultNames = ["stateCount", "avgStateP", "probStates", "logP",
+      "trackP", "rating"].concat(ratingFactorNames);
     
     const [folders, options] = this.getSongFoldersAndOptions(tlo, songname);
     options.audioFiles = await this.getGdVersionsQuick(folders.audio, options);
@@ -115,19 +115,22 @@ export class GdExperiment {
     const msaFiles = fs.readdirSync(msaFolder).filter(f=>!_.includes(f,'.DS_Store'));
     const analysis = await new TimelineAnalysis(Object.assign(options,
       {featuresFolder: folders.features, patternsFolder: folders.patterns}));
-    
+    const swOptions = getSwOptions(options.patternsFolder, options.featureOptions);
+    delete swOptions.selectedFeatures;//these are either logged in song field or irrelevant...
+    delete swOptions.quantizerFunctions;
+    delete swOptions.cacheDir;
     const configs = msaFiles.map(f => {
       const config: (number | string)[]
         = f.slice(f.indexOf("msa")+4, f.indexOf(".json")).split('-')
           .map(c => c === parseFloat(c).toString() ? parseFloat(c) : c);
-      const song = f.split('-')[0];
+      const song = options.filebase.split('/').slice(-1)[0];
       return _.concat([song], config);
     })
     
-    await new Experiment(configs.map(c => _.zipObject(configNames, c)),
-      async (i,t) => {
+    await new Experiment("msa stats",
+      configs.map(c => Object.assign(_.zipObject(configNames, c), swOptions)),
+      async i => {
         const file = msaFiles[i];
-        updateStatus("msa stats "+i+" of "+t);
         const stats = this.getMSAStats(msaFolder+file);
         const rating = await analysis
           .getRatingsFromMSAResult(msaFolder+file);
