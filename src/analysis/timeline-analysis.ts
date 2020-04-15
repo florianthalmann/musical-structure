@@ -72,14 +72,14 @@ interface VisualsPoint {
 export class TimelineAnalysis {
   
   private siaOptions: FullSIAOptions;
-  private swOptions: FullSWOptions;
   private points: Promise<any[][][]>;
   private alignments: Promise<Alignments>;
   private alignmentGraph: DirectedGraph<SegmentNode>;
   
-  constructor(private tlo: TimelineOptions) {
+  constructor(private tlo: TimelineOptions, private swOptions?: FullSWOptions) {
     this.siaOptions = getSiaOptions(tlo.patternsFolder, tlo.featureOptions);
-    this.swOptions = getSwOptions(tlo.patternsFolder, tlo.featureOptions);
+    this.swOptions = this.swOptions
+      || getSwOptions(tlo.patternsFolder, tlo.featureOptions);
   }
 
   async saveSimilarityMatrices() {

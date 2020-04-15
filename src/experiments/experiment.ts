@@ -13,7 +13,7 @@ export class Experiment {
   async run(outfile: string) {
     const data = new DataFrame(outfile);
     await mapSeries(this.configs, async (config, index) => {
-      updateStatus(this.name+" "+index+" of "+this.configs.length);
+      updateStatus(this.name+" "+(index+1)+" of "+this.configs.length);
       const configKeys = Object.keys(config);
       const configValues = Object.keys(config).map(k => config[k])
         .map(o => this.toStringIfNeeded(o));
@@ -27,11 +27,13 @@ export class Experiment {
   }
   
   private toStringIfNeeded(value: any) {
-    if (!isNaN(value) || value.toString() === value) return value;
-    if (value.name) return value.name;
-    const string = JSON.stringify(value);
-    if (string.indexOf('null') >= 0) return value.toString();
-    return string;
+    if (value != null) {
+      if (!isNaN(value) || value.toString() === value) return value;
+      if (value.name) return value.name;
+      const string = JSON.stringify(value);
+      if (string.indexOf('null') >= 0) return value.toString();
+      return string;
+    }
   }
   
 }

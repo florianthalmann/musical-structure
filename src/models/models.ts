@@ -6,18 +6,44 @@ export enum MODELS {
   FLANKED = "FlankedProfileHMM" //local alignment
 }
 
+export interface MSAOptions {
+  iterations: number,
+  edgeInertia: number,
+  distInertia: number, 
+  matchMatch: number,
+  deleteInsert: number,
+  flankProb?: number
+}
+
+export const STD_MSA_OPTIONS: MSAOptions = {
+  iterations: 10,
+  edgeInertia: 0.8,
+  distInertia: 0.8,
+  matchMatch: 0.999,
+  deleteInsert: 0.01,
+  flankProb: undefined
+}
+
 export async function hmmAlign(pointsFile: string, outpath: string,
-    iterations = 10, edgeInertia=0.8, distInertia=0.8,
-    matchMatch=0.999, deleteInsert=0.01, flankProb=undefined) {//undefined->non-flanked
-  const model = flankProb != null ? MODELS.FLANKED : MODELS.PROFILE;
-  const outfile = outpath+'msa-'+model+'-'+iterations+'-'+edgeInertia
-    +'-'+distInertia+'-'+matchMatch+'-'+deleteInsert
-    +'-'+(flankProb!=null?flankProb:'None')+'.json';//backwards compatible...
+    options = STD_MSA_OPTIONS) {//undefined->non-flanked
+  const outfile = outpath+getOutfilename(options);
   if (!fs.existsSync(outfile))
     await execute('python src/models/multi_alignment.py '+
-      ['"'+pointsFile+'"', '"'+outfile+'"', iterations, model, edgeInertia,
-      distInertia, matchMatch, deleteInsert, flankProb].join(' '), true);
+      ['"'+pointsFile+'"', '"'+outfile+'"', options.iterations, getModel(options),
+      options.edgeInertia, options.distInertia, options.matchMatch,
+      options.deleteInsert, options.flankProb].join(' '), true);
     return outfile;
+}
+
+function getOutfilename(options: MSAOptions) {
+  return 'msa-'+getModel(options)+'-'+options.iterations
+    +'-'+options.edgeInertia+'-'+options.distInertia+'-'+options.matchMatch
+    +'-'+options.deleteInsert+'-'
+    +(options.flankProb!=null?options.flankProb:'None')+'.json';//backwards compatible...
+}
+
+export function getModel(options: MSAOptions) {
+  return options.flankProb != null ? MODELS.FLANKED : MODELS.PROFILE;
 }
 
 export async function clustaloAlign(filebase: string) {

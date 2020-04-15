@@ -42,7 +42,7 @@ const SW_OPTIONS: FullSWOptions = {
   nLongest: 5,
   maxGapSize: 1,
   //maxGaps: 5,
-  minDistance: 0
+  minDistance: 2
 }
 
 export function getVariations(minPatternLengths: number[]): [string, any[]][] {
@@ -71,8 +71,10 @@ function getFeatureOptions(doubletime?: boolean): FeatureOptions {
   }
 }
 
-export function getSwOptions(resultsDir: string, featureOptions = getFeatureOptions()) {
-  const options = Object.assign(_.clone(SW_OPTIONS), featureOptions);
+export function getSwOptions(resultsDir: string, featureOptions = getFeatureOptions(),
+    customOptions?: {}) {
+  const options = Object.assign(Object.assign(
+    _.clone(SW_OPTIONS), featureOptions), customOptions);
   addCacheDir(options, resultsDir, options.selectedFeatures, '', featureOptions.doubletime);
   return options;
 }

@@ -1,7 +1,7 @@
 import * as fs from 'fs';
 import * as _ from 'lodash';
 import { ArrayMap } from 'siafun';
-import { mapSeries, cartesianProduct, updateStatus } from './files/util';
+import { mapSeries, cartesianProduct } from './files/util';
 import { initDirRec, getFoldersInFolder, importFeaturesFolder,
   loadJsonFile } from './files/file-manager';
 import { getOptions, getSwOptions } from './files/options';
@@ -13,7 +13,7 @@ import { AlignmentAlgorithm, TimelineOptions, TimelineAnalysis
   } from './analysis/timeline-analysis';
 import { getFactorNames } from './analysis/sequence-heuristics';
 import { getStandardDeviation, getMedian } from './analysis/util';
-import { hmmAlign } from './models/models';
+import { hmmAlign, MSAOptions, getModel } from './models/models';
 import { Experiment } from './experiments/experiment';
 
 interface GdVersion {
@@ -58,26 +58,67 @@ export class GdExperiment {
     GD_TUNED.audio += audioSubfolder;
   }
   
-  async sweepMSA(tlo: GdOptions, songs = this.getTunedSongs()) {
-    const configs = cartesianProduct([[1,5,10,20],//iterations
-      [0.6, 0.8, 1],//edge inertias
-      [0.6, 0.8, 1],//dist inertias
-      [0.9, 0.99, 0.999],//matchmatch
-      [0.1, 0.01, 0.001],//deleteinsert
-      [undefined, 0.9, 0.999, 0.999999]]);//flankprobs
-    mapSeries(songs, async song => {
-      const [folders, options] = this.getSongFoldersAndOptions(tlo, song);
-      options.audioFiles = await this.getGdVersionsQuick(folders.audio, options);
-      console.log('saving raw sequences')
-      const ta = new TimelineAnalysis(Object.assign(options,
-        {featuresFolder: folders.features, patternsFolder: folders.patterns}));
-      if (options.multinomial) await ta.saveMultinomialSequences();
-      else await ta.saveRawSequences();
-      console.log('aligning using hmm')
-      const points = options.filebase+"-points.json";
-      await mapSeries(configs, config =>
-        hmmAlign(points, this.getMSAFolder(options), ...config));
+  async fullSweep(tlo: GdOptions, songs = this.getTunedSongs(), statsFile: string) {
+    const msaConfigs = <MSAOptions[]><any>this.getSweepConfigs({
+      iterations: [1],
+      edgeInertia: [0.6, 0.8, 1],
+      distInertia: [0.6, 0.8, 1],
+      matchMatch: [0.9, 0.99, 0.999],
+      deleteInsert: [0.1, 0.01, 0.001],
+      flankProb: [undefined, 0.9, 0.999, 0.999999]
     });
+    const swConfigs = this.getSweepConfigs({
+      maxIterations: [1,3],//true,
+      //similarityThreshold: .95,
+      minSegmentLength: [5], //only take segments longer than this
+      //maxThreshold: [50], //stop when max value below this
+      nLongest: [5],
+      maxGapSize: [2],
+      //maxGaps: 5,
+      minDistance: [2]
+    });
+    const ratingFactorNames = getFactorNames();
+    const resultNames = ["stateCount", "avgStateP", "probStates", "logP",
+      "trackP", "rating"].concat(ratingFactorNames);
+    mapSeries(songs, async song => mapSeries(swConfigs, async swConfig => {
+      let [folders, options] = this.getSongFoldersAndOptions(tlo, song);
+      options.audioFiles = await this.getGdVersionsQuick(folders.audio, options);
+      options = Object.assign(options,
+        {featuresFolder: folders.features, patternsFolder: folders.patterns});
+      const swOptions = getSwOptions(folders.patterns,
+        options.featureOptions, swConfig);
+      const analysis = new TimelineAnalysis(options, swOptions);
+      
+      console.log('saving raw sequences')
+      if (options.multinomial) await analysis.saveMultinomialSequences();
+      else await analysis.saveRawSequences();
+      
+      const points = options.filebase+"-points.json";
+      
+      const swColumns = _.clone(swOptions);
+      delete swColumns.selectedFeatures;//these are either logged in song field or irrelevant...
+      delete swColumns.quantizerFunctions;
+      delete swColumns.cacheDir;
+      
+      const songWithExt = options.filebase.split('/').slice(-1)[0];
+      
+      await new Experiment("msa sweep "+song+" ",
+        msaConfigs.map(c => Object.assign({song: songWithExt, model: getModel(c)}, c, swColumns)),
+        async i => {
+          const msaFile = await hmmAlign(points, this.getMSAFolder(options), msaConfigs[i]);
+          const stats = this.getMSAStats(msaFile);
+          const rating = await analysis.getRatingsFromMSAResult(msaFile);
+          return _.zipObject(resultNames,
+            [stats.totalStates, _.mean(stats.statePs), stats.probableStates,
+              _.mean(stats.logPs), _.mean(stats.trackPs), rating.rating,
+              ...ratingFactorNames.map(f => rating.factors[f])]);
+        }).run(statsFile);
+    }));
+  }
+  
+  private getSweepConfigs<T>(configs: _.Dictionary<T[]>): _.Dictionary<T>[] {
+    const product = cartesianProduct(_.values(configs));
+    return product.map(p => _.zipObject(Object.keys(configs), p));
   }
   
   private getMSAFolder(options: GdOptions) {
@@ -99,46 +140,6 @@ export class GdExperiment {
     options.filebase += songname + options.appendix;
     options.collectionName = songname.split('_').join(' ');
     return <[GdFolders,GdOptions]>[folders, options];
-  }
-  
-  async compileAllMSAStats(tlo: GdOptions, songname: string) {
-    const configNames = ["song", "model", "iterations", "edgeInertia",
-      "distInertia", "matchMatch", "deleteInsert", "flankProb"];
-    const ratingFactorNames = getFactorNames();
-    const resultNames = ["stateCount", "avgStateP", "probStates", "logP",
-      "trackP", "rating"].concat(ratingFactorNames);
-    
-    const [folders, options] = this.getSongFoldersAndOptions(tlo, songname);
-    options.audioFiles = await this.getGdVersionsQuick(folders.audio, options);
-    const statsFile = options.filebase+"_msa-stats.json";
-    const msaFolder = this.getMSAFolder(options);
-    const msaFiles = fs.readdirSync(msaFolder).filter(f=>!_.includes(f,'.DS_Store'));
-    const analysis = await new TimelineAnalysis(Object.assign(options,
-      {featuresFolder: folders.features, patternsFolder: folders.patterns}));
-    const swOptions = getSwOptions(options.patternsFolder, options.featureOptions);
-    delete swOptions.selectedFeatures;//these are either logged in song field or irrelevant...
-    delete swOptions.quantizerFunctions;
-    delete swOptions.cacheDir;
-    const configs = msaFiles.map(f => {
-      const config: (number | string)[]
-        = f.slice(f.indexOf("msa")+4, f.indexOf(".json")).split('-')
-          .map(c => c === parseFloat(c).toString() ? parseFloat(c) : c);
-      const song = options.filebase.split('/').slice(-1)[0];
-      return _.concat([song], config);
-    })
-    
-    await new Experiment("msa stats",
-      configs.map(c => Object.assign(_.zipObject(configNames, c), swOptions)),
-      async i => {
-        const file = msaFiles[i];
-        const stats = this.getMSAStats(msaFolder+file);
-        const rating = await analysis
-          .getRatingsFromMSAResult(msaFolder+file);
-        return _.zipObject(resultNames,
-          [stats.totalStates, _.mean(stats.statePs), stats.probableStates,
-            _.mean(stats.logPs), _.mean(stats.trackPs), rating.rating,
-            ...ratingFactorNames.map(f => rating.factors[f])]);
-      }).run(statsFile);
   }
   
   async printOverallMSAStats(tlo: GdOptions) {
@@ -402,6 +403,7 @@ export class GdExperiment {
     if (!this.songMap) {
       try {
         const json = loadJsonFile(GD_SONG_MAP);
+        if (!json) throw new Error();
         this.songMap = new Map<string, GdVersion[]>();
         _.mapValues(json, (recs, song) => this.songMap.set(song,
           _.flatten(_.map(recs, (tracks, rec) =>
