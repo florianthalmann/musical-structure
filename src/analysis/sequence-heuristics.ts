@@ -52,7 +52,16 @@ const TEST: SequenceRatingOptions = {
   diagonals: quality
 }
 
-const OPTIONS = TEST;
+const MSA: SequenceRatingOptions = {
+  nodeCount: 1,
+  compactness: 1,
+  //connectedness: 0.3,
+  gapEntropy: -1,
+  adjacentsMin: -1,
+  diagonals: 1
+}
+
+const OPTIONS = MSA;
 
 //assumes that the sequence is a valid one (no double occs, no double versions, lin ordered)
 export function getSequenceRating(sequence: GraphPartition<SegmentNode>) {
@@ -65,9 +74,11 @@ export function getSequenceRatingWithFactors(sequence: GraphPartition<SegmentNod
   const partitionSizes = sequence.getPartitions().map(p => p.length);
   const factors = Object.keys(SequenceRatingOptionsKeys);
   return {
-    rating: getSequenceRatingFromMatrix(connectionMatrix, partitionSizes, OPTIONS),
+    rating: getSequenceRatingFromMatrix(connectionMatrix, partitionSizes,
+      OPTIONS, sequence.getGraphNodeCount()),
     factors: _.zipObject(factors, factors.map(k =>
-      getSequenceRatingFromMatrix(connectionMatrix, partitionSizes, {[k]: 1})))
+      getSequenceRatingFromMatrix(connectionMatrix, partitionSizes,
+        {[k]: 1}, sequence.getGraphNodeCount())))
   };
 }
 
@@ -77,16 +88,17 @@ export function getFactorNames() {
 
 //assumes that the sequence is a valid one (no double occs, no double versions, lin ordered)
 export function getSequenceRatingFromMatrix(connectionMatrix: number[][],
-    partitionSizes: number[], options = OPTIONS) {
+    partitionSizes: number[], options = OPTIONS, totalNodes?: number) {
   const factors: number[] = [];
   
-  const numNodes = _.sum(partitionSizes);
   const bins = _.flatten(connectionMatrix);
   const totalConnections = _.sum(bins);
   const nonEmptyBins = bins.filter(b => b > 0);
   const horizontalGaps = getHorizontalGapSizes(bins);
   
   if (options.nodeCount) {
+    let numNodes = _.sum(partitionSizes);
+    numNodes = totalNodes ? numNodes/totalNodes : numNodes;
     factors.push(Math.pow(numNodes, options.nodeCount));
   }
   

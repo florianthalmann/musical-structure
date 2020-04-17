@@ -33,8 +33,12 @@ export class GraphPartition<NodeType extends Node> {
     return this.partitions.length;
   }
   
-  getNodeCount() {
+  getPartitionNodeCount() {
     return this.nodeLocations.size;
+  }
+  
+  getGraphNodeCount() {
+    return this.graph.getNodes().length;
   }
   
   getPartitions() {
@@ -47,7 +51,7 @@ export class GraphPartition<NodeType extends Node> {
   
   toString() {
     return JSON.stringify(this.partitions.map(p => p.length))
-      + " (" + this.getNodeCount() + "/" + this.graph.getSize() + ")";
+      + " (" + this.getPartitionNodeCount() + "/" + this.graph.getSize() + ")";
   }
   
   addNode(node: NodeType, index: number) {
