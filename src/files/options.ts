@@ -42,6 +42,7 @@ const SW_OPTIONS: FullSWOptions = {
   nLongest: 5,
   maxGapSize: 1,
   //maxGaps: 5,
+  maxGapRatio: 0.25,
   minDistance: 2
 }
 
@@ -73,8 +74,7 @@ function getFeatureOptions(doubletime?: boolean): FeatureOptions {
 
 export function getSwOptions(resultsDir: string, featureOptions = getFeatureOptions(),
     customOptions?: {}) {
-  const options = Object.assign(Object.assign(
-    _.clone(SW_OPTIONS), featureOptions), customOptions);
+  const options = Object.assign(_.clone(SW_OPTIONS), featureOptions, customOptions);
   addCacheDir(options, resultsDir, options.selectedFeatures, '', featureOptions.doubletime);
   return options;
 }

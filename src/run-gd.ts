@@ -65,17 +65,18 @@ export class GdExperiment {
       distInertia: [1],//[0, 0.2, 0.4, 0.6, 0.8, 1],
       matchMatch: [0.999],//[0.9, 0.99, 0.999, 0.9999, 0.99999, 0.999999, 1],//[0.99995],//[0.99980, 0.99985, 0.99990, 0.99995, 0.999975, 1],
       deleteInsert: [0.01],//[0.2, 0.1, 0.01, 0.001],
-      flankProb: [undefined, 0.8, 0.9, 0.999, 0.999999]
+      flankProb: [undefined]//, 0.9] //0.6, 0.7, 0.8, 0.9, 0.999, 0.999999]
     });
     const swConfigs = this.getSweepConfigs({
       maxIterations: [1],//true,
       //similarityThreshold: .95,
-      //minSegmentLength: [5], //only take segments longer than this
+      minSegmentLength: [16], //only take segments longer than this
       //maxThreshold: [50], //stop when max value below this
-      nLongest: [5],
-      maxGapSize: [1],
+      nLongest: [undefined],
+      maxGapSize: [4],
       //maxGaps: 5,
-      minDistance: [2]
+      maxGapRatio: [0.25],
+      minDistance: [4]
     });
     const ratingFactorNames = getFactorNames();
     const resultNames = ["stateCount", "avgStateP", "probStates", "logP",
