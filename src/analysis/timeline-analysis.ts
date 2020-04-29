@@ -126,10 +126,10 @@ export class TimelineAnalysis {
     }
   }
 
-  async saveTimelineFromMSAResults(fasta?: boolean, force?: boolean) {
+  async saveTimelineFromMSAResults(file?: string, fasta?: boolean, force?: boolean) {
     if (force || !fs.existsSync(this.tlo.filebase+'-visuals2.json')) {
-      const points = this.loadPoints(this.tlo.filebase+'-points.json');
-      const msa = this.loadMSA(fasta);
+      const points = await this.getPoints();
+      const msa = this.loadMSA(file, fasta);
       const alignments = await this.getAlignments();
       const timeline = inferStructureFromMSA(msa, points, alignments.versionTuples,
         alignments.alignments, this.tlo.filebase).getPartitions();
@@ -141,7 +141,7 @@ export class TimelineAnalysis {
   async saveSumSSMfromMSAResults(fasta?: boolean, force?: boolean) {
     if (force || !fs.existsSync(this.tlo.filebase+'-sssm.json')) {
       const points = this.loadPoints(this.tlo.filebase+'-points.json');
-      const msa = this.loadMSA(fasta);
+      const msa = this.loadMSA(undefined, fasta);
       const partitions = getMSAPartitions(msa, points)//.filter(p => p.length > 10);
       const ssms = points.map(s => getSelfSimilarityMatrix(s));
       const sssm = partitions.map(p => partitions.map(q =>
@@ -164,13 +164,13 @@ export class TimelineAnalysis {
     return (<RawSequences>loaded).data;
   }
   
-  private loadMSA(fasta?: boolean): string[][] {
+  private loadMSA(file = this.tlo.filebase+'-msa.json', fasta?: boolean): string[][] {
     if (fasta) {
-      const fasta = loadTextFile(this.tlo.filebase+'-msa.fa').split(">").slice(1)
+      const fasta = loadTextFile(file.replace('json','fa')).split(">").slice(1)
         .map(f => f.split("\n").slice(1).join(''));
       return fasta.map(f => f.split('').map((c,i) => c === '-' ? "" : "M"+i));
     } else {
-      let json = loadJsonFile(this.tlo.filebase+'-msa.json');
+      let json = loadJsonFile(file);
       return json["msa"] ? json["msa"] : json;
     }
   }
@@ -190,8 +190,7 @@ export class TimelineAnalysis {
     const points = await this.getPoints();
     const alignments = await this.getAlignments();
     const graph = await this.getAlignmentGraph();
-    const json = loadJsonFile(file);
-    const msa: string[][] = json["msa"] ? json["msa"] : json;
+    const msa = this.loadMSA(file);
     const matrixBase = this.tlo.filebase+'/'+file.split('/').slice(-1)[0].replace('.json','');
     const partition = inferStructureFromMSA(msa, points,
       alignments.versionTuples, alignments.alignments, matrixBase, graph);
@@ -516,7 +515,9 @@ export class TimelineAnalysis {
     return mapSeries(this.tlo.audioFiles, async (a,i) => {
       updateStatus('  ' + (i+1) + '/' + this.tlo.audioFiles.length);
       if (!this.tlo.maxPointsLength || points.length < this.tlo.maxPointsLength) {
-        return getSmithWaterman(points[i], getOptionsWithCaching(a, this.swOptions));
+        const sw = getSmithWaterman(points[i], getOptionsWithCaching(a, this.swOptions));
+        sw.matrices = null; sw.segmentMatrix = null;
+        return sw;
       }
     });
   }

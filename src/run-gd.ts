@@ -40,7 +40,7 @@ const GD_TUNED: GdFolders = { audio: DATA+'gd_tuned/',
   features: 'data/gd_tuned_features/', patterns: 'data/gd_tuned_patterns/' };*/
 const GD_GRAPHS = initDirRec('results/gd/graphs/');
 
-const DATA = '/Volumes/FastSSD/gd_tuned/';
+const DATA = '/Volumes/FastSSD/gd_tuned/';//'/Volumes/gspeed1/florian/musical_structure/data/'
 const GD_SONG_MAP = DATA+'audio/app_song_map.json';
 const GD_RAW: GdFolders = { audio: DATA+'audio/',
   features: DATA+'features/', patterns: DATA+'patterns/' };
@@ -58,7 +58,7 @@ export class GdExperiment {
     GD_TUNED.audio += audioSubfolder;
   }
   
-  async fullSweep(tlo: GdOptions, songs = this.getTunedSongs(), statsFile: string) {
+  async fullSweep(tlo: GdOptions, songs = this.getTunedSongs().filter(s => s != 'dark_star'), statsFile: string) {
     const msaConfigs = <MSAOptions[]><any>this.getSweepConfigs({
       iterations: [1],
       edgeInertia: [1],//[0, 0.2, 0.4, 0.6, 0.8, 1],
@@ -90,7 +90,7 @@ export class GdExperiment {
         options.featureOptions, swConfig);
       const analysis = new TimelineAnalysis(options, swOptions);
       
-      console.log('saving raw sequences')
+      console.log('saving feature sequences')
       if (options.multinomial) await analysis.saveMultinomialSequences();
       else await analysis.saveRawSequences();
       
@@ -102,9 +102,10 @@ export class GdExperiment {
       delete swColumns.cacheDir;
       
       const songWithExt = options.filebase.split('/').slice(-1)[0];
+      const configs = msaConfigs.map(c => Object.assign({song: songWithExt, model: getModel(c)}, c, swColumns));
       
       await new Experiment("msa sweep "+song+" ",
-        msaConfigs.map(c => Object.assign({song: songWithExt, model: getModel(c)}, c, swColumns)),
+        configs,
         async i => {
           const msaFile = await hmmAlign(points, this.getMSAFolder(options), msaConfigs[i]);
           const stats = this.getMSAStats(msaFile);
@@ -114,6 +115,12 @@ export class GdExperiment {
               _.mean(stats.logPs), _.mean(stats.trackPs), rating.rating,
               ...ratingFactorNames.map(f => rating.factors[f])]);
         }).run(statsFile);
+      
+      await mapSeries(configs, async c => {
+        const msaFile = await hmmAlign(points, this.getMSAFolder(options), c);
+        await analysis.saveTimelineFromMSAResults(msaFile);
+        analysis.getStructure();
+      });
     }));
   }
   
@@ -215,7 +222,7 @@ export class GdExperiment {
     if (tlo.multinomial) await ta.saveMultinomialSequences();
     else await ta.saveRawSequences();
     console.log('aligning using hmm')
-    await hmmAlign(tlo.filebase+'-points-json',
+    await hmmAlign(tlo.filebase+'-points.json',
       MSA_BASE+tlo.filebase.split('/').slice(-1)[0]+'/');
     //ta.printMSAStats();
     console.log('saving timeline')
