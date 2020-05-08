@@ -51,7 +51,7 @@ export function pcSetToLabel(pcset: number[]) {
     if (intervals[0] > 4) pcset.push(pcset.shift());
     else if (intervals[1] > 4) pcset.unshift(pcset.pop());
     const third = modForReal(pcset[1] - pcset[0], 12);
-    return getPitchName(pcset[0]) + (third == 4 ? MAJ : MIN);
+    return getPitchName(pcset[0]) + (third == 4 ? '' : 'm');
   }
 }
 
@@ -103,7 +103,7 @@ function getPitchName(pitchClass: number) {
 
 function getChordQuality(chordLabel: string) {
   chordLabel = _.lowerCase(chordLabel);
-  return chordLabel.indexOf('min') >= 0 ? MIN
-    : chordLabel.indexOf('maj') >= 0 ? MAJ
+  return chordLabel.indexOf(MIN) >= 0 ? MIN
+    : chordLabel.indexOf(MAJ) >= 0 ? MAJ
     : '';
 }

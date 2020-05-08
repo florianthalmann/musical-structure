@@ -3,7 +3,7 @@ import { getSmithWaterman, QUANT_FUNCS as QF } from 'siafun';
 import { DirectedGraph, Node } from '../graphs/graph-theory';
 import { SegmentNode } from './types';
 import { loadJsonFile, initDirRec } from '../files/file-manager';
-import { getMode, allIndexesOf } from './util';
+import { getMode, allIndexesOf, findIndexes } from './util';
 import { pcSetToLabel } from '../files/theory';
 import { indicesOfNMax } from 'arrayutils';
 
@@ -28,7 +28,7 @@ export function inferStructureFromTimeline(filebase: string,
 export function inferStructureFromTimelineSimple(filebase: string) {
   const timeline: SegmentNode[][] = loadJsonFile(filebase+'-output.json').timeline;
   const types = getTypesFromTimelineModes(timeline);
-  const hierarchy = inferHierarchyFromSectionTypes(types, false);
+  const hierarchy = inferHierarchyFromSectionTypes(types, false, false);
   console.log(JSON.stringify(hierarchy));
   
   //TODO: refactor return values for all methods.... use hierarchies...
@@ -75,25 +75,66 @@ export function inferStructureFromTimelineWithSW(filebase: string) {
   return sections.map(type => _.flatten(_.flatten(type).map(s => timeline[s])));
 }
 
-export function inferStructureFromTimelineWithAlignmentGraph(filebase: string) {
-  const timeline: SegmentNode[][] = loadJsonFile(filebase+'-output.json').timeline;
-  const matrix: number[][] = loadJsonFile(filebase+'-matrix.json');
+function getAtemporalPoints(nodes: SegmentNode[]) {
+  return nodes.map(n => n.point.slice(1));
+}
+
+export function inferStructureFromTimelineWithAlignmentGraph(filebase: string,
+    minSegSizeProp = 0.1) {
+  let timeline: SegmentNode[][] = loadJsonFile(filebase+'-output.json').timeline;
+  const maxSegSize = _.max(timeline.map(t => t.length));
+  console.log(JSON.stringify(timeline.map(t => t.length)));
+  const smallSegs = findIndexes(timeline,
+    t => t.length < Math.ceil(minSegSizeProp*maxSegSize));
+  timeline = timeline.filter((_t,i) => !_.includes(smallSegs, i));
+  const timelineLabels = timeline.map(t =>
+    pcSetToLabel(getMode(getAtemporalPoints(t))));
+  console.log(JSON.stringify(timelineLabels));
+  let matrix: number[][] = loadJsonFile(filebase+'-matrix.json');
+  matrix = matrix.map(r => r.filter((_c,i) => !_.includes(smallSegs, i)))
+    .filter((_r,i) => !_.includes(smallSegs, i));
   const boundaries = getSectionBoundariesFromMSA(timeline);
-  const sections = getSectionGroupsFromTimelineMatrix(matrix, 2);
-  const hierarchy = inferHierarchyFromSectionGroups(sections, true);
+  //sequences of section indexes grouped by types
+  const sectionsByTypes = getSectionGroupsFromTimelineMatrix(matrix, 10);
+  const sectionTypeLabels = sectionsByTypes.map(s => _.zip(...s).map(is =>
+    pcSetToLabel(getMode(_.flatten(is.map(i => getAtemporalPoints(timeline[i])))))));
+  console.log(JSON.stringify(sectionTypeLabels));
+  
+  console.log("results:")
+  const hierarchy = inferHierarchyFromSectionGroups(sectionsByTypes, true);
+  console.log(JSON.stringify(hierarchy))
+  
+  let sections = hierarchy.map(h => Array.isArray(h) ?
+    h.map(s => Array.isArray(s) ? _.flattenDeep(s) : s) : [h]);
+  sections = _.flatten(sections.map(s => Array.isArray(s[0]) ? s : [s]));
+  sections = sections.map(s => Array.isArray(s) ? s : [s]);
+  const labeledSections = sections.map(s => 
+    _.flatten(s.map(t => sectionTypeLabels[t])));
+  console.log(JSON.stringify(labeledSections))
+  
   const repl = h => h.reduce((r,s) => Array.isArray(s) ? _.concat(r, [repl(s)])
-    : _.concat(r, sections[s][0].map(_i => s)), []);
-  console.log(JSON.stringify(sections.length))
-  console.log(JSON.stringify(repl(hierarchy)))
-  const boundaries2 = _.sortBy(_.flatten(sections.map(g => g.map(s => s[0]))));
+    : _.concat(r, sectionTypeLabels[s]), []);
+  //console.log(JSON.stringify(sections.length))
+  const hierarchyLabels = repl(hierarchy);
+  console.log(JSON.stringify(hierarchyLabels))
+  
+  
+  /*const boundaries2 = _.sortBy(_.flatten(sections.map(g => g.map(s => s[0]))));
+  console.log(JSON.stringify(boundaries2));*/
+  const boundaries2 = labeledSections.map(s => s.length);
   console.log(JSON.stringify(boundaries2));
   
   //see if sections can be completed if just a few missing in beginning or end....
   
-  console.log(JSON.stringify(sections.map(t => t[0].map(c =>
-    //timeline[c]))));
-    pcSetToLabel(getMode(timeline[c].map(n => n.point.slice(1))))))));
-  return sections.map(type => _.flatten(_.flatten(type).map(s => timeline[s])));
+  const nodesByTypes = sectionsByTypes.map(type => _.flatten(_.flatten(type).map(s => timeline[s])));
+  
+  const result = {
+    timeline: timelineLabels,
+    hierarchy: hierarchyLabels,
+    sections: labeledSections
+  }
+  
+  return nodesByTypes;
 }
 
 function inferHierarchyFromSectionGroups(sections: number[][][], unequalPairsOnly: boolean) {
@@ -101,13 +142,13 @@ function inferHierarchyFromSectionGroups(sections: number[][][], unequalPairsOnl
   //find all commonly occurring combinations
   const typeSequence = _.sortBy(_.flatten((sections)), s => _.min(s)).map(s =>
     _.findIndex(sections, t => _.includes(t, s)));
+  //console.log(JSON.stringify(typeSequence));
   
-  console.log(JSON.stringify(typeSequence));
-  
-  return inferHierarchyFromSectionTypes(typeSequence, unequalPairsOnly);
+  return inferHierarchyFromSectionTypes(typeSequence, unequalPairsOnly, false);
 }
 
-function inferHierarchyFromSectionTypes(typeSequence: number[], unequalPairsOnly: boolean) {
+function inferHierarchyFromSectionTypes(typeSequence: number[],
+    unequalPairsOnly: boolean, log: boolean) {
   //generate new types by merging into binary tree
   const newTypes = new Map<number, number[]>();
   let currentSequence = _.clone(typeSequence);
@@ -146,25 +187,25 @@ function inferHierarchyFromSectionTypes(typeSequence: number[], unequalPairsOnly
         newTypes.set(currentIndex, _.concat(firstNew, secondNew));
         newTypes.delete(currentPair[0]);
         newTypes.delete(currentPair[1]);
-        console.log(currentIndex, ': concat', JSON.stringify(newTypes.get(currentIndex)));
+        if (log) console.log(currentIndex, ': concat', JSON.stringify(newTypes.get(currentIndex)));
         //currentSequence = currentSequence.map(s => s === currentIndex ? currentPair[0] : s);
       } else if (operation === 'push') {
         newTypes.set(currentIndex, _.concat(firstNew, currentPair[1]));
         newTypes.delete(currentPair[0]);
-        console.log(currentIndex, ': push', JSON.stringify(newTypes.get(currentIndex)));
+        if (log) console.log(currentIndex, ': push', JSON.stringify(newTypes.get(currentIndex)));
         //currentSequence = currentSequence.map(s => s === currentIndex ? currentPair[0] : s);
       } else {
         newTypes.set(currentIndex, _.concat([currentPair[0]], secondNew));
         newTypes.delete(currentPair[1]);
-        console.log(currentIndex, ': unshift', JSON.stringify(newTypes.get(currentIndex)));
+        if (log) console.log(currentIndex, ': unshift', JSON.stringify(newTypes.get(currentIndex)));
         //currentSequence = currentSequence.map(s => s === currentIndex ? currentPair[1] : s);
       }
     //else add a new type
     } else {
       newTypes.set(currentIndex, currentPair);
-      console.log(currentIndex, ':', JSON.stringify(newTypes.get(currentIndex)));
+      if (log) console.log(currentIndex, ':', JSON.stringify(newTypes.get(currentIndex)));
     }
-    console.log(JSON.stringify(currentSequence));
+    if (log) console.log(JSON.stringify(currentSequence));
     currentPair = getMostCommonPair(currentSequence, unequalPairsOnly);
     currentIndex++;
   }
@@ -188,7 +229,7 @@ function inferHierarchyFromSectionTypes(typeSequence: number[], unequalPairsOnly
   
   //create hierarchy
   let hierarchy: any[] = _.clone(currentSequence);
-  console.log(_.reverse(_.sortBy([...newTypes.keys()])))
+  if (log) console.log(_.reverse(_.sortBy([...newTypes.keys()])))
   
   hierarchy = replaceTypesRecursively(hierarchy, newTypes);
   
@@ -196,10 +237,10 @@ function inferHierarchyFromSectionTypes(typeSequence: number[], unequalPairsOnly
   _.reverse(_.sortBy([...newTypes.keys()])).forEach(t => {
     const seq = JSON.stringify(replaceTypesRecursively([t], newTypes)[0]);
     const occs = JSON.stringify(hierarchy).split(seq).length-1;
-    if (occs) console.log(t, occs, seq);
+    if (occs && log) console.log(t, occs, seq);
   });
   
-  console.log(JSON.stringify(hierarchy));
+  if (log) console.log(JSON.stringify(hierarchy));
   return hierarchy;
 }
 
@@ -226,7 +267,7 @@ function getMostCommonPair<T>(array: T[], unequalOnly = false): [T, T] {
   const disjunct = indexes.map(u =>
     u.reduce<number[]>((ii,i) => i == _.last(ii)+1 ? ii : _.concat(ii, i), []));
   const freqs = disjunct.map(d => d.length);
-  console.log(JSON.stringify(_.reverse(_.sortBy(_.zip(uniq, freqs), p => p[1])).slice(0,5)))
+  //console.log(JSON.stringify(_.reverse(_.sortBy(_.zip(uniq, freqs), p => p[1])).slice(0,5)))
   const maxFreq = _.max(freqs);
   if (maxFreq > 1)
     return JSON.parse(uniq[freqs.indexOf(maxFreq)]);
@@ -259,7 +300,7 @@ function getSectionGroupsFromTimelineMatrix(matrix: number[][],
   const max = _.max(_.flatten(matrix));
   matrix = matrix.map(r => r.map(c => c >= maskThreshold*max ? c : 0));
   const levels = getSegmentation(matrix, minDist, maxLevels);
-  console.log(JSON.stringify(levels));
+  //console.log(JSON.stringify(levels));
   return levels;
 }
 
@@ -274,7 +315,7 @@ function getIndependentSegmentationLevels(matrix: number[][], minDist: number, m
   const connections = getIterativeMostConnected(matrix, minDist);
   const levels = connections.slice(0, maxLevels)
     .map(c => getSectionsViaGraph([c]));
-  levels.forEach(l => console.log(JSON.stringify(l)));
+  //levels.forEach(l => console.log(JSON.stringify(l)));
   return levels;
 }
 
@@ -291,11 +332,11 @@ function getSectionsViaGraph(connectionLevels: number[][]) {
 }
 
 //returns corresponding sections grouped by type
-function getSectionsFromGraph(graph: DirectedGraph<Node>) {
+function getSectionsFromGraph(graph: DirectedGraph<Node>, log = false) {
   //get connected components (corresponding sections)
   const components = _.sortBy(graph.getConnectedComponents()
     .map(c => _.sortBy(c.map(n => parseInt(n.id)))), c => _.min(c));
-  console.log(JSON.stringify(components));
+  if (log) console.log(JSON.stringify(components));
   //group successive components
   const grouped = components.reduce<number[][][]>((g,c) => {
     const last = _.last(_.last(g));
@@ -304,10 +345,10 @@ function getSectionsFromGraph(graph: DirectedGraph<Node>) {
     else g.push([c]);
     return g;
   }, []);
-  console.log(JSON.stringify(grouped));
+  if (log) console.log(JSON.stringify(grouped));
   //create sections
   let sections = grouped.map(t => _.sortBy(_.zip(...t), c => _.min(c)));
-  console.log(JSON.stringify(sections));
+  if (log) console.log(JSON.stringify(sections));
   //merge adjacents within type? but only short ones????
   sections = _.flatten(sections.map(t => mergeShortSectionsAndSplitIntoTypes(t)));
   sections = _.sortBy(sections, s => _.min(_.flatten(s)));

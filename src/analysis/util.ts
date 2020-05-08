@@ -5,6 +5,10 @@ export function allIndexesOf<T>(array: T[], value: T) {
   return allIndexesWith(array, a => a === value);
 }
 
+export function findIndexes<T>(array: T[], func: (a: T) => boolean) {
+  return array.map((a,i) => func(a) ? i : null).filter(i => i != null);
+}
+
 export function getCompletedNumberArray2(nums: number[]) {
   nums = _.clone(nums);
   while (nums.findIndex(n => n == null) >= 0) {
@@ -61,7 +65,7 @@ export function getStandardDeviation(data: number[]) {
   return Math.sqrt(_.sum(data.map(d => Math.pow(d-mean, 2))) / (data.length-1));
 }
 
-export function getMode(data: any[]) {
+export function getMode<T>(data: T[]): T {
   const grouped = _.mapValues(_.groupBy(data, d => JSON.stringify(d)), v => v.length);
   const sorted = _.sortBy(_.toPairs(grouped), 1);
   return sorted.length ? JSON.parse(_.last(sorted)[0]) : null;
