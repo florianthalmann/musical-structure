@@ -1,15 +1,17 @@
 import * as _ from 'lodash';
 
-const MAJ = 'maj';
-const MIN = 'min';
+const MAJ = '';
+const MIN = 'm';
+const DIM = '°';
+const AUG = '+';
 
 /** difference between first and second key. [-6, 6] */
 export function chromaticKeyDifference(keyLabel1: string, keyLabel2: string) {
   if (keyLabel1 === keyLabel2 || parallelKeys(keyLabel1, keyLabel2)
         || relativeKeys(keyLabel1, keyLabel2))
     return 0;
-  const quality1 = getChordQuality(keyLabel1);
-  const quality2 = getChordQuality(keyLabel2);
+  const quality1 = getTriadQuality(keyLabel1);
+  const quality2 = getTriadQuality(keyLabel2);
   const chromDiff = chromaticDifference(keyLabel1, keyLabel2);
   if (quality1 === quality2)
     return chromDiff;
@@ -24,8 +26,8 @@ export function parallelKeys(keyLabel1: string, keyLabel2: string) {
 
 export function relativeKeys(keyLabel1: string, keyLabel2: string) {
   const dist = chromaticDifference(keyLabel1, keyLabel2);
-  const quality1 = getChordQuality(keyLabel1);
-  const quality2 = getChordQuality(keyLabel2);
+  const quality1 = getTriadQuality(keyLabel1);
+  const quality2 = getTriadQuality(keyLabel2);
   return (dist === 3 && quality1 === MAJ && quality2 === MIN)
     || (dist === -3 && quality1 === MIN && quality2 === MAJ)
 }
@@ -38,6 +40,10 @@ export function chromaticDifference(pitchLabel1: string, pitchLabel2: string) {
 //[-11, 11] => [-6, 6]
 function normPitchDiff(diff: number) {
   return diff > 6 ? diff-12 : diff < -6 ? diff+12 : diff;
+}
+
+export function parseTriad(chordLabel: string) {
+  return getPitchName(getPitchClass(chordLabel)) + getTriadQuality(chordLabel);
 }
 
 export function toPCSet(pitchSet: number[]) {
@@ -60,11 +66,9 @@ function modForReal(n: number, mod: number) {
 }
 
 export function labelToPCSet(chordLabel: string, add7ths?: boolean) {
-  const quality = getChordQuality(chordLabel);
-  const rootString = quality.length > 0 ? chordLabel.split(quality)[0]
-    : chordLabel.split('7')[0];
+  const quality = getTriadQuality(chordLabel);
   const hasSeventh = chordLabel.indexOf('7') >= 0;
-  const root = getPitchClass(rootString);
+  const root = getPitchClass(chordLabel);
   const pcset = [root];
   pcset.push(quality === MIN ? (root+3)%12 : (root+4)%12);
   pcset.push((root+7)%12);
@@ -91,19 +95,19 @@ function getPitchClass(pitchOrChordLabel: string) {
   const n = pitchOrChordLabel[0];
   const name = n === 'C' ? 0 : n === 'D' ? 2 : n === 'E' ? 4 : n === 'F' ? 5
     : n === 'G' ? 7 : n === 'A' ? 9 : 11;
-  return pitchOrChordLabel[1] === 'b' ? name-1 : name;
+  return pitchOrChordLabel[1] === 'b' ? name-1
+    : pitchOrChordLabel[1] === '#' ? name+1
+    : name;
 }
 
 function getPitchName(pitchClass: number) {
-  return pitchClass == 0 ? 'C' : pitchClass == 1 ? 'Db' : pitchClass == 2 ? 'D' :
-    pitchClass == 3 ? 'Eb' : pitchClass == 4 ? 'E' : pitchClass == 5 ? 'F' :
-    pitchClass == 6 ? 'F#' : pitchClass == 7 ? 'G' : pitchClass == 8 ? 'Ab' :
-    pitchClass == 9 ? 'A' : pitchClass == 10 ? 'Bb' : 'B'
+  return ['C','Db','D','Eb','E','F','F#','G','Ab','A','Bb','B'][pitchClass];
 }
 
-function getChordQuality(chordLabel: string) {
-  chordLabel = _.lowerCase(chordLabel);
-  return chordLabel.indexOf(MIN) >= 0 ? MIN
-    : chordLabel.indexOf(MAJ) >= 0 ? MAJ
-    : '';
+function getTriadQuality(chordLabel: string) {
+  //chordLabel = _.lowerCase(chordLabel);
+  return ["aug","a","+"].some(q => chordLabel.indexOf(q) >= 0) ? AUG
+    : ["dim","d","°"].some(q => chordLabel.indexOf(q) >= 0) ? DIM
+    : ["min","m"].some(q => chordLabel.indexOf(q) >= 0) ? MIN
+    : MAJ;
 }
