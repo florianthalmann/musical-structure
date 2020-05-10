@@ -22,7 +22,6 @@ export function generateAllPossibleChordSeqs(path: string, maxLength: number) {
 export function getStandardChordSequence(path: string, triads: boolean) {
   const sheet = parseLeadSheet(path);
   const chords = _.flatten(sheet._form.map(s => sheet[s.replace(/\./g, '')]));
-  console.log(JSON.stringify(chords))
   return triads ? chords.map(v => parseTriad(v)) : chords;
 }
 

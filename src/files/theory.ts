@@ -57,12 +57,17 @@ export function pcSetToLabel(pcset: number[]) {
     if (intervals[0] > 4) pcset.push(pcset.shift());
     else if (intervals[1] > 4) pcset.unshift(pcset.pop());
     const third = modForReal(pcset[1] - pcset[0], 12);
-    return getPitchName(pcset[0]) + (third == 4 ? '' : 'm');
+    const fifth = modForReal(pcset[2] - pcset[0], 12);
+    return getPitchName(pcset[0]) + intervalsToQuality(third, fifth);
   }
 }
 
 function modForReal(n: number, mod: number) {
   return ((n%mod)+mod)%mod;
+}
+
+function intervalsToQuality(third: number, fifth: number) {
+  return third == 4 ? (fifth == 8 ? AUG : MAJ) : (fifth == 7 ? MIN : DIM);
 }
 
 export function labelToPCSet(chordLabel: string, add7ths?: boolean) {
