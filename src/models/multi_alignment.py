@@ -59,15 +59,15 @@ def save_results(data, model, filepath):
 
 def align_song_versions(infile, outfile, match_match=0.999, delete_insert=0.01,
         max_iterations=50, dist_inertia=0.8, edge_inertia=1.0,
-        verbose=True, realignTopP=0,
-        force=False, model_type=ProfileHMM, flank_prob=0.999999):
+        verbose=True, realignTopP=0, force=False,
+        model_length_func=np.median, model_type=ProfileHMM, flank_prob=0.999999):
     if force or not path.exists(outfile):
         data = load_data(infile)
         if verbose and isinstance(data[0][0], int):
             for sequence in map(list, data[:20]):
                 print(''.join(str(chr(65+(s%26))) for s in sequence))
         model = train_model_from_data(data, verbose, match_match, delete_insert,
-            dist_inertia, edge_inertia, max_iterations, np.median, model_type, flank_prob)
+            dist_inertia, edge_inertia, max_iterations, model_length_func, model_type, flank_prob)
         #np.set_printoptions(edgeitems=10, linewidth=200)
         #print(model.model.dense_transition_matrix().round(3))
         #model.save_to_json("results/timeline-test7/meandmyuncle30-hmm.json")
@@ -83,7 +83,7 @@ def align_song_versions(infile, outfile, match_match=0.999, delete_insert=0.01,
         indexes = [i for i, l in enumerate(logps) if l in top_logps]
         data = [d for i, d in enumerate(data) if i in indexes]
         model = train_model_from_data(data, verbose, match_match, delete_insert,
-            inertia, max_iterations, np.median)
+            inertia, max_iterations, model_length_func)
         print_viterbi_paths(data, model.model)
         save_results(data, model.model, outfile.replace(".json","RE.json"))
 
@@ -105,6 +105,7 @@ parser.add_argument('infile', type=str)
 parser.add_argument('outfile', type=str)
 parser.add_argument('max_iterations', type=int)
 parser.add_argument('model_type', type=str)
+parser.add_argument('model_length_func', type=str)
 parser.add_argument('edge_inertia', type=float)
 parser.add_argument('dist_inertia', type=float)
 parser.add_argument('match_match', type=float)
@@ -112,11 +113,13 @@ parser.add_argument('delete_insert', type=float)
 parser.add_argument('flank_prob', type=float, nargs='?')
 args = parser.parse_args()
 
+
 align_song_versions(
     infile=args.infile,
     outfile=args.outfile,
     max_iterations=args.max_iterations,
     model_type=getattr(sys.modules[__name__], args.model_type),
+    model_length_func=getattr(np, args.model_length_func),
     edge_inertia=args.edge_inertia,
     dist_inertia=args.dist_inertia,
     match_match=args.match_match,

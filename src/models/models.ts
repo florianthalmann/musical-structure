@@ -7,6 +7,7 @@ export enum MODELS {
 }
 
 export interface MSAOptions {
+  modelLength: MSA_LENGTH,
   iterations: number,
   edgeInertia: number,
   distInertia: number, 
@@ -15,7 +16,15 @@ export interface MSAOptions {
   flankProb?: number
 }
 
+export enum MSA_LENGTH {
+  MEDIAN = "median",
+  MEAN = "mean",
+  MAX = "max",
+  MIN = "min"
+}
+
 export const STD_MSA_OPTIONS: MSAOptions = {
+  modelLength: MSA_LENGTH.MEDIAN,
   iterations: 10,
   edgeInertia: 0.8,
   distInertia: 0.8,
@@ -27,10 +36,11 @@ export const STD_MSA_OPTIONS: MSAOptions = {
 export async function hmmAlign(pointsFile: string, outpath: string,
     options = STD_MSA_OPTIONS) {//undefined->non-flanked
   const outfile = outpath+getOutfilename(options);
+  console.log(outfile)
   if (!fs.existsSync(outfile))
     await execute('python src/models/multi_alignment.py '+
       ['"'+pointsFile+'"', '"'+outfile+'"', options.iterations, getModel(options),
-      options.edgeInertia, options.distInertia, options.matchMatch,
+      options.modelLength, options.edgeInertia, options.distInertia, options.matchMatch,
       options.deleteInsert, options.flankProb].join(' '), true);
     return outfile;
 }
@@ -39,7 +49,8 @@ function getOutfilename(options: MSAOptions) {
   return 'msa-'+getModel(options)+'-'+options.iterations
     +'-'+options.edgeInertia+'-'+options.distInertia+'-'+options.matchMatch
     +'-'+options.deleteInsert+'-'
-    +(options.flankProb!=null?options.flankProb:'None')+'.json';//backwards compatible...
+    +(options.flankProb!=null?options.flankProb:'None')
+    +(options.modelLength===MSA_LENGTH.MEDIAN?'':'-'+options.modelLength)+'.json';//backwards compatible...
 }
 
 export function getModel(options: MSAOptions) {
