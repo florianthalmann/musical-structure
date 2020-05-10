@@ -20,7 +20,8 @@ export enum MSA_LENGTH {
   MEDIAN = "median",
   MEAN = "mean",
   MAX = "max",
-  MIN = "min"
+  MIN = "min",
+  THIRD_QUARTILE = "quantile0.75"
 }
 
 export const STD_MSA_OPTIONS: MSAOptions = {

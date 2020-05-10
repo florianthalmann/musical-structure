@@ -113,13 +113,22 @@ parser.add_argument('delete_insert', type=float)
 parser.add_argument('flank_prob', type=float, nargs='?')
 args = parser.parse_args()
 
+def quantile(q):
+    def compute(v):
+        return np.quantile(v, q)
+    return compute
+
+if ('quantile' in args.model_length_func):
+    length_func = quantile(float(args.model_length_func[8:]))
+else:
+    length_func = getattr(np, args.model_length_func)
 
 align_song_versions(
     infile=args.infile,
     outfile=args.outfile,
     max_iterations=args.max_iterations,
     model_type=getattr(sys.modules[__name__], args.model_type),
-    model_length_func=getattr(np, args.model_length_func),
+    model_length_func=length_func,
     edge_inertia=args.edge_inertia,
     dist_inertia=args.dist_inertia,
     match_match=args.match_match,
