@@ -82,14 +82,18 @@ function getAtemporalPoints(nodes: SegmentNode[]) {
 export function inferStructureFromTimelineWithAlignmentGraph(filebase: string,
     minSegSizeProp = 0.1) {
   let timeline: SegmentNode[][] = loadJsonFile(filebase+'-output.json').timeline;
+  //console.log(JSON.stringify(timeline.map(t => t.length)));
+  const fullTimelineLabels = timeline.map(t =>
+    pcSetToLabel(getMode(getAtemporalPoints(t))));
+  console.log("fulltimeline", JSON.stringify(fullTimelineLabels));
+  //remove small partitions
   const maxSegSize = _.max(timeline.map(t => t.length));
-  console.log(JSON.stringify(timeline.map(t => t.length)));
   const smallSegs = findIndexes(timeline,
     t => t.length < Math.ceil(minSegSizeProp*maxSegSize));
   timeline = timeline.filter((_t,i) => !_.includes(smallSegs, i));
   const timelineLabels = timeline.map(t =>
     pcSetToLabel(getMode(getAtemporalPoints(t))));
-  console.log(JSON.stringify(timelineLabels));
+  console.log("timeline", JSON.stringify(timelineLabels));
   let matrix: number[][] = loadJsonFile(filebase+'-matrix.json');
   matrix = matrix.map(r => r.filter((_c,i) => !_.includes(smallSegs, i)))
     .filter((_r,i) => !_.includes(smallSegs, i));
@@ -98,11 +102,10 @@ export function inferStructureFromTimelineWithAlignmentGraph(filebase: string,
   const sectionsByTypes = getSectionGroupsFromTimelineMatrix(matrix, 10);
   const sectionTypeLabels = sectionsByTypes.map(s => _.zip(...s).map(is =>
     pcSetToLabel(getMode(_.flatten(is.map(i => getAtemporalPoints(timeline[i])))))));
-  console.log(JSON.stringify(sectionTypeLabels));
+  //console.log(JSON.stringify(sectionTypeLabels));
   
-  console.log("results:")
   const hierarchy = inferHierarchyFromSectionGroups(sectionsByTypes, true);
-  console.log(JSON.stringify(hierarchy))
+  console.log("hierarchy", JSON.stringify(hierarchy))
   
   let sections = hierarchy.map(h => Array.isArray(h) ?
     h.map(s => Array.isArray(s) ? _.flattenDeep(s) : s) : [h]);
@@ -110,25 +113,26 @@ export function inferStructureFromTimelineWithAlignmentGraph(filebase: string,
   sections = sections.map(s => Array.isArray(s) ? s : [s]);
   const labeledSections = sections.map(s => 
     _.flatten(s.map(t => sectionTypeLabels[t])));
-  console.log(JSON.stringify(labeledSections))
+  console.log("sections", JSON.stringify(labeledSections))
   
   const repl = h => h.reduce((r,s) => Array.isArray(s) ? _.concat(r, [repl(s)])
     : _.concat(r, sectionTypeLabels[s]), []);
   //console.log(JSON.stringify(sections.length))
   const hierarchyLabels = repl(hierarchy);
-  console.log(JSON.stringify(hierarchyLabels))
+  console.log("hierarchy", JSON.stringify(hierarchyLabels))
   
   
   /*const boundaries2 = _.sortBy(_.flatten(sections.map(g => g.map(s => s[0]))));
   console.log(JSON.stringify(boundaries2));*/
   const boundaries2 = labeledSections.map(s => s.length);
-  console.log(JSON.stringify(boundaries2));
+  //console.log(JSON.stringify(boundaries2));
   
   //see if sections can be completed if just a few missing in beginning or end....
   
   const nodesByTypes = sectionsByTypes.map(type => _.flatten(_.flatten(type).map(s => timeline[s])));
   
   const result = {
+    fullTimeline: fullTimelineLabels,
     timeline: timelineLabels,
     hierarchy: hierarchyLabels,
     sections: labeledSections
@@ -287,10 +291,10 @@ function getSectionBoundariesFromMSA(timeline: SegmentNode[][]) {
   
   const boundaries = inserts.map((g,i) => g > 5 ? i+1 : null).filter(g => g != null);
   const boundaries2 = deletes.map((g,i) => g > 5 ? i+1 : null).filter(g => g != null);
-  console.log(JSON.stringify(inserts));
+  /*console.log(JSON.stringify(inserts));
   console.log(JSON.stringify(deletes));
   console.log(JSON.stringify(boundaries));
-  console.log(JSON.stringify(boundaries2));
+  console.log(JSON.stringify(boundaries2));*/
   return boundaries;
 }
 

@@ -314,8 +314,8 @@ export function createSegmentGraphFromMSA(msa: string[][], points: number[][][])
     m != n ? graph.addEdge(n, m) : null)))
   console.log("full", graph.getSize(), graph.getEdges().length)
 
-  graph = graph.pruneIsolatedNodes();
-  console.log("pruned", graph.getSize(), graph.getEdges().length)
+  /*graph = graph.pruneIsolatedNodes();
+  console.log("pruned", graph.getSize(), graph.getEdges().length)*/
   return graph;
 }
 
@@ -404,9 +404,11 @@ export function createSegmentGraphFromAlignments(versionPairs: [number,number][]
     })));
 
   console.log("full", graph.getSize(), graph.getEdges().length)
-
-  graph = graph.pruneIsolatedNodes();
-  console.log("pruned", graph.getSize(), graph.getEdges().length)
+  
+  //TODO PRUNING ONLY WHEN APPROPRIATE!!!!!!
+  //graph = graph.pruneIsolatedNodes();
+  //console.log("pruned", graph.getSize(), graph.getEdges().length)
+  
 
   //REMOVE ALL NODES WITH SMALL DEGREES (ALL DEGREES ARE RELATIVELY SMALL THOUGH...)
   /*graph = graph.getSubgraph(graph.getNodes().filter(n => graph.getDegree(n) > 2));

@@ -20,6 +20,8 @@ import { inferStructureFromTimeline } from '../analysis/structure-analysis';
 import { getThomasTuningRatio } from '../files/tuning';
 import { getMostCommonPoints } from '../analysis/pattern-histograms';
 import { toIndexSeqMap } from '../graphs/util';
+import { pcSetToLabel } from '../files/theory';
+import { getMedian, getMode, findIndexes } from './util';
 
 export enum AlignmentAlgorithm {
   SIA,
@@ -93,6 +95,19 @@ export class TimelineAnalysis {
     if (force || !fs.existsSync(this.tlo.filebase+'-points.json')) {
       saveJsonFile(this.tlo.filebase+'-points.json',
         await this.getMultinomialSequences());
+    }
+  }
+
+  async saveIndividualChordSequences(force?: boolean) {
+    if (force || !fs.existsSync(this.tlo.filebase+'-chords.json')) {
+      const points = await this.getPoints();
+      const chords = points.map(ps => ps.map(p => pcSetToLabel(p.slice(1)[0])));
+      console.log(JSON.stringify(chords.map(cs => cs.filter(c => c === "Dm").length)))
+      const lengths = chords.map(cs => cs.length);
+      const median = getMedian(lengths)
+      const index = _.findIndex(lengths, l => l == median);
+      console.log(JSON.stringify(chords[index].filter(c => c === "Dm").length))
+      saveJsonFile(this.tlo.filebase+'-chords.json', chords);
     }
   }
 
@@ -195,6 +210,23 @@ export class TimelineAnalysis {
     const partition = inferStructureFromMSA(msa, points,
       alignments.versionTuples, alignments.alignments, matrixBase, graph);
     return getSequenceRatingWithFactors(partition);
+  }
+
+  async getTimelineModeLabels(msaFile: string, minSegSizeProp = 0.1) {
+    const points = await this.getPoints();
+    const alignments = await this.getAlignments();
+    const graph = await this.getAlignmentGraph();
+    const msa = this.loadMSA(msaFile);
+    
+    const matrixBase = this.tlo.filebase+'/'+msaFile.split('/').slice(-1)[0].replace('.json','');
+    const timeline = inferStructureFromMSA(msa, points,
+      alignments.versionTuples, alignments.alignments, matrixBase, graph).getPartitions();
+    //remove small partitions
+    const maxSegSize = _.max(timeline.map(t => t.length));
+    const smallSegs = findIndexes(timeline,
+      t => t.length < Math.ceil(minSegSizeProp*maxSegSize));
+    return timeline.filter((_t,i) => !_.includes(smallSegs, i)).map(t =>
+      pcSetToLabel(getMode(t.map(n => n.point.slice(1)))));
   }
 
   async saveMultiTimelineDecomposition() {
