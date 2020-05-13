@@ -84,8 +84,9 @@ class ProfileHMM(object):
     
     def get_match_dist(self, index, n_features, initial_seq):
         if isinstance(initial_seq[index], int):
-            return DiscreteDistribution.from_samples(np.concatenate(
-                (np.repeat(index, INITIAL_EMPHASIS), range(n_features))))
+            return DiscreteDistribution.from_samples(range(n_features))
+            #return DiscreteDistribution.from_samples(np.concatenate(
+            #    (np.repeat(index, INITIAL_EMPHASIS), range(n_features))))
         else:
             return MultivariateGaussianDistribution.from_samples(np.concatenate(
                 (np.tile(index, (INITIAL_EMPHASIS,1)), np.array(initial_seq))))

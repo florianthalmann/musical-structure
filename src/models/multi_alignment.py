@@ -17,7 +17,7 @@ def train_model_from_data(data, verbose, match_match, delete_insert,
     target_length = int(model_length_func([len(d) for d in data]))
     #take sequence closest to target length as init sequence
     init_sequence = sorted(data, key=lambda d: abs(len(d) - target_length))[0]
-    training_data = np.array(np.delete(data, data.index(init_sequence), 0))
+    training_data = data#np.array(np.delete(data, data.index(init_sequence), 0))
     num_features = max([d for r in data for d in r])+1
     if verbose:
         print('version count', len(data))
