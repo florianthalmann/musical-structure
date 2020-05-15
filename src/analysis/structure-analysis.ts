@@ -2,10 +2,9 @@ import * as _ from 'lodash';
 import { getSmithWaterman, QUANT_FUNCS as QF } from 'siafun';
 import { DirectedGraph, Node } from '../graphs/graph-theory';
 import { SegmentNode } from './types';
-import { loadJsonFile, initDirRec } from '../files/file-manager';
+import { loadJsonFile, initDirRec, saveJsonFile } from '../files/file-manager';
 import { getMode, allIndexesOf, findIndexes } from './util';
 import { pcSetToLabel } from '../files/theory';
-import { indicesOfNMax } from 'arrayutils';
 
 export enum METHOD {
   MSA_HIERARCHY,
@@ -298,20 +297,24 @@ function getSectionBoundariesFromMSA(timeline: SegmentNode[][]) {
   return boundaries;
 }
 
-function getSectionGroupsFromTimelineMatrix(matrix: number[][],
-    maxLevels = 1, minDist = 1, maskThreshold = .1) {
+export function getSectionGroupsFromTimelineMatrix(matrix: number[][],
+    numMaxes = 1, connMatrixFile?: string, minDist = 1, maskThreshold = .1) {
   //preprocess matrix
   const max = _.max(_.flatten(matrix));
   matrix = matrix.map(r => r.map(c => c >= maskThreshold*max ? c : 0));
-  const levels = getSegmentation(matrix, minDist, maxLevels);
+  const levels = getSegmentation(matrix, minDist, numMaxes, connMatrixFile);
   //console.log(JSON.stringify(levels));
   return levels;
 }
 
-function getSegmentation(matrix: number[][], minDist: number, numLevels: number) {
+function getSegmentation(matrix: number[][], minDist: number, numConns: number,
+    connMatrixFile: string) {
   //const connections = getIterativeMostConnected(matrix, minDist);
-  const connections = _.zip(...getNMostConnected(matrix, minDist, numLevels));
-  return getSectionsViaGraph(connections.slice(0, numLevels));
+  const connections = getNMostConnectedForReal(matrix, minDist, numConns);
+  const newMatrix = connections.map(_c => connections.map(_c => 0));
+  connections.forEach((c,i) => c.forEach(j => newMatrix[i][j] = 1));
+  if (connMatrixFile) saveJsonFile(connMatrixFile, newMatrix);
+  return getSectionsViaGraph(_.zip(...connections));
 }
 
 function getIndependentSegmentationLevels(matrix: number[][], minDist: number, maxLevels: number) {
@@ -427,12 +430,23 @@ function toTypes(sections: number[][][]) {
     .map(i => _.findIndex(flat.map(f => _.includes(f, i))));
 }
 
-/** minDist: min distance from diagonal */
+/** possibly more than N (if same values), possibly fewer (if not mutual),
+    minDist: min distance from diagonal */
+function getNMostConnectedForReal(matrix: number[][], minDist: number, n = 1) {
+  //remove diagonal +- minDist
+  matrix = matrix.map((r,i) => r.map((c,j) => j < i-minDist || j > i+minDist ? c : 0));
+  const connections = matrix.map(r => indexesOfNMax(r, n));
+  //only keep mutual connections
+  return connections.map((c,i) => c.filter(j => _.includes(connections[j], i)));
+}
+
+/** possibly more than N (if same values), possibly fewer (if not mutual),
+    minDist: min distance from diagonal */
 function getNMostConnected(matrix: number[][], minDist: number, n = 1) {
   const upper = matrix.map((r,i) => r.map((c,j) => j > i+minDist ? c : 0));
   const lower = _.zip(...matrix).map((r,i) => r.map((c,j) => j+minDist < i ? c : 0));
-  const laterConns = upper.map(r => _.max(r) > 0 ? indicesOfNMax(r, n) : []);
-  const earlierConns = lower.map(r => _.max(r) > 0 ? indicesOfNMax(r, n) : []);
+  const laterConns = upper.map(r => _.max(r) > 0 ? indexesOfNMax(r, n) : []);
+  const earlierConns = lower.map(r => _.max(r) > 0 ? indexesOfNMax(r, n) : []);
   return laterConns.map((c,i) => c.filter(j => _.includes(earlierConns[j], i)));
 }
 
@@ -443,4 +457,12 @@ function getMostConnected(matrix: number[][], minDist: number) {
   const laterConns = upper.map(r => _.max(r) > 0 ? r.indexOf(_.max(r)) : -1);
   const earlierConns = lower.map(r => _.max(r) > 0 ? r.indexOf(_.max(r)) : -1);
   return laterConns.map((u,i) => earlierConns[u] === i ? u : null);
+}
+
+//returns the indexes of the n maxima > 0 in array
+function indexesOfNMax(array: number[], n: number): number[] {
+  const maxes = _.reverse(_.sortBy(array.map((a,i) => [a,i]), 0))
+    .filter(m => m[0] > 0); //filter out <= 0
+  return _.takeWhile(maxes, (m,i) => i < n || m[0] == maxes[i-1][0])
+    .map(m => m[1]);
 }

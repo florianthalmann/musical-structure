@@ -44,7 +44,7 @@ const DIFF_VERSIONS_MAX_EDGES: GroupingCondition<SegmentNode>
 
 const ACTIVE_GROUPING_CONDITION = DIFF_VERSIONS_SIM_TIME//DIFF_VERSIONS_SIM_TIME;
 
-export function inferStructureFromMSA(msa: string[][], points: number[][][],
+export function getTimelineFromMSA(msa: string[][], points: number[][][],
     versionPairs: [number,number][], results: MultiStructureResult[], filebase: string,
     graph?: DirectedGraph<SegmentNode>) {
   //const graph = createSegmentGraphFromMSA(msa, points);
@@ -59,7 +59,7 @@ export function inferStructureFromMSA(msa: string[][], points: number[][][],
   return partition;
 }
 
-export function inferStructureFromAlignments(versionPairs: [number,number][],
+export function getTimelineFromAlignments(versionPairs: [number,number][],
     results: MultiStructureResult[], filebase?: string): SegmentNode[][] {
 
   const timeline = constructTimelineFromAlignments(versionPairs, results,

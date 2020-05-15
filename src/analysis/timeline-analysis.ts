@@ -12,16 +12,16 @@ import { getOptionsWithCaching, getSiaOptions, getSwOptions,
 import { FeatureLoader } from '../files/feature-loader';
 import { createSimilarityPatternGraph, getPatternGroupNFs, getNormalFormsMap,
   getConnectednessByVersion, PatternNode } from '../analysis/pattern-analysis';
-import { inferStructureFromAlignments, inferStructureFromMSA, getMSAPartitions,
+import { getTimelineFromAlignments, getTimelineFromMSA, getMSAPartitions,
   createSegmentGraphFromAlignments } from '../analysis/segment-analysis';
 import { getSequenceRatingWithFactors, getSequenceRatingFromMatrix } from '../analysis/sequence-heuristics';
 import { SegmentNode } from '../analysis/types';
-import { inferStructureFromTimeline } from '../analysis/structure-analysis';
+import { inferStructureFromTimeline, getSectionGroupsFromTimelineMatrix } from '../analysis/structure-analysis';
 import { getThomasTuningRatio } from '../files/tuning';
 import { getMostCommonPoints } from '../analysis/pattern-histograms';
 import { toIndexSeqMap } from '../graphs/util';
 import { pcSetToLabel } from '../files/theory';
-import { getMedian, getMode, findIndexes } from './util';
+import { getMedian, getMode } from './util';
 
 export enum AlignmentAlgorithm {
   SIA,
@@ -146,7 +146,7 @@ export class TimelineAnalysis {
       const points = await this.getPoints();
       const msa = this.loadMSA(file, fasta);
       const alignments = await this.getAlignments();
-      const timeline = inferStructureFromMSA(msa, points, alignments.versionTuples,
+      const timeline = getTimelineFromMSA(msa, points, alignments.versionTuples,
         alignments.alignments, this.tlo.filebase).getPartitions();
       this.saveTimelineVisuals(timeline, alignments.versionPoints,
         alignments.versions);
@@ -201,38 +201,55 @@ export class TimelineAnalysis {
     return getSequenceRatingFromMatrix(matrix, partitionSizes);
   }
 
-  async getRatingsFromMSAResult(file: string) {
-    const points = await this.getPoints();
-    const alignments = await this.getAlignments();
-    const graph = await this.getAlignmentGraph();
-    const msa = this.loadMSA(file);
-    const matrixBase = this.tlo.filebase+'/'+file.split('/').slice(-1)[0].replace('.json','');
-    const partition = inferStructureFromMSA(msa, points,
-      alignments.versionTuples, alignments.alignments, matrixBase, graph);
-    return getSequenceRatingWithFactors(partition);
+  async getRatingsFromMSAResult(msaFile: string) {
+    return getSequenceRatingWithFactors(await this.getPartitionFromMSAResult(msaFile));
   }
-
-  async getTimelineModeLabels(msaFile: string, minSegSizeProp = 0.1) {
+  
+  async getPartitionFromMSAResult(msaFile: string) {
     const points = await this.getPoints();
     const alignments = await this.getAlignments();
     const graph = await this.getAlignmentGraph();
     const msa = this.loadMSA(msaFile);
-    
     const matrixBase = this.tlo.filebase+'/'+msaFile.split('/').slice(-1)[0].replace('.json','');
-    const timeline = inferStructureFromMSA(msa, points,
-      alignments.versionTuples, alignments.alignments, matrixBase, graph).getPartitions();
-    //remove small partitions
-    const maxSegSize = _.max(timeline.map(t => t.length));
-    const smallSegs = findIndexes(timeline,
-      t => t.length < Math.ceil(minSegSizeProp*maxSegSize));
-    return timeline.filter((_t,i) => !_.includes(smallSegs, i)).map(t =>
+    return getTimelineFromMSA(msa, points,
+      alignments.versionTuples, alignments.alignments, matrixBase, graph);
+  }
+  
+  async getTimelineFromMSAResult(msaFile: string, minSegSizeProp = 0.1) {
+    let timeline = await this.getPartitionFromMSAResult(msaFile);
+    const maxPartSize = timeline.getMaxPartitionSize();
+    timeline.removeSmallPartitions(minSegSizeProp*maxPartSize);
+    return timeline;
+  }
+
+  async getTimelineModeLabels(msaFile: string, minSegSizeProp = 0.1) {
+    return (await this.getTimelineFromMSAResult(msaFile, minSegSizeProp))
+      .getPartitions()
+      .map(t => pcSetToLabel(getMode(t.map(n => n.point.slice(1)))));
+  }
+  
+  async getTimelineSectionModeLabels(msaFile: string, numConns: number, minSegSizeProp = 0.1) {
+    const timeline = await this.getTimelineFromMSAResult(msaFile, minSegSizeProp);
+    const sections = getSectionGroupsFromTimelineMatrix(timeline.getConnectionMatrix(), numConns,
+      'results/msa-sweep-beats-test/china_doll100g0mb/conn-matrix.json');
+    console.log(JSON.stringify(sections))
+    const tlParts = timeline.getPartitions();
+    const sectionTypeLabels = sections.map(s => _.zip(...s).map(is =>
+      pcSetToLabel(getMode(_.flatten(is.map(i => tlParts[i].map(t => t.point.slice(1))))))));
+    console.log(JSON.stringify(sectionTypeLabels))
+    const timelineLabels = tlParts.map(t =>
       pcSetToLabel(getMode(t.map(n => n.point.slice(1)))));
+    console.log(JSON.stringify(timelineLabels))
+    sections.forEach((type,i) => type.forEach(sec =>
+      sec.forEach((seg,j) => timelineLabels[seg] = sectionTypeLabels[i][j])));
+    console.log(JSON.stringify(timelineLabels))
+    return timelineLabels;
   }
 
   async saveMultiTimelineDecomposition() {
     //if (!fs.existsSync(tlo.filebase+'-output.json')) {
       const alignments = await this.getAlignments();
-      const timeline = inferStructureFromAlignments(alignments.versionTuples,
+      const timeline = getTimelineFromAlignments(alignments.versionTuples,
         alignments.alignments, this.tlo.filebase);
       this.saveTimelineVisuals(timeline, alignments.versionPoints,
         alignments.versions);
