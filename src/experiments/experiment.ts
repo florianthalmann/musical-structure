@@ -21,9 +21,9 @@ export class Experiment {
         const result = await this.func(index);
         data.addRow(_.concat(configValues, Object.keys(result).map(k => result[k])),
           _.concat(configKeys, Object.keys(result)));
+        data.save();
       }
     });
-    data.save();
   }
   
   private toStringIfNeeded(value: any) {

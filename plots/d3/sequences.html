@@ -13,7 +13,7 @@ async function draw() {
   //height = +svg.attr("height");
   
   const HEIGHT = 15;
-  const WIDTH = 5;
+  const WIDTH = 2;
   
   const tooltip = d3.select("body")
     .append("div")
@@ -23,7 +23,7 @@ async function draw() {
     .style("font-size", "10px")
     .text("");
   
-  let seqs = await d3.json("hmm/cumberland_blues100j0ml-visualsYO2.json")//"latest/boxofrain30c-visuals-types.json")//box of rain-sw-seqs.json")//"graphs_jo4_min3/box of rain-seqs.json");
+  let seqs = await d3.json("paper/box_of_rain100g0mb-visuals2.json")//"latest/boxofrain30c-visuals-types.json")//box of rain-sw-seqs.json")//"graphs_jo4_min3/box of rain-seqs.json");
   seqs = seqs.filter(s => s.version < 80);
 
   const rect = svg.append("g")

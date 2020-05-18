@@ -174,9 +174,9 @@ function inferHierarchyFromSectionTypes(typeSequence: number[],
     const secondNew = newTypes.get(currentPair[1]);
     const occursPreviously = (t: number) => _.includes(currentSequence, t)
       || _.includes(_.flatten(otherPreviousTypes), t);
-    if ((firstNew || secondNew)
-        && (!firstNew || !occursPreviously(currentPair[0]))
-        && (!secondNew || !occursPreviously(currentPair[1]))) {
+    const firstOccursInType = firstNew && occursPreviously(currentPair[0]);
+    const secondOccursInType = secondNew && occursPreviously(currentPair[1]);
+    if ((firstNew || secondNew) && !firstOccursInType && !secondOccursInType) {
       let operation: 'concat' | 'push' | 'unshift';
       if (firstNew && secondNew) {
         //check if first/second type contain each other
@@ -298,7 +298,7 @@ function getSectionBoundariesFromMSA(timeline: SegmentNode[][]) {
 }
 
 export function getSectionGroupsFromTimelineMatrix(matrix: number[][],
-    numMaxes = 1, connMatrixFile?: string, minDist = 1, maskThreshold = .1) {
+    numMaxes = 1, connMatrixFile?: string, minDist = 1, maskThreshold = .3) {
   //preprocess matrix
   const max = _.max(_.flatten(matrix));
   matrix = matrix.map(r => r.map(c => c >= maskThreshold*max ? c : 0));

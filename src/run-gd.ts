@@ -1,6 +1,6 @@
 import * as fs from 'fs';
 import * as _ from 'lodash';
-import { ArrayMap } from 'siafun';
+import { ArrayMap, getSimpleSmithWatermanPath } from 'siafun';
 import { mapSeries, cartesianProduct } from './files/util';
 import { initDirRec, getFoldersInFolder, importFeaturesFolder,
   loadJsonFile } from './files/file-manager';
@@ -13,8 +13,9 @@ import { AlignmentAlgorithm, TimelineOptions, TimelineAnalysis
   } from './analysis/timeline-analysis';
 import { getFactorNames } from './analysis/sequence-heuristics';
 import { getStandardDeviation, getMedian } from './analysis/util';
-import { hmmAlign, MSAOptions, getModel } from './models/models';
+import { hmmAlign, MSAOptions, getModel, MSA_LENGTH } from './models/models';
 import { Experiment } from './experiments/experiment';
+import { getStandardChordSequence } from './files/leadsheets';
 
 interface GdVersion {
   recording: string,
@@ -58,41 +59,91 @@ export class GdExperiment {
     GD_TUNED.audio += audioSubfolder;
   }
   
-  async fullSweep(tlo: GdOptions, songs = this.getTunedSongs().filter(s => s != 'dark_star'), statsFile: string) {
-    const msaConfigs = <MSAOptions[]><any>this.getSweepConfigs({
+  evaluateSeparateChords(tlo: GdOptions, songs = this.getTunedSongs(), statsFile: string) {
+    mapSeries(songs, async song => {
+      let [_folders, options] = this.getSongFoldersAndOptions(tlo, song);
+      const chords: string[][] = loadJsonFile(options.filebase+'-chords.json');
+      const evals = chords.map(c =>
+        this.getEvaluation(c, "data/gd_chords/"+song+".json"));
+      console.log(JSON.stringify(evals.map(e => e.groundP)));
+    });
+  }
+  
+  evaluate(outputFile: string, leadsheetFile: string) {
+    const groundtruth =  getStandardChordSequence(leadsheetFile, true);
+    const result: string[] = _.flattenDeep(loadJsonFile(outputFile));
+    console.log(JSON.stringify(groundtruth));
+    console.log(JSON.stringify(result));
+    const vocab = _.uniq(_.concat(groundtruth, result));
+    const numeric = (s: string[]) => s.map(v => [vocab.indexOf(v)]);
+    const path = getSimpleSmithWatermanPath(numeric(groundtruth), numeric(result), {
+      //fillGaps?: boolean,
+      //onlyDiagonals: true
+    });
+    //console.log(JSON.stringify(path.map(([i,j]) => [groundtruth[i], result[j]])));
+    console.log(groundtruth.length, result.length, path.length)
+    console.log(path.length/groundtruth.length, path.length/result.length)
+    return outputFile
+  }
+  
+  getEvaluation(sequence: string[], leadSheetFile: string) {
+    const groundtruth =  getStandardChordSequence(leadSheetFile, true);
+    const vocab = _.uniq(_.concat(groundtruth, sequence));
+    const numeric = (s: string[]) => s.map(v => [vocab.indexOf(v)]);
+    const path = getSimpleSmithWatermanPath(numeric(groundtruth), numeric(sequence), {});
+    return {groundP: path.length/groundtruth.length, seqP: path.length/sequence.length};
+  }
+  
+  async fullSweep(tlo: GdOptions, songs = this.getTunedSongs(), statsFile: string) {
+    const msaConfigs = <MSAOptions[]><any>this.getSweepConfigs<number|string>({
+      //best: median, 1, 0.8/0.8, 0.999/0.01, undefined
+      modelLength: [MSA_LENGTH.MEDIAN],//[MSA_LENGTH.MIN,MSA_LENGTH.MEDIAN,MSA_LENGTH.MEAN,MSA_LENGTH.THIRD_QUARTILE,MSA_LENGTH.MAX],
       iterations: [1],
-      edgeInertia: [1],//[0, 0.2, 0.4, 0.6, 0.8, 1],
-      distInertia: [1],//[0, 0.2, 0.4, 0.6, 0.8, 1],
-      matchMatch: [0.999],//[0.9, 0.99, 0.999, 0.9999, 0.99999, 0.999999, 1],//[0.99995],//[0.99980, 0.99985, 0.99990, 0.99995, 0.999975, 1],
-      deleteInsert: [0.01],//[0.2, 0.1, 0.01, 0.001],
-      flankProb: [undefined]//, 0.9] //0.6, 0.7, 0.8, 0.9, 0.999, 0.999999]
+      edgeInertia: [0.8],//[0, 0.2, 0.4, 0.6, 0.8, 1],
+      distInertia: [0.8],//[0, 0.2, 0.4, 0.6, 0.8, 1],//[0.8, 0.85, 0.9, 0.95],//[0, 0.2, 0.4, 0.6, 0.8, 1],
+      matchMatch: [0.999],//[0.6,0.7,0.8,0.9,0.99,0.999,0.9999,0.999999],//[0.7,0.8,0.9, 0.99, 0.999, 0.9999, 0.99999, 0.999999, 1],//[0.999],//0.999,0.999999],//[0.9, 0.99, 0.999, 0.9999, 0.99999, 0.999999, 1],//[0.99995],//[0.99980, 0.99985, 0.99990, 0.99995, 0.999975, 1],
+      deleteInsert: [0.01],//[0.001,0.01,0.05,0.1,0.2,0.3,0.4,0.5],//0.1],//[0.2, 0.1, 0.01, 0.001],
+      flankProb: [undefined]//, 0.99]//, 0.6, 0.7, 0.8, 0.9, 0.999, 0.999999]
     });
     const swConfigs = this.getSweepConfigs({
       maxIterations: [1],//true,
       //similarityThreshold: .95,
       minSegmentLength: [16], //only take segments longer than this
       //maxThreshold: [50], //stop when max value below this
-      nLongest: [undefined],
+      nLongest: [10],//[10]
       maxGapSize: [4],
       //maxGaps: 5,
       maxGapRatio: [0.25],
       minDistance: [4]
     });
+    const sectionConfig = {
+      numConns: 1,
+      maskThreshold: .1
+    };
+    
+    
     const ratingFactorNames = getFactorNames();
+    const evalNames = ["originalGround", "originalSeq", "tlModesGround",
+      "tlModesSeq", "tlGraphGround", "tlGraphSeq", "msaGround", "msaSeq",
+      "graphGround", "graphSeq"];
     const resultNames = ["stateCount", "avgStateP", "probStates", "logP",
-      "trackP", "rating"].concat(ratingFactorNames);
-    mapSeries(songs, async song => mapSeries(swConfigs, async swConfig => {
+      "trackP", "rating"].concat(ratingFactorNames).concat(evalNames);
+    mapSeries(songs.filter(s => !_.includes(['brokedown_palace','friend_of_the_devil',
+      'mountains_of_the_moon','west_l.a._fadeaway'], s)),
+        async song => mapSeries(swConfigs, async swConfig => {
       let [folders, options] = this.getSongFoldersAndOptions(tlo, song);
       options.audioFiles = await this.getGdVersionsQuick(folders.audio, options);
       options = Object.assign(options,
         {featuresFolder: folders.features, patternsFolder: folders.patterns});
       const swOptions = getSwOptions(folders.patterns,
         options.featureOptions, swConfig);
+      
       const analysis = new TimelineAnalysis(options, swOptions);
       
       console.log('saving feature sequences')
-      if (options.multinomial) await analysis.saveMultinomialSequences();
+      if (options.multinomial) await analysis.saveMultinomialSequences(true);
       else await analysis.saveRawSequences();
+      await analysis.saveIndividualChordSequences(true);
       
       const points = options.filebase+"-points.json";
       
@@ -102,26 +153,72 @@ export class GdExperiment {
       delete swColumns.cacheDir;
       
       const songWithExt = options.filebase.split('/').slice(-1)[0];
-      const configs = msaConfigs.map(c => Object.assign({song: songWithExt, model: getModel(c)}, c, swColumns));
+      const configs = msaConfigs.map(c => 
+        Object.assign({song: songWithExt, model: getModel(c)}, c, swColumns, sectionConfig));
       
       await new Experiment("msa sweep "+song+" ",
         configs,
         async i => {
-          const msaFile = await hmmAlign(points, this.getMSAFolder(options), msaConfigs[i]);
+          const msaFile = await hmmAlign(points, this.getMSAFolder(options),
+            msaConfigs[i]);
           const stats = this.getMSAStats(msaFile);
           const rating = await analysis.getRatingsFromMSAResult(msaFile);
+          const allSWEvals = await this.getAllSWEvals(song, analysis, options,
+            msaFile, sectionConfig.numConns, sectionConfig.maskThreshold);
+          console.log(allSWEvals)
           return _.zipObject(resultNames,
             [stats.totalStates, _.mean(stats.statePs), stats.probableStates,
               _.mean(stats.logPs), _.mean(stats.trackPs), rating.rating,
-              ...ratingFactorNames.map(f => rating.factors[f])]);
+              ...ratingFactorNames.map(f => rating.factors[f]),
+              ...evalNames.map(e => allSWEvals[e])]);
         }).run(statsFile);
       
-      await mapSeries(configs, async c => {
+      /*await mapSeries(configs, async c => {
         const msaFile = await hmmAlign(points, this.getMSAFolder(options), c);
         await analysis.saveTimelineFromMSAResults(msaFile);
+        //TODO SAVE STRUCTURE NOW!! AAND::: NO LOADING OF OUTFILE, NEEDS TO BE CALCULATED
         analysis.getStructure();
-      });
+      });*/
     }));
+  }
+  
+  private async getAllSWEvals(song: string, analysis: TimelineAnalysis,
+      options: GdOptions, msaFile: string, numConns: number,
+      maskThreshold: number) {
+    //await analysis.saveTimelineFromMSAResults(msaFile);
+    const tlModeLabels = await analysis.getTimelineModeLabels(msaFile);
+    const tlGraphLabels = await analysis.getTimelineSectionModeLabels(msaFile, numConns, maskThreshold);
+    const timeline = (await analysis.getPartitionFromMSAResult(msaFile)).getPartitions();
+    const chords: string[][] = loadJsonFile(options.filebase+'-chords.json');
+    const adjustedChords = chords.map((cs,i) => cs.map((c,j) => {
+      const index = timeline.findIndex(t =>
+        t.find(n => n.version == i && n.time == j) != null);
+      return index >= 0 ? tlModeLabels[index] : c;
+    }));
+    const adjustedChords2 = chords.map((cs,i) => cs.map((c,j) => {
+      const index = timeline.findIndex(t =>
+        t.find(n => n.version == i && n.time == j) != null);
+      return index >= 0 ? tlGraphLabels[index] : c;
+    }));
+    
+    const original = chords.map(c => this.getEvaluation(c, "data/gd_chords/"+song+".json"));
+    const tlModes = adjustedChords.map(c => this.getEvaluation(c, "data/gd_chords/"+song+".json"));
+    const tlGraph = adjustedChords2.map(c => this.getEvaluation(c, "data/gd_chords/"+song+".json"));
+    const msa = this.getEvaluation(tlModeLabels, "data/gd_chords/"+song+".json");
+    const graph = this.getEvaluation(tlGraphLabels, "data/gd_chords/"+song+".json")
+    
+    return {
+      originalGround: _.mean(original.map(o => o.groundP)),
+      originalSeq: _.mean(original.map(o => o.seqP)),
+      tlModesGround: _.mean(tlModes.map(o => o.groundP)),
+      tlModesSeq: _.mean(tlModes.map(o => o.seqP)),
+      tlGraphGround: _.mean(tlGraph.map(o => o.groundP)),
+      tlGraphSeq: _.mean(tlGraph.map(o => o.seqP)),
+      msaGround: msa.groundP,
+      msaSeq: msa.seqP,
+      graphGround: graph.groundP,
+      graphSeq: graph.seqP
+    }
   }
   
   private getSweepConfigs<T>(configs: _.Dictionary<T[]>): _.Dictionary<T>[] {

@@ -5,8 +5,8 @@ import seaborn as sns
 from glob import glob
 #sns.set()
 
-def plot_matrix(matrix, path):
-    if not os.path.exists(path):
+def plot_matrix(matrix, path, dpi=300, force=True):
+    if force or not os.path.exists(path):
         #matrix = np.sqrt(matrix)
         # mask = np.copy(matrix)
         # for i in range(len(mask)):
@@ -21,7 +21,7 @@ def plot_matrix(matrix, path):
         if (len(matrix) > 0):
             g = sns.heatmap(matrix, xticklabels=False, yticklabels=False, cmap=sns.cm.rocket_r)
             fig = g.get_figure()
-            fig.savefig(path)
+            fig.savefig(path, dpi=dpi)
             fig.clf()
 
 def plot(paths, sw_segment=False, sw_score=False, multi=False, format='.png'):

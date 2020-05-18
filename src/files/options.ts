@@ -8,7 +8,7 @@ import { FeatureConfig, FEATURES } from './feature-extractor';
 
 export interface FeatureOptions {
   selectedFeatures: FeatureConfig[],
-  quantizerFunctions: ArrayMap[],
+  quantizerFunctions?: ArrayMap[],
   seventhChords?: boolean,
   doubletime?: boolean,
   transpose?: boolean

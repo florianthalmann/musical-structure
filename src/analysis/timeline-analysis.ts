@@ -228,21 +228,22 @@ export class TimelineAnalysis {
       .map(t => pcSetToLabel(getMode(t.map(n => n.point.slice(1)))));
   }
   
-  async getTimelineSectionModeLabels(msaFile: string, numConns: number, minSegSizeProp = 0.1) {
+  async getTimelineSectionModeLabels(msaFile: string, numConns: number,
+      minSegSizeProp = 0.1, maskThreshold = 0.2) {
     const timeline = await this.getTimelineFromMSAResult(msaFile, minSegSizeProp);
     const sections = getSectionGroupsFromTimelineMatrix(timeline.getConnectionMatrix(), numConns,
-      'results/msa-sweep-beats-test/china_doll100g0mb/conn-matrix.json');
-    console.log(JSON.stringify(sections))
+      'results/msa-sweep-beats-test/china_doll100g0mb/conn-matrix.json',
+      undefined, maskThreshold);
     const tlParts = timeline.getPartitions();
     const sectionTypeLabels = sections.map(s => _.zip(...s).map(is =>
       pcSetToLabel(getMode(_.flatten(is.map(i => tlParts[i].map(t => t.point.slice(1))))))));
-    console.log(JSON.stringify(sectionTypeLabels))
+    //console.log(JSON.stringify(sectionTypeLabels))
     const timelineLabels = tlParts.map(t =>
       pcSetToLabel(getMode(t.map(n => n.point.slice(1)))));
-    console.log(JSON.stringify(timelineLabels))
+    //console.log(JSON.stringify(timelineLabels))
     sections.forEach((type,i) => type.forEach(sec =>
       sec.forEach((seg,j) => timelineLabels[seg] = sectionTypeLabels[i][j])));
-    console.log(JSON.stringify(timelineLabels))
+    //console.log(JSON.stringify(timelineLabels))
     return timelineLabels;
   }
 
