@@ -66,7 +66,7 @@ const song = 'china_doll';
 //new GdExperiment().evaluateSeparateChords(options, ["china_doll"], RESULTS_PATH+"_stats-overall.json")
 new GdExperiment().fullSweep(options,
   //["casey_jones", "china_doll", "cosmic_charlie"], RESULTS_PATH+"_stats-models2.json");
-  undefined, RESULTS_PATH+"_stats-beats.json");
+  [song], RESULTS_PATH+"_stats-beats.json");
 //new GdExperiment().compileAllMSAStats(options, "casey_jones", RESULTS_PATH+"msa-stats.json")//.sweepMSA(options);
 //new GdExperiment().printOverallMSAStats(options);
 

@@ -72,13 +72,17 @@ interface VisualsPoint {
   duration: number
 }
 
+interface Segment {
+  start: number,
+  duration: number
+}
+
 export class TimelineAnalysis {
   
   private siaOptions: FullSIAOptions;
   private points: Promise<any[][][]>;
   private alignments: Promise<Alignments>;
   private alignmentGraph: DirectedGraph<SegmentNode>;
-  private timelinePartition: GraphPartition<SegmentNode>;
   
   constructor(private tlo: TimelineOptions, private swOptions?: FullSWOptions) {
     this.siaOptions = getSiaOptions(tlo.patternsFolder, tlo.featureOptions);
@@ -144,14 +148,14 @@ export class TimelineAnalysis {
   }
 
   async saveTimelineFromMSAResults(file?: string, fasta?: boolean, force?: boolean) {
-    if (force || !fs.existsSync(this.tlo.filebase+'-visuals2.json')) {
+    if (force || !fs.existsSync(this.tlo.filebase+'-output.json')) {
       const points = await this.getPoints();
       const msa = this.loadMSA(file, fasta);
       const alignments = await this.getAlignments();
       const timeline = getTimelineFromMSA(msa, points, alignments.versionTuples,
         alignments.alignments);
-      this.saveTimelineVisuals(timeline, alignments.versionPoints,
-        alignments.versions);
+      await this.saveOutput(timeline, alignments.versions);
+      await this.saveTimelineVisuals(timeline, alignments.versions);
     }
   }
   
@@ -254,8 +258,8 @@ export class TimelineAnalysis {
       const alignments = await this.getAlignments();
       const timeline = getTimelineFromAlignments(alignments.versionTuples,
         alignments.alignments);
-      this.saveTimelineVisuals(timeline, alignments.versionPoints,
-        alignments.versions);
+      await this.saveOutput(timeline, alignments.versions);
+      await this.saveTimelineVisuals(timeline, alignments.versions);
     //}
   }
 
@@ -301,11 +305,17 @@ export class TimelineAnalysis {
       versions: this.tlo.audioFiles, versionPoints: await this.getPoints()};
   }
   
-  private saveTimelineVisuals(timeline: GraphPartition<SegmentNode>, points: any[][][],
-      versions: string[]) {
-    let segments = points.map((v,i) => v.map((_p,j) =>
+  //segments by version
+  private async getSegments(): Promise<Segment[][]> {
+    const points = await this.getPoints();
+    return points.map((v,i) => v.map((_p,j) =>
       ({start: points[i][j][0][0],
         duration: points[i][j+1] ? points[i][j+1][0][0]-points[i][j][0][0] : 1})));
+  }
+  
+  private async saveOutput(timeline: GraphPartition<SegmentNode>,
+      versions: string[]) {
+    const segments = await this.getSegments();
     const short = versions.map(v =>
       v.split('/').slice(-2).join('/').replace(this.tlo.extension || '.m4a', '.mp3'));
     const tunings = short.map(v =>
@@ -315,19 +325,14 @@ export class TimelineAnalysis {
     const json = {title: _.startCase(this.tlo.collectionName), versions: short, tunings: tunings,
       segments: segments, timeline: partitions, matrix: matrix};
     saveJsonFile(this.tlo.filebase+'-output.json', json);
-    const visuals: VisualsPoint[] = _.flatten(versions.map((_v,i) => partitions.map(t => {
-      const n = t.find(n => n.version === i);
-      return n ? ({version:i, time:n.time, type:1, point:n.point, path: versions[i],
-        start: segments[i][n.time].start, duration: segments[i][n.time].duration}) : undefined;
-    }))).filter(p=>p);
-    saveJsonFile(this.tlo.filebase+'-visuals.json', visuals);
-    
-    //infer structure
+  }
+  
+  private async saveTimelineVisuals(timeline: GraphPartition<SegmentNode>,
+      versions: string[]) {
+    const points = await this.getPoints();
+    const segments = await this.getSegments();
     const segmentsByType = inferStructureFromTimeline(timeline);
-    segments = points.map((v,i) => v.map((_p,j) =>
-      ({start: points[i][j][0][0],
-        duration: points[i][j+1] ? points[i][j+1][0][0]-points[i][j][0][0] : 1})));
-    const visuals2 = _.flatten(points.map((v,i) =>
+    const visuals = _.flatten(points.map((v,i) =>
       v.map((_p,t) => {
         const type = segmentsByType.findIndex(s =>
           s.find(n => n.version === i && n.time === t) != null);
@@ -337,7 +342,7 @@ export class TimelineAnalysis {
             start: segments[i][n.time].start, duration: segments[i][n.time].duration});
         }
       }))).filter(p=>p);
-    saveJsonFile(this.tlo.filebase+'-visuals2.json', visuals2);
+    saveJsonFile(this.tlo.filebase+'-visuals.json', visuals);
   }
   
   async analyzeTimeline(timeline: GraphPartition<SegmentNode>) {
@@ -409,7 +414,7 @@ export class TimelineAnalysis {
 
     //TODO TAKE MOST CONNECTED ONES :)
 
-    fs.writeFileSync(file, JSON.stringify(patsec));
+    saveJsonFile(file, patsec);
   }
 
   async saveSWPatternAndVectorSequences(filebase: string, _tryHalftime = false, _extension?: string) {
@@ -451,7 +456,7 @@ export class TimelineAnalysis {
 
     //TODO TAKE MOST CONNECTED ONES :)
 
-    fs.writeFileSync(file, JSON.stringify(patsec))//_.union(vecsec, patsec)));
+    saveJsonFile(file, patsec)//_.union(vecsec, patsec)));
   }
 
   async savePatternAndVectorSequences(filebase: string, tryDoubletime = false) {
@@ -495,7 +500,7 @@ export class TimelineAnalysis {
 
     //TODO TAKE MOST CONNECTED ONES :)
 
-    fs.writeFileSync(file, JSON.stringify(patsec))//_.union(vecsec, patsec)));
+    saveJsonFile(file, patsec)//_.union(vecsec, patsec)));
   }
 
   async savePatternSequences(file: string) {//, hubSize: number, appendix = '') {
@@ -503,7 +508,7 @@ export class TimelineAnalysis {
     results.forEach(r => this.removeNonParallelOccurrences(r));
     const sequences = await this.getPatternSequences(this.tlo.audioFiles,
       await this.getPoints(), results, {maxDistance: 3}, 10);
-    fs.writeFileSync(file, JSON.stringify(_.flatten(sequences)));
+    saveJsonFile(file, _.flatten(sequences));
     //visuals.map(v => v.join('')).slice(0, 10).forEach(v => console.log(v));
   }
 
@@ -542,7 +547,7 @@ export class TimelineAnalysis {
   async saveVectorSequences(file: string, typeCount?: number) {
     const sequences = await this.getVectorSequences(this.tlo.audioFiles,
       await this.getPoints(), this.siaOptions, typeCount);
-    fs.writeFileSync(file, JSON.stringify(_.flatten(sequences)));
+    saveJsonFile(file, _.flatten(sequences));
   }
 
   private async getVectorSequences(audio: string[], points: any[][],
@@ -658,7 +663,7 @@ export class TimelineAnalysis {
     if (!config[name][size][maxLength][count][index]) {
       config[name][size][maxLength][count][index] = this.getRandomTuples(this.tlo.audioFiles, size);
       if (config[name][size][maxLength][count][index].length > 0) //only write if successful
-        fs.writeFileSync(file, JSON.stringify(config));
+        saveJsonFile(file, config);
     }
     return config[name][size][maxLength][count][index];
   }
