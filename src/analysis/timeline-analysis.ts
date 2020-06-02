@@ -7,6 +7,7 @@ import { mapSeries, updateStatus, audioPathToDirName } from '../files/util';
 import { loadJsonFile, saveJsonFile, saveTextFile, loadTextFile } from '../files/file-manager';
 import { NodeGroupingOptions } from '../graphs/graph-analysis';
 import { loadGraph, DirectedGraph } from '../graphs/graph-theory';
+import { GraphPartition } from '../graphs/graph-partition';
 import { getOptionsWithCaching, getSiaOptions, getSwOptions,
   FullSIAOptions, FullSWOptions, FeatureOptions } from '../files/options';
 import { FeatureLoader } from '../files/feature-loader';
@@ -77,6 +78,7 @@ export class TimelineAnalysis {
   private points: Promise<any[][][]>;
   private alignments: Promise<Alignments>;
   private alignmentGraph: DirectedGraph<SegmentNode>;
+  private timelinePartition: GraphPartition<SegmentNode>;
   
   constructor(private tlo: TimelineOptions, private swOptions?: FullSWOptions) {
     this.siaOptions = getSiaOptions(tlo.patternsFolder, tlo.featureOptions);
@@ -147,7 +149,7 @@ export class TimelineAnalysis {
       const msa = this.loadMSA(file, fasta);
       const alignments = await this.getAlignments();
       const timeline = getTimelineFromMSA(msa, points, alignments.versionTuples,
-        alignments.alignments, this.tlo.filebase).getPartitions();
+        alignments.alignments);
       this.saveTimelineVisuals(timeline, alignments.versionPoints,
         alignments.versions);
     }
@@ -190,8 +192,8 @@ export class TimelineAnalysis {
     }
   }
   
-  getStructure() {
-    return inferStructureFromTimeline(this.tlo.filebase);
+  async getStructure(timeline: GraphPartition<SegmentNode>) {
+    return inferStructureFromTimeline(timeline);
   }
   
   async getPartitionRating() {
@@ -210,9 +212,9 @@ export class TimelineAnalysis {
     const alignments = await this.getAlignments();
     const graph = await this.getAlignmentGraph();
     const msa = this.loadMSA(msaFile);
-    const matrixBase = this.tlo.filebase+'/'+msaFile.split('/').slice(-1)[0].replace('.json','');
+    //const matrixBase = this.tlo.filebase+'/'+msaFile.split('/').slice(-1)[0].replace('.json','');
     return getTimelineFromMSA(msa, points,
-      alignments.versionTuples, alignments.alignments, matrixBase, graph);
+      alignments.versionTuples, alignments.alignments, graph);
   }
   
   async getTimelineFromMSAResult(msaFile: string, minSegSizeProp = 0.1) {
@@ -232,7 +234,7 @@ export class TimelineAnalysis {
       minSegSizeProp = 0.1, maskThreshold = 0.2) {
     const timeline = await this.getTimelineFromMSAResult(msaFile, minSegSizeProp);
     const sections = getSectionGroupsFromTimelineMatrix(timeline.getConnectionMatrix(), numConns,
-      'results/msa-sweep-beats-test/china_doll100g0mb/conn-matrix.json',
+      //'results/msa-sweep-beats-test/china_doll100g0mb/conn-matrix.json',
       undefined, maskThreshold);
     const tlParts = timeline.getPartitions();
     const sectionTypeLabels = sections.map(s => _.zip(...s).map(is =>
@@ -251,7 +253,7 @@ export class TimelineAnalysis {
     //if (!fs.existsSync(tlo.filebase+'-output.json')) {
       const alignments = await this.getAlignments();
       const timeline = getTimelineFromAlignments(alignments.versionTuples,
-        alignments.alignments, this.tlo.filebase);
+        alignments.alignments);
       this.saveTimelineVisuals(timeline, alignments.versionPoints,
         alignments.versions);
     //}
@@ -299,7 +301,7 @@ export class TimelineAnalysis {
       versions: this.tlo.audioFiles, versionPoints: await this.getPoints()};
   }
   
-  private saveTimelineVisuals(timeline: SegmentNode[][], points: any[][][],
+  private saveTimelineVisuals(timeline: GraphPartition<SegmentNode>, points: any[][][],
       versions: string[]) {
     let segments = points.map((v,i) => v.map((_p,j) =>
       ({start: points[i][j][0][0],
@@ -308,10 +310,12 @@ export class TimelineAnalysis {
       v.split('/').slice(-2).join('/').replace(this.tlo.extension || '.m4a', '.mp3'));
     const tunings = short.map(v =>
       getThomasTuningRatio(v.split('/')[0], v.split('/')[1].replace('.mp3','')));
+    const partitions = timeline.getPartitions();
+    const matrix = timeline.getConnectionMatrix();
     const json = {title: _.startCase(this.tlo.collectionName), versions: short, tunings: tunings,
-      segments: segments, timeline: timeline};
+      segments: segments, timeline: partitions, matrix: matrix};
     saveJsonFile(this.tlo.filebase+'-output.json', json);
-    const visuals: VisualsPoint[] = _.flatten(versions.map((_v,i) => timeline.map(t => {
+    const visuals: VisualsPoint[] = _.flatten(versions.map((_v,i) => partitions.map(t => {
       const n = t.find(n => n.version === i);
       return n ? ({version:i, time:n.time, type:1, point:n.point, path: versions[i],
         start: segments[i][n.time].start, duration: segments[i][n.time].duration}) : undefined;
@@ -319,7 +323,7 @@ export class TimelineAnalysis {
     saveJsonFile(this.tlo.filebase+'-visuals.json', visuals);
     
     //infer structure
-    const segmentsByType = inferStructureFromTimeline(this.tlo.filebase);
+    const segmentsByType = inferStructureFromTimeline(timeline);
     segments = points.map((v,i) => v.map((_p,j) =>
       ({start: points[i][j][0][0],
         duration: points[i][j+1] ? points[i][j+1][0][0]-points[i][j][0][0] : 1})));
@@ -336,8 +340,8 @@ export class TimelineAnalysis {
     saveJsonFile(this.tlo.filebase+'-visuals2.json', visuals2);
   }
   
-  async analyzeSavedTimeline() {
-    const segmentsByType = inferStructureFromTimeline(this.tlo.filebase);
+  async analyzeTimeline(timeline: GraphPartition<SegmentNode>) {
+    const segmentsByType = inferStructureFromTimeline(timeline);
     const points = await this.getPoints();
     const segments = points.map((v,i) => v.map((_p,j) =>
       ({start: points[i][j][0][0],

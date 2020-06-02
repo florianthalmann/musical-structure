@@ -45,48 +45,48 @@ const DIFF_VERSIONS_MAX_EDGES: GroupingCondition<SegmentNode>
 const ACTIVE_GROUPING_CONDITION = DIFF_VERSIONS_SIM_TIME//DIFF_VERSIONS_SIM_TIME;
 
 export function getTimelineFromMSA(msa: string[][], points: number[][][],
-    versionPairs: [number,number][], results: MultiStructureResult[], filebase: string,
-    graph?: DirectedGraph<SegmentNode>) {
+    versionPairs: [number,number][], results: MultiStructureResult[],
+    graph?: DirectedGraph<SegmentNode>): GraphPartition<SegmentNode> {
   //const graph = createSegmentGraphFromMSA(msa, points);
   graph = graph || createSegmentGraphFromAlignments(versionPairs, results, false)//, filebase+'-graph.json');
   const nodesByVersion = toSegmentNodes(points).map(v => v.map(n => graph.getNode(n.id)));
   const partition = new GraphPartition(graph, msaToPartitions(msa, nodesByVersion));
   //const partition = constructFullPartition(graph, DIFF_VERSIONS, filebase);
-  const connectionMatrix = partition.getConnectionMatrix();
+  /*const connectionMatrix = partition.getConnectionMatrix();
   if (filebase) {
     saveJsonFile(filebase+'-matrix.json', connectionMatrix);
-  }
+  }*/
   return partition;
 }
 
 export function getTimelineFromAlignments(versionPairs: [number,number][],
-    results: MultiStructureResult[], filebase?: string): SegmentNode[][] {
+    results: MultiStructureResult[]): GraphPartition<SegmentNode> {
 
   const timeline = constructTimelineFromAlignments(versionPairs, results,
-    ACTIVE_GROUPING_CONDITION, false, filebase);
+    ACTIVE_GROUPING_CONDITION, false);
   
-  const connectionMatrix = timeline.getConnectionMatrix();
+  /*const connectionMatrix = timeline.getConnectionMatrix();
 
   if (filebase) {
     saveJsonFile(filebase+'-matrix.json', connectionMatrix);
     //saveGraph(filebase+'-graph-seg.json', fullGraph.getSubgraph(_.flatten(timeline.slice(75, 79))));
-  }
+  }*/
   //console.log(timeline.slice(75, 79).map(t => t.map(n => n.id)));
 
-  return timeline.getPartitions();
+  return timeline;
 }
 
 function constructTimelineFromAlignments(versionPairs: [number,number][],
     results: MultiStructureResult[], groupingCondition: GroupingCondition<SegmentNode>,
-    postprocess = true, filebase?: string) {
+    postprocess = true) {
   //const MIN_COMPONENT_SIZE = _.uniq(_.flatten(versionPairs)).length/8;
   
-  const path = filebase ? (postprocess ? filebase+'-procgraph.json' : filebase+'-graph.json'): null;
-  const graph = createSegmentGraphFromAlignments(versionPairs, results, postprocess, path);
+  //const path = filebase ? (postprocess ? filebase+'-procgraph.json' : filebase+'-graph.json'): null;
+  const graph = createSegmentGraphFromAlignments(versionPairs, results, postprocess);
   
   //divide graph into connected components
   //let components = getSegmentGraphPartitions(graph, MIN_COMPONENT_SIZE, groupingCondition);
-  const partition = constructFullPartition(graph, groupingCondition, filebase);//iterativeGetIndexBasedPartition(graph, groupingCondition);
+  const partition = constructFullPartition(graph, groupingCondition);//iterativeGetIndexBasedPartition(graph, groupingCondition);
 
   //saveGraph('plots/d3/latest/slice2.json', graph.getSubgraph(components[0]));
 
@@ -122,8 +122,7 @@ function getSegmentGraphPartitions(graph: DirectedGraph<SegmentNode>,
 }
 
 function constructFullPartition(graph: DirectedGraph<SegmentNode>,
-    groupingCondition: GroupingCondition<SegmentNode>, filebase: string) {
-  const path = filebase+'-timeline.json';
+    groupingCondition: GroupingCondition<SegmentNode>) {
   let partition: GraphPartition<SegmentNode>;
   /*if (fs.existsSync(path)) {
     const sequence: SegmentNode[][] = loadJsonFile(path);
@@ -137,7 +136,6 @@ function constructFullPartition(graph: DirectedGraph<SegmentNode>,
     
     partition = beamSearchGenerateSequence(graph)//, initial);
     //partition = iterativeGetIndexBasedPartition(graph, groupingCondition);
-    saveJsonFile(path, partition.getPartitions());
   //}
   partition = ensureSequenceValidity(partition, {uniqueness: true});
   //add all missing while maintaining validity
@@ -337,11 +335,11 @@ function toSegmentNodes(points: number[][][]): SegmentNode[][] {
 
 export function createSegmentGraphFromAlignments(versionPairs: [number,number][],
     results: MultiStructureResult[],
-    postprocessPatterns: boolean, path?: string): DirectedGraph<SegmentNode> {
+    postprocessPatterns: boolean): DirectedGraph<SegmentNode> {
   
-  if (path && fs.existsSync(path)) {
+  /*if (path && fs.existsSync(path)) {
     return loadGraph(path);
-  }
+  }*/
   
   //recover points for all versions from results
   const vIndexes: [number,number][] = [];
@@ -447,7 +445,7 @@ export function createSegmentGraphFromAlignments(versionPairs: [number,number][]
   //console.log(randomEdges)
   //console.log(randomEdges.map(e => graph.getShortestDistance(e.source, e.target, [e])));*/
 
-  if (path) saveGraph(path, graph);
+  //if (path) saveGraph(path, graph);
 
   return graph;
 }

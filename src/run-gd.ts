@@ -326,7 +326,7 @@ export class GdExperiment {
     await ta.saveTimelineFromMSAResults();
     /*console.log('saving sssm');
     await ta.saveSumSSMfromMSAResults();*/
-    ta.getStructure();
+    //ta.getStructure();
   }
   
   private async generateTimelineFromGaussianHMM(folders: GdFolders, tlo: TimelineOptions) {
@@ -344,7 +344,7 @@ export class GdExperiment {
     await ta.saveTimelineFromMSAResults();
     /*console.log('saving sssm');
     await ta.saveSumSSMfromMSAResults();*/
-    ta.getStructure();
+    //ta.getStructure();
   }
   
   /** shows that standard deviation of tuning frequency never goes below 2-3,

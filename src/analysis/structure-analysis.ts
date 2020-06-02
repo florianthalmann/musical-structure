@@ -1,9 +1,9 @@
 import * as _ from 'lodash';
 import { getSmithWaterman, QUANT_FUNCS as QF } from 'siafun';
 import { DirectedGraph, Node } from '../graphs/graph-theory';
+import { GraphPartition } from '../graphs/graph-partition';
 import { SegmentNode } from './types';
-import { loadJsonFile, initDirRec, saveJsonFile } from '../files/file-manager';
-import { getMode, allIndexesOf, findIndexes } from './util';
+import { getMode, allIndexesOf } from './util';
 import { pcSetToLabel } from '../files/theory';
 
 export enum METHOD {
@@ -12,21 +12,20 @@ export enum METHOD {
   MSA_GRAPH_HIERARCHY
 }
 
-export function inferStructureFromTimeline(filebase: string,
+export function inferStructureFromTimeline(timeline: GraphPartition<SegmentNode>,
     method: METHOD = METHOD.MSA_GRAPH_HIERARCHY) {
   switch(method) {
     case METHOD.MSA_HIERARCHY:
-      return inferStructureFromTimelineSimple(filebase);
+      return inferStructureFromTimelineSimple(timeline);
     case METHOD.MSA_SW_HIERARCHY:
-      return inferStructureFromTimelineWithSW(filebase);
+      return inferStructureFromTimelineWithSW(timeline);
     case METHOD.MSA_GRAPH_HIERARCHY:
-      return inferStructureFromTimelineWithAlignmentGraph(filebase);
+      return inferStructureFromTimelineWithAlignmentGraph(timeline);
   }
 }
 
-export function inferStructureFromTimelineSimple(filebase: string) {
-  const timeline: SegmentNode[][] = loadJsonFile(filebase+'-output.json').timeline;
-  const types = getTypesFromTimelineModes(timeline);
+export function inferStructureFromTimelineSimple(timeline: GraphPartition<SegmentNode>) {
+  const types = getTypesFromTimelineModes(timeline.getPartitions());
   const hierarchy = inferHierarchyFromSectionTypes(types, false, false);
   console.log(JSON.stringify(hierarchy));
   
@@ -44,13 +43,11 @@ function getTypesFromTimelineModes(timeline: SegmentNode[][]) {
   return types;
 }
 
-export function inferStructureFromTimelineWithSW(filebase: string) {
-  const timeline: SegmentNode[][] = loadJsonFile(filebase+'-output.json').timeline;
-  const types = getTypesFromTimelineModes(timeline);
+export function inferStructureFromTimelineWithSW(timeline: GraphPartition<SegmentNode>) {
+  const types = getTypesFromTimelineModes(timeline.getPartitions());
   //try self-alignment
-  initDirRec(filebase);
   const sw = getSmithWaterman(types.map((t,i) => [i,t]), {
-    cacheDir: filebase+'/',
+    //cacheDir: cacheDir,
     quantizerFunctions: [QF.ORDER(), QF.IDENTITY()],
     maxIterations: 1,//true,
     fillGaps: true, //turn off for similarity graphs!!
@@ -78,27 +75,21 @@ function getAtemporalPoints(nodes: SegmentNode[]) {
   return nodes.map(n => n.point.slice(1));
 }
 
-export function inferStructureFromTimelineWithAlignmentGraph(filebase: string,
-    minSegSizeProp = 0.1) {
-  let timeline: SegmentNode[][] = loadJsonFile(filebase+'-output.json').timeline;
+export function inferStructureFromTimelineWithAlignmentGraph(
+    timeline: GraphPartition<SegmentNode>, minSegSizeProp = 0.1) {
   //console.log(JSON.stringify(timeline.map(t => t.length)));
-  const fullTimelineLabels = timeline.map(t =>
+  const fullTimelineLabels = timeline.getPartitions().map(t =>
     pcSetToLabel(getMode(getAtemporalPoints(t))));
   console.log("fulltimeline", JSON.stringify(fullTimelineLabels));
   //remove small partitions
-  const maxSegSize = _.max(timeline.map(t => t.length));
-  const smallSegs = findIndexes(timeline,
-    t => t.length < Math.ceil(minSegSizeProp*maxSegSize));
-  timeline = timeline.filter((_t,i) => !_.includes(smallSegs, i));
-  const timelineLabels = timeline.map(t =>
+  timeline.removeSmallPartitions(minSegSizeProp*timeline.getMaxPartitionSize());
+  const timelineLabels = timeline.getPartitions().map(t =>
     pcSetToLabel(getMode(getAtemporalPoints(t))));
   console.log("timeline", JSON.stringify(timelineLabels));
-  let matrix: number[][] = loadJsonFile(filebase+'-matrix.json');
-  matrix = matrix.map(r => r.filter((_c,i) => !_.includes(smallSegs, i)))
-    .filter((_r,i) => !_.includes(smallSegs, i));
-  const boundaries = getSectionBoundariesFromMSA(timeline);
+  const boundaries = getSectionBoundariesFromMSA(timeline.getPartitions());
   //sequences of section indexes grouped by types
-  const sectionsByTypes = getSectionGroupsFromTimelineMatrix(matrix, 10);
+  const sectionsByTypes = getSectionGroupsFromTimelineMatrix(
+    timeline.getConnectionMatrix(), 10);
   const sectionTypeLabels = sectionsByTypes.map(s => _.zip(...s).map(is =>
     pcSetToLabel(getMode(_.flatten(is.map(i => getAtemporalPoints(timeline[i])))))));
   //console.log(JSON.stringify(sectionTypeLabels));
@@ -298,22 +289,21 @@ function getSectionBoundariesFromMSA(timeline: SegmentNode[][]) {
 }
 
 export function getSectionGroupsFromTimelineMatrix(matrix: number[][],
-    numMaxes = 1, connMatrixFile?: string, minDist = 1, maskThreshold = .3) {
+    numMaxes = 1, minDist = 1, maskThreshold = .3) {
   //preprocess matrix
   const max = _.max(_.flatten(matrix));
   matrix = matrix.map(r => r.map(c => c >= maskThreshold*max ? c : 0));
-  const levels = getSegmentation(matrix, minDist, numMaxes, connMatrixFile);
+  const levels = getSegmentation(matrix, minDist, numMaxes);
   //console.log(JSON.stringify(levels));
   return levels;
 }
 
-function getSegmentation(matrix: number[][], minDist: number, numConns: number,
-    connMatrixFile: string) {
+function getSegmentation(matrix: number[][], minDist: number, numConns: number) {
   //const connections = getIterativeMostConnected(matrix, minDist);
   const connections = getNMostConnectedForReal(matrix, minDist, numConns);
   const newMatrix = connections.map(_c => connections.map(_c => 0));
   connections.forEach((c,i) => c.forEach(j => newMatrix[i][j] = 1));
-  if (connMatrixFile) saveJsonFile(connMatrixFile, newMatrix);
+  //if (connMatrixFile) saveJsonFile(connMatrixFile, newMatrix);
   return getSectionsViaGraph(_.zip(...connections));
 }
 

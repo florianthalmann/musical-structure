@@ -27,7 +27,7 @@
     "fs-extra": "^8.1.0",
     "http-server": "^0.12.1",
     "ml-regression-simple-linear": "^2.0.2",
-    "siafun": "^0.3.8",
+    "siafun": "^0.3.9",
     "uuid": "^7.0.1"
   },
   "devDependencies": {
