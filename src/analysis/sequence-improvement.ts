@@ -219,7 +219,7 @@ export function addMissing(sequence: GraphPartition<SegmentNode>,
 }
 
 //returns an array with all added segments
-function addSegmentsAtBestSpots(segments: SegmentNode[],
+export function addSegmentsAtBestSpots(segments: SegmentNode[],
     sequence: GraphPartition<SegmentNode>,
     insert?: boolean, ignoreAdjacents?: boolean): SegmentNode[] {
   return _.sortBy(segments, s => s.id).filter(n =>

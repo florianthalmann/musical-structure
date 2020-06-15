@@ -1,9 +1,10 @@
 import * as _ from 'lodash';
-import { getSmithWaterman, QUANT_FUNCS as QF } from 'siafun';
+import { getSmithWaterman, QUANT_FUNCS as QF, inferHierarchyFromTypeSequence,
+  removeAlignmentMatrixOverlaps } from 'siafun';
 import { DirectedGraph, Node } from '../graphs/graph-theory';
 import { GraphPartition } from '../graphs/graph-partition';
 import { SegmentNode } from './types';
-import { getMode, allIndexesOf } from './util';
+import { getMode } from './util';
 import { pcSetToLabel } from '../files/theory';
 
 export enum METHOD {
@@ -13,7 +14,7 @@ export enum METHOD {
 }
 
 export function inferStructureFromTimeline(timeline: GraphPartition<SegmentNode>,
-    method: METHOD = METHOD.MSA_GRAPH_HIERARCHY) {
+    method: METHOD = METHOD.MSA_SW_HIERARCHY): SegmentNode[][] {
   switch(method) {
     case METHOD.MSA_HIERARCHY:
       return inferStructureFromTimelineSimple(timeline);
@@ -24,75 +25,79 @@ export function inferStructureFromTimeline(timeline: GraphPartition<SegmentNode>
   }
 }
 
-export function inferStructureFromTimelineSimple(timeline: GraphPartition<SegmentNode>) {
-  const types = getTypesFromTimelineModes(timeline.getPartitions());
-  const hierarchy = inferHierarchyFromSectionTypes(types, false, false);
-  console.log(JSON.stringify(hierarchy));
+export function inferStructureFromTimelineSimple(timeline: GraphPartition<SegmentNode>): SegmentNode[][] {
+  const partitions = timeline.getPartitions();
+  const types = getTypesFromTimelineModes(partitions);
+  const hierarchy = inferHierarchyFromTypeSequence(types, false);
+  console.log("hierarchy", JSON.stringify(hierarchy));
   
   //TODO: refactor return values for all methods.... use hierarchies...
   const sections = _.toPairs(_.groupBy(types.map((t,i) => [t,i]), 0)).map(p => p[1]);
-  return sections.map(type => _.flatten(_.flatten(type).map(s => timeline[s])));
+  return sections.map(type => _.flatten(_.flatten(type).map(s => partitions[s])));
 }
 
-function getTypesFromTimelineModes(timeline: SegmentNode[][]) {
-  const chords = timeline.map(t => pcSetToLabel(getMode(t.map(n => n.point.slice(1)))));
-  console.log(JSON.stringify(chords));
-  const uniq = _.uniq(chords);
-  const types = chords.map(c => uniq.indexOf(c));
-  console.log(JSON.stringify(types));
-  return types;
-}
-
-export function inferStructureFromTimelineWithSW(timeline: GraphPartition<SegmentNode>) {
-  const types = getTypesFromTimelineModes(timeline.getPartitions());
-  //try self-alignment
-  const sw = getSmithWaterman(types.map((t,i) => [i,t]), {
-    //cacheDir: cacheDir,
-    quantizerFunctions: [QF.ORDER(), QF.IDENTITY()],
-    maxIterations: 1,//true,
-    fillGaps: true, //turn off for similarity graphs!!
-    //similarityThreshold: .95,
-    minSegmentLength: 5, //only take segments longer than this
-    maxThreshold: 10, //stop when max value below this
-    //endThreshold: 0,
-    onlyDiagonals: true,
-    nLongest: 5,
-    maxGapSize: 0,
-    //maxGaps: 0,
-    minDistance: 2
-  });
-  //sw.patterns.map(p => console.log(JSON.stringify(p.occurrences.map(o => o.map(p => p[1])))));
-  const sections = getSectionGroupsFromTimelineMatrix(sw.segmentMatrix, 2);
-  const hierarchy = inferHierarchyFromSectionGroups(sections, false);
-  console.log(JSON.stringify(hierarchy));
-  const repl = h => h.reduce((r,s) => Array.isArray(s) ? _.concat(r, [repl(s)])
-    : _.concat(r, sections[s][0].map(_i => s)), []);
-  console.log(JSON.stringify(repl(hierarchy)));
-  return sections.map(type => _.flatten(_.flatten(type).map(s => timeline[s])));
-}
-
-function getAtemporalPoints(nodes: SegmentNode[]) {
-  return nodes.map(n => n.point.slice(1));
+export function inferStructureFromTimelineWithSW(timeline: GraphPartition<SegmentNode>): SegmentNode[][] {
+  const partitions = timeline.getPartitions();
+  const types = getTypesFromTimelineModes(partitions);
+  const sectionsByTypes = getNonOverlappingSections(getSWMatrix(types, 8));
+  const hierarchy = inferHierarchyFromSectionGroups(sectionsByTypes, true);
+  console.log("hierarchy", JSON.stringify(hierarchy));
+  const sectionTypeLabels = getLabelsForSections(sectionsByTypes, partitions);
+  console.log("labels", JSON.stringify(replaceInHierarchy(hierarchy, sectionTypeLabels)));
+  return sectionsByTypes.map(type => _.flatten(_.flatten(type).map(s => partitions[s])));
 }
 
 export function inferStructureFromTimelineWithAlignmentGraph(
-    timeline: GraphPartition<SegmentNode>, minSegSizeProp = 0.1) {
-  //console.log(JSON.stringify(timeline.map(t => t.length)));
-  const fullTimelineLabels = timeline.getPartitions().map(t =>
-    pcSetToLabel(getMode(getAtemporalPoints(t))));
+    timeline: GraphPartition<SegmentNode>, minSegSizeProp = 0.1): SegmentNode[][] {
+  const fullTimelineLabels = getTimelineLabels(timeline.getPartitions());
   console.log("fulltimeline", JSON.stringify(fullTimelineLabels));
   //remove small partitions
   timeline.removeSmallPartitions(minSegSizeProp*timeline.getMaxPartitionSize());
-  const timelineLabels = timeline.getPartitions().map(t =>
-    pcSetToLabel(getMode(getAtemporalPoints(t))));
+  const timelineLabels = getTimelineLabels(timeline.getPartitions());
   console.log("timeline", JSON.stringify(timelineLabels));
-  const boundaries = getSectionBoundariesFromMSA(timeline.getPartitions());
+  const partitions = timeline.getPartitions();
+  
+  const boundaries = getSectionBoundariesFromMSA(partitions);
   //sequences of section indexes grouped by types
-  const sectionsByTypes = getSectionGroupsFromTimelineMatrix(
-    timeline.getConnectionMatrix(), 10);
-  const sectionTypeLabels = sectionsByTypes.map(s => _.zip(...s).map(is =>
-    pcSetToLabel(getMode(_.flatten(is.map(i => getAtemporalPoints(timeline[i])))))));
-  //console.log(JSON.stringify(sectionTypeLabels));
+  
+  const timelineTypes = getTypesFromTimelineModes(partitions);
+  
+  //const hybridMatrix = sum(maskMatrix(timeline.getConnectionMatrix()), getSWMatrix(timelineTypes));
+  
+  let sectionsByTypes = getNonOverlappingSections(maskMatrix(timeline.getConnectionMatrix()));
+  console.log("types", JSON.stringify(sectionsByTypes));
+  const sectionTypeLabels = getLabelsForSections(sectionsByTypes, partitions);
+  console.log("stl", JSON.stringify(sectionTypeLabels));
+  
+  const types = _.uniq(_.flatten(sectionTypeLabels));
+  const sectionTypeTypes = sectionTypeLabels.map(t => t.map(l => types.indexOf(l)));
+  const repeats = sectionTypeTypes.slice(1,2).map(t =>
+    getNonOverlappingSections(getSWMatrix(t)))[0];
+  const hr = inferHierarchyFromSectionGroups(repeats, true);
+  console.log("repeats", JSON.stringify(hr))
+  
+  const repl2 = h => h.reduce((r,s) => Array.isArray(s) ? _.concat(r, [repl2(s)])
+    : _.concat(r, sectionTypeLabels.slice(1,2)[s]), []);
+  //console.log(JSON.stringify(sections.length))
+  console.log(JSON.stringify(repl2(hr)));
+  
+  /*const divideArray = (a: any[], pos: number[]) => {
+    return a.reduce<number[][]>((b,v,i) => {
+      _.includes(pos, i) ? b.push(v) : _.last(b).push(v);
+      return b;
+    }, [[]]);
+  }
+  
+  //get internal structure of sections
+  const sectionsByTypes2 = _.flatten(sectionTypeTypes.map(t => getSectionsViaSW(t)));
+  //transfer to existing sections
+  sectionsByTypes = _.flatten(sectionsByTypes.map((t,i) => t.map(s =>
+    divideArray(s, sectionsByTypes2[i].map(j => j.length)))));*/
+  
+  //or try with hybrid sw-multi-sw matrix
+  
+  /*const hierarchies = sectionTypeTypes.map(t => inferHierarchyFromTypeSequence(t, true))
+  console.log("hierarchies", JSON.stringify(hierarchies))*/
   
   const hierarchy = inferHierarchyFromSectionGroups(sectionsByTypes, true);
   console.log("hierarchy", JSON.stringify(hierarchy))
@@ -105,11 +110,12 @@ export function inferStructureFromTimelineWithAlignmentGraph(
     _.flatten(s.map(t => sectionTypeLabels[t])));
   console.log("sections", JSON.stringify(labeledSections))
   
-  const repl = h => h.reduce((r,s) => Array.isArray(s) ? _.concat(r, [repl(s)])
-    : _.concat(r, sectionTypeLabels[s]), []);
   //console.log(JSON.stringify(sections.length))
-  const hierarchyLabels = repl(hierarchy);
+  const hierarchyLabels = replaceInHierarchy(hierarchy, sectionTypeLabels);
   console.log("hierarchy", JSON.stringify(hierarchyLabels))
+  
+  
+  //inferHierarchyFromTimelineMatrix(timeline.getConnectionMatrix());
   
   
   /*const boundaries2 = _.sortBy(_.flatten(sections.map(g => g.map(s => s[0]))));
@@ -119,16 +125,66 @@ export function inferStructureFromTimelineWithAlignmentGraph(
   
   //see if sections can be completed if just a few missing in beginning or end....
   
-  const nodesByTypes = sectionsByTypes.map(type => _.flatten(_.flatten(type).map(s => timeline[s])));
-  
-  const result = {
-    fullTimeline: fullTimelineLabels,
-    timeline: timelineLabels,
-    hierarchy: hierarchyLabels,
-    sections: labeledSections
-  }
+  const nodesByTypes = sectionsByTypes.map(type => _.flatten(_.flatten(type).map(s => partitions[s])));
   
   return nodesByTypes;
+}
+
+function getSWMatrix(types: number[], minSegLength = 2, nLongest?: number) {
+  return getSmithWaterman(types.map((t,i) => [i,t]), {
+    //cacheDir: cacheDir,
+    quantizerFunctions: [QF.ORDER(), QF.IDENTITY()],
+    maxIterations: 1,//true,
+    fillGaps: true, //turn off for similarity graphs!!
+    //similarityThreshold: .95,
+    minSegmentLength: minSegLength, //only take segments longer than this
+    //maxThreshold: 10, //stop when max value below this
+    //endThreshold: 0,
+    onlyDiagonals: true,
+    nLongest: nLongest,
+    //maxGapSize: 1,
+    //maxGaps: 0,
+    //minDistance: 0
+  }).segmentMatrix;
+}
+
+function sum(m1: number[][], m2: number[][]) {
+  return m1.map((r,i) => r.map((v,j) => v+m2[i][j]));
+}
+
+function getTypesFromTimelineModes(timeline: SegmentNode[][]) {
+  return getTypesFromLabels(getTimelineLabels(timeline));
+}
+
+function getTimelineLabels(timeline: SegmentNode[][]): string[] {
+  return timeline.map(t => pcSetToLabel(getMode(getAtemporalPoints(t))));
+}
+
+function getLabelsForSections(sectionsByTypes: number[][][], partitions: SegmentNode[][]) {
+  return sectionsByTypes.map(s => _.zip(...s).map(is =>
+    pcSetToLabel(getMode(_.flatten(is.map(i => getAtemporalPoints(partitions[i])))))));
+}
+
+function getTypesFromLabels(labels: string[]): number[] {
+  const uniq = _.uniq(labels);
+  return labels.map(c => uniq.indexOf(c));
+}
+
+function getAtemporalPoints(nodes: SegmentNode[]) {
+  return nodes.map(n => n.point.slice(1));
+}
+
+function replaceInHierarchy(hierarchy: any[], elements: any[]) {
+  return hierarchy.reduce((r,s) => Array.isArray(s) ?
+    _.concat(r, [replaceInHierarchy(s, elements)])
+    : _.concat(r, elements[s]), []);
+}
+
+//from structure graph or from matrix...
+function getNonOverlappingSections(matrix: number[][]): number[][][] {
+  matrix = removeAlignmentMatrixOverlaps(matrix);
+  //large number of maxes equivalent to connected components
+  return getSectionGroupsFromTimelineMatrix(matrix, 1000);
 }
 
 function inferHierarchyFromSectionGroups(sections: number[][][], unequalPairsOnly: boolean) {
@@ -138,133 +194,7 @@ function inferHierarchyFromSectionGroups(sections: number[][][], unequalPairsOnl
     _.findIndex(sections, t => _.includes(t, s)));
   //console.log(JSON.stringify(typeSequence));
   
-  return inferHierarchyFromSectionTypes(typeSequence, unequalPairsOnly, false);
-}
-
-function inferHierarchyFromSectionTypes(typeSequence: number[],
-    unequalPairsOnly: boolean, log: boolean) {
-  //generate new types by merging into binary tree
-  const newTypes = new Map<number, number[]>();
-  let currentSequence = _.clone(typeSequence);
-  let currentIndex = _.max(typeSequence)+1;
-  let currentPair = getMostCommonPair(currentSequence, unequalPairsOnly);
-  
-  while (currentPair != null) {
-    currentSequence = currentSequence.reduce<number[]>((s,t) =>
-      s.length > 0 && _.isEqual([_.last(s), t], currentPair) ?
-      _.concat(_.initial(s), currentIndex)
-      : _.concat(s, t), []);
-    const otherPreviousTypes = _.difference([...newTypes.values()],
-      [newTypes.get(currentPair[0]), newTypes.get(currentPair[1])]);
-    //console.log(JSON.stringify(currentSequence));
-    /*console.log(newTypes.get(currentPair[0]), newTypes.get(currentPair[1]),
-      currentPair.every(u => !_.includes(currentSequence, u)),
-        currentPair.every(u => !_.includes(_.flatten(otherPreviousTypes), u)))*/
-    //amend type if possible
-    const firstNew = newTypes.get(currentPair[0]);
-    const secondNew = newTypes.get(currentPair[1]);
-    const occursPreviously = (t: number) => _.includes(currentSequence, t)
-      || _.includes(_.flatten(otherPreviousTypes), t);
-    const firstOccursInType = firstNew && occursPreviously(currentPair[0]);
-    const secondOccursInType = secondNew && occursPreviously(currentPair[1]);
-    if ((firstNew || secondNew) && !firstOccursInType && !secondOccursInType) {
-      let operation: 'concat' | 'push' | 'unshift';
-      if (firstNew && secondNew) {
-        //check if first/second type contain each other
-        operation = _.intersection(firstNew, currentPair).length > 0 ? 'push'
-          : _.intersection(secondNew, currentPair).length > 0 ? 'unshift'
-          : 'concat';
-      } else {
-        operation = firstNew ? 'push' : 'unshift';
-      }
-      if (operation === 'concat') {
-        newTypes.set(currentIndex, _.concat(firstNew, secondNew));
-        newTypes.delete(currentPair[0]);
-        newTypes.delete(currentPair[1]);
-        if (log) console.log(currentIndex, ': concat', JSON.stringify(newTypes.get(currentIndex)));
-        //currentSequence = currentSequence.map(s => s === currentIndex ? currentPair[0] : s);
-      } else if (operation === 'push') {
-        newTypes.set(currentIndex, _.concat(firstNew, currentPair[1]));
-        newTypes.delete(currentPair[0]);
-        if (log) console.log(currentIndex, ': push', JSON.stringify(newTypes.get(currentIndex)));
-        //currentSequence = currentSequence.map(s => s === currentIndex ? currentPair[0] : s);
-      } else {
-        newTypes.set(currentIndex, _.concat([currentPair[0]], secondNew));
-        newTypes.delete(currentPair[1]);
-        if (log) console.log(currentIndex, ': unshift', JSON.stringify(newTypes.get(currentIndex)));
-        //currentSequence = currentSequence.map(s => s === currentIndex ? currentPair[1] : s);
-      }
-    //else add a new type
-    } else {
-      newTypes.set(currentIndex, currentPair);
-      if (log) console.log(currentIndex, ':', JSON.stringify(newTypes.get(currentIndex)));
-    }
-    if (log) console.log(JSON.stringify(currentSequence));
-    currentPair = getMostCommonPair(currentSequence, unequalPairsOnly);
-    currentIndex++;
-  }
-  
-  //combine types that only occur in one context
-  _.reverse(_.sortBy([...newTypes.keys()])).forEach(t => {
-    const parents = [...newTypes.keys()]
-      .filter(n => _.includes(_.flattenDeep(newTypes.get(n)), t));
-    const occs = _.flattenDeep(_.concat([...newTypes.values()], currentSequence))
-      .reduce((c: number,u)=>u==t?c+1:c, 0);
-    if (parents.length == 1 && occs <= 1) {
-      newTypes.set(parents[0],
-        replaceInTree(newTypes.get(parents[0]), t, newTypes.get(t)));
-      newTypes.delete(t);
-    }
-  });
-  
-  //now flatten all types
-  [...newTypes.keys()].forEach(t =>
-    newTypes.set(t, _.flattenDeep(newTypes.get(t))));
-  
-  //create hierarchy
-  let hierarchy: any[] = _.clone(currentSequence);
-  if (log) console.log(_.reverse(_.sortBy([...newTypes.keys()])))
-  
-  hierarchy = replaceTypesRecursively(hierarchy, newTypes);
-  
-  //print types and occurrences
-  _.reverse(_.sortBy([...newTypes.keys()])).forEach(t => {
-    const seq = JSON.stringify(replaceTypesRecursively([t], newTypes)[0]);
-    const occs = JSON.stringify(hierarchy).split(seq).length-1;
-    if (occs && log) console.log(t, occs, seq);
-  });
-  
-  if (log) console.log(JSON.stringify(hierarchy));
-  return hierarchy;
-}
-
-function replaceTypesRecursively(hierarchy: any[], types: Map<number,number[]>) {
-  hierarchy = _.cloneDeep(hierarchy);
-  _.reverse(_.sortBy([...types.keys()])).forEach(t =>
-    hierarchy = replaceInTree(hierarchy, t, types.get(t)));
-  return hierarchy;
-}
-
-function replaceInTree(tree: any[], pattern: any, replacement: any) {
-  if (!tree.length) return tree;
-  return tree.map(n => _.isEqual(n, pattern) ? replacement
-    : replaceInTree(n, pattern, replacement));
-}
-
-function getMostCommonPair<T>(array: T[], unequalOnly = false): [T, T] {
-  let pairs = array.map<[T, T]>((a,i) =>
-    i > 0 ? [array[i-1], a] : null).filter(a => a).map(p => JSON.stringify(p));
-  let uniq = _.uniq(pairs);
-  if (unequalOnly) uniq = uniq.filter(p =>
-    {const q: [T,T] = JSON.parse(p); return q[0] != q[1]});
-  const indexes = uniq.map(u => allIndexesOf(pairs, u));
-  const disjunct = indexes.map(u =>
-    u.reduce<number[]>((ii,i) => i == _.last(ii)+1 ? ii : _.concat(ii, i), []));
-  const freqs = disjunct.map(d => d.length);
-  //console.log(JSON.stringify(_.reverse(_.sortBy(_.zip(uniq, freqs), p => p[1])).slice(0,5)))
-  const maxFreq = _.max(freqs);
-  if (maxFreq > 1)
-    return JSON.parse(uniq[freqs.indexOf(maxFreq)]);
+  return inferHierarchyFromTypeSequence(typeSequence, unequalPairsOnly);
 }
 
 function getSectionBoundariesFromMSA(timeline: SegmentNode[][]) {
@@ -289,18 +219,23 @@ function getSectionBoundariesFromMSA(timeline: SegmentNode[][]) {
 }
 
 export function getSectionGroupsFromTimelineMatrix(matrix: number[][],
-    numMaxes = 1, minDist = 1, maskThreshold = .3) {
+    numMaxes = 1, minDist = 0, maskThreshold = .3) {
   //preprocess matrix
-  const max = _.max(_.flatten(matrix));
-  matrix = matrix.map(r => r.map(c => c >= maskThreshold*max ? c : 0));
+  matrix = maskMatrix(matrix, maskThreshold);
   const levels = getSegmentation(matrix, minDist, numMaxes);
   //console.log(JSON.stringify(levels));
   return levels;
 }
 
+function maskMatrix(matrix: number[][], threshold = .3) {
+  const max = _.max(_.flatten(matrix));
+  return matrix.map(r => r.map(c => c >= threshold*max ? c : 0));
+}
+
 function getSegmentation(matrix: number[][], minDist: number, numConns: number) {
   //const connections = getIterativeMostConnected(matrix, minDist);
   const connections = getNMostConnectedForReal(matrix, minDist, numConns);
+  //console.log(JSON.stringify(connections))
   const newMatrix = connections.map(_c => connections.map(_c => 0));
   connections.forEach((c,i) => c.forEach(j => newMatrix[i][j] = 1));
   //if (connMatrixFile) saveJsonFile(connMatrixFile, newMatrix);

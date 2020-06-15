@@ -35,15 +35,15 @@ const SW_OPTIONS: FullSWOptions = {
   maxIterations: 1,//true,
   fillGaps: true, //turn off for similarity graphs!!
   //similarityThreshold: .95,
-  minSegmentLength: 5, //only take segments longer than this
+  minSegmentLength: 16, //only take segments longer than this
   maxThreshold: 50, //stop when max value below this
   //endThreshold: 0,
   onlyDiagonals: true,
-  nLongest: 5,
-  maxGapSize: 1,
+  nLongest: 10,
+  maxGapSize: 4,
   //maxGaps: 5,
   maxGapRatio: 0.25,
-  minDistance: 2
+  minDistance: 4
 }
 
 export function getVariations(minPatternLengths: number[]): [string, any[]][] {

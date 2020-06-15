@@ -155,7 +155,7 @@ export class TimelineAnalysis {
       const timeline = getTimelineFromMSA(msa, points, alignments.versionTuples,
         alignments.alignments);
       await this.saveOutput(timeline, alignments.versions);
-      await this.saveTimelineVisuals(timeline, alignments.versions);
+      await this.saveTimelineVisuals(timeline);
     }
   }
   
@@ -259,7 +259,7 @@ export class TimelineAnalysis {
       const timeline = getTimelineFromAlignments(alignments.versionTuples,
         alignments.alignments);
       await this.saveOutput(timeline, alignments.versions);
-      await this.saveTimelineVisuals(timeline, alignments.versions);
+      await this.saveTimelineVisuals(timeline);
     //}
   }
 
@@ -327,22 +327,22 @@ export class TimelineAnalysis {
     saveJsonFile(this.tlo.filebase+'-output.json', json);
   }
   
-  private async saveTimelineVisuals(timeline: GraphPartition<SegmentNode>,
-      versions: string[]) {
+  async saveTimelineVisuals(timeline: GraphPartition<SegmentNode>, path?: string) {
     const points = await this.getPoints();
     const segments = await this.getSegments();
     const segmentsByType = inferStructureFromTimeline(timeline);
+    const alignments = await this.getAlignments();
     const visuals = _.flatten(points.map((v,i) =>
       v.map((_p,t) => {
         const type = segmentsByType.findIndex(s =>
           s.find(n => n.version === i && n.time === t) != null);
         if (type >= 0) {
           const n = segmentsByType[type].find(n => n.version === i && n.time === t);
-          return ({version:i, time:t, type:type+1, point:n.point, path: versions[i],
+          return ({version:i, time:t, type:type+1, point:n.point, path: alignments.versions[i],
             start: segments[i][n.time].start, duration: segments[i][n.time].duration});
         }
       }))).filter(p=>p);
-    saveJsonFile(this.tlo.filebase+'-visuals.json', visuals);
+    saveJsonFile(path || this.tlo.filebase+'-visuals.json', visuals);
   }
   
   async analyzeTimeline(timeline: GraphPartition<SegmentNode>) {

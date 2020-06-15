@@ -26,7 +26,7 @@ export enum MSA_LENGTH {
 
 export const STD_MSA_OPTIONS: MSAOptions = {
   modelLength: MSA_LENGTH.MEDIAN,
-  iterations: 10,
+  iterations: 1,
   edgeInertia: 0.8,
   distInertia: 0.8,
   matchMatch: 0.999,
