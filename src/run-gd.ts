@@ -12,6 +12,7 @@ import { toHistogram } from './analysis/pattern-histograms';
 import { AlignmentAlgorithm, TimelineOptions, TimelineAnalysis
   } from './analysis/timeline-analysis';
 import { getFactorNames } from './analysis/sequence-heuristics';
+import { addSegmentsAtBestSpots } from './analysis/sequence-improvement';
 import { getStandardDeviation, getMedian } from './analysis/util';
 import { hmmAlign, MSAOptions, getModel, MSA_LENGTH } from './models/models';
 import { Experiment } from './experiments/experiment';
@@ -94,6 +95,41 @@ export class GdExperiment {
     return {groundP: path.length/groundtruth.length, seqP: path.length/sequence.length};
   }
   
+  async completionTest(song: string, tlo: GdOptions) {
+    let [folders, options] = this.getSongFoldersAndOptions(tlo, song);
+    options.audioFiles = await this.getGdVersionsQuick(folders.audio, options);
+    options = Object.assign(options,
+      {featuresFolder: folders.features, patternsFolder: folders.patterns});
+    const swOptions = getSwOptions(folders.patterns, options.featureOptions);
+    const analysis = new TimelineAnalysis(options, swOptions);
+    const pointsFile = options.filebase+"-points.json";
+    const msaFile = await hmmAlign(pointsFile, this.getMSAFolder(options));
+    const timeline = await analysis.getTimelineFromMSAResult(msaFile);
+    //console.log(_.flatten(timeline.getPartitions()).length)
+    await analysis.saveTimelineVisuals(timeline);
+    /*const segsByTypes = await analysis.getStructure(timeline);
+    const graph = timeline.getGraph();
+    const missing = _.differenceBy(graph.getNodes(), _.flatten(segsByTypes), n => n.id);
+    console.log("timeline", _.flatten(timeline.getPartitions()).length)
+    console.log("missing", missing.length)
+    addSegmentsAtBestSpots(missing, timeline, undefined, true);
+    console.log("timeline2", _.flatten(timeline.getPartitions()).length);
+    await analysis.saveTimelineVisuals(timeline, options.filebase+'-visuals2.json');
+    /*console.log(_.mean(missing.map(m => pruned.getAdjacents(m).length)))
+    const locations = missing.map(m => pruned.getAdjacents(m)
+      .map(n => _.findIndex(partitions, p => p.find(o => o.id === n.id) != null))
+      .filter(i => i != null && i >= 0 && !partitions[i].find(o => o.id === m.id)));
+    console.log(JSON.stringify(locations.slice(0,50)));
+    //see where it can be added to timeline (maintain order and check if empty...)
+    let candidates = locations.map(l => _.uniq(l).length == 1 && l.length > 1 ? l[0] : null);
+    candidates.map((c,i) => c != null
+      && partitions[c].find(n => n.version === missing[i].version));
+    console.log(candidates.filter(c => c).length)
+    //await analysis.saveTimelineVisuals(timeline, tlo.filebase+'-visuals2.json')
+    console.log(locations.map(l => _.uniq(l).length == 1 && l.length > 1).filter(l => l).length);
+    //then, see if can be added to segment types*/
+  }
+  
   async fullSweep(tlo: GdOptions, songs = this.getTunedSongs(), statsFile: string) {
     const msaConfigs = <MSAOptions[]><any>this.getSweepConfigs<number|string>({
       //best: median, 1, 0.8/0.8, 0.999/0.01, undefined
@@ -121,7 +157,6 @@ export class GdExperiment {
       maskThreshold: .1
     };
     
-    
     const ratingFactorNames = getFactorNames();
     const evalNames = ["originalGround", "originalSeq", "tlModesGround",
       "tlModesSeq", "tlGraphGround", "tlGraphSeq", "msaGround", "msaSeq",
@@ -129,7 +164,7 @@ export class GdExperiment {
     const resultNames = ["stateCount", "avgStateP", "probStates", "logP",
       "trackP", "rating"].concat(ratingFactorNames).concat(evalNames);
     mapSeries(songs.filter(s => !_.includes(['brokedown_palace','friend_of_the_devil',
-      'mountains_of_the_moon','west_l.a._fadeaway'], s)),
+        'mountains_of_the_moon','west_l.a._fadeaway'], s)),
         async song => mapSeries(swConfigs, async swConfig => {
       let [folders, options] = this.getSongFoldersAndOptions(tlo, song);
       options.audioFiles = await this.getGdVersionsQuick(folders.audio, options);

@@ -2,8 +2,6 @@ import * as _ from 'lodash';
 //import { saveGdHists } from './histograms';
 import { QUANT_FUNCS as QF } from 'siafun';
 import { GdExperiment } from './run-gd';
-import { guidAndCopyFiles, renameAndCopyFiles } from './files/file-manager';
-import { FeatureExtractor } from './files/feature-extractor';
 import { AlignmentAlgorithm } from './analysis/timeline-analysis';
 import { FEATURES } from './files/feature-extractor';
 
@@ -28,7 +26,7 @@ getSongOptions("cosmic charlie", "cosmic_charlie/", ".wav");
 
 
 
-export const RESULTS_PATH = "results/msa-sweep-beats-paper/";
+export const RESULTS_PATH = "results/completion-test/";
 const CURRENT_OPTIONS = (mv: number, variant?: string) => Object.assign(CURRENT_SONG, {
   filebase: RESULTS_PATH + CURRENT_SONG.results + mv + variant,
   appendix: mv + variant,
@@ -61,10 +59,11 @@ options.filebase = RESULTS_PATH;
 options.extension = ".wav";
 //new GdExperiment().analyzeAllRaw(options);
 //new GdExperiment().sweepMSA(options, ["cosmic_charlie"]);
-const song = 'china_doll';
+const song = 'casey_jones';
 //new GdExperiment().evaluate("data/gd_chords/"+song+"_output.json", "data/gd_chords/"+song+".json");
 //new GdExperiment().evaluateSeparateChords(options, ["china_doll"], RESULTS_PATH+"_stats-overall.json")
-new GdExperiment().fullSweep(options,
+new GdExperiment().completionTest(song, options);
+/*new GdExperiment().fullSweep(options,
   //["casey_jones", "china_doll", "cosmic_charlie"], RESULTS_PATH+"_stats-models2.json");
   [song], RESULTS_PATH+"_stats-beats.json");
 //new GdExperiment().compileAllMSAStats(options, "casey_jones", RESULTS_PATH+"msa-stats.json")//.sweepMSA(options);
