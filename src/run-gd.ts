@@ -15,7 +15,7 @@ import { getFactorNames } from './analysis/sequence-heuristics';
 import { addSegmentsAtBestSpots } from './analysis/sequence-improvement';
 import { getStandardDeviation, getMedian } from './analysis/util';
 import { hmmAlign, MSAOptions, getModel, MSA_LENGTH } from './models/models';
-import { Experiment } from './experiments/experiment';
+import { Experiment } from './files/experiment';
 import { getStandardChordSequence } from './files/leadsheets';
 
 interface GdVersion {
@@ -51,15 +51,15 @@ const GD_TUNED: GdFolders = { audio: DATA+'gd_retuned/',//no longer used
 const MSA_BASE = DATA+'msa/';
 
 export class GdExperiment {
-  
+
   private songMap: Map<string, GdVersion[]>;
-  
+
   constructor(audioSubfolder = "") {
     this.initGdSongMap();
     GD_RAW.audio += audioSubfolder;
     GD_TUNED.audio += audioSubfolder;
   }
-  
+
   evaluateSeparateChords(tlo: GdOptions, songs = this.getTunedSongs(), statsFile: string) {
     mapSeries(songs, async song => {
       let [_folders, options] = this.getSongFoldersAndOptions(tlo, song);
@@ -69,7 +69,7 @@ export class GdExperiment {
       console.log(JSON.stringify(evals.map(e => e.groundP)));
     });
   }
-  
+
   evaluate(outputFile: string, leadsheetFile: string) {
     const groundtruth =  getStandardChordSequence(leadsheetFile, true);
     const result: string[] = _.flattenDeep(loadJsonFile(outputFile));
@@ -86,7 +86,7 @@ export class GdExperiment {
     console.log(path.length/groundtruth.length, path.length/result.length)
     return outputFile
   }
-  
+
   getEvaluation(sequence: string[], leadSheetFile: string) {
     const groundtruth =  getStandardChordSequence(leadSheetFile, true);
     const vocab = _.uniq(_.concat(groundtruth, sequence));
@@ -94,7 +94,7 @@ export class GdExperiment {
     const path = getSimpleSmithWatermanPath(numeric(groundtruth), numeric(sequence), {});
     return {groundP: path.length/groundtruth.length, seqP: path.length/sequence.length};
   }
-  
+
   async completionTest(song: string, tlo: GdOptions) {
     let [folders, options] = this.getSongFoldersAndOptions(tlo, song);
     options.audioFiles = await this.getGdVersionsQuick(folders.audio, options);
@@ -129,7 +129,7 @@ export class GdExperiment {
     console.log(locations.map(l => _.uniq(l).length == 1 && l.length > 1).filter(l => l).length);
     //then, see if can be added to segment types*/
   }
-  
+
   async fullSweep(tlo: GdOptions, songs = this.getTunedSongs(), statsFile: string) {
     const msaConfigs = <MSAOptions[]><any>this.getSweepConfigs<number|string>({
       //best: median, 1, 0.8/0.8, 0.999/0.01, undefined
@@ -156,7 +156,7 @@ export class GdExperiment {
       numConns: 1,
       maskThreshold: .1
     };
-    
+
     const ratingFactorNames = getFactorNames();
     const evalNames = ["originalGround", "originalSeq", "tlModesGround",
       "tlModesSeq", "tlGraphGround", "tlGraphSeq", "msaGround", "msaSeq",
@@ -172,25 +172,25 @@ export class GdExperiment {
         {featuresFolder: folders.features, patternsFolder: folders.patterns});
       const swOptions = getSwOptions(folders.patterns,
         options.featureOptions, swConfig);
-      
+
       const analysis = new TimelineAnalysis(options, swOptions);
-      
+
       console.log('saving feature sequences')
       if (options.multinomial) await analysis.saveMultinomialSequences(true);
       else await analysis.saveRawSequences();
       await analysis.saveIndividualChordSequences(true);
-      
+
       const points = options.filebase+"-points.json";
-      
+
       const swColumns = _.clone(swOptions);
       delete swColumns.selectedFeatures;//these are either logged in song field or irrelevant...
       delete swColumns.quantizerFunctions;
       delete swColumns.cacheDir;
-      
+
       const songWithExt = options.filebase.split('/').slice(-1)[0];
-      const configs = msaConfigs.map(c => 
+      const configs = msaConfigs.map(c =>
         Object.assign({song: songWithExt, model: getModel(c)}, c, swColumns, sectionConfig));
-      
+
       await new Experiment("msa sweep "+song+" ",
         configs,
         async i => {
@@ -207,7 +207,7 @@ export class GdExperiment {
               ...ratingFactorNames.map(f => rating.factors[f]),
               ...evalNames.map(e => allSWEvals[e])]);
         }).run(statsFile);
-      
+
       /*await mapSeries(configs, async c => {
         const msaFile = await hmmAlign(points, this.getMSAFolder(options), c);
         await analysis.saveTimelineFromMSAResults(msaFile);
@@ -216,7 +216,7 @@ export class GdExperiment {
       });*/
     }));
   }
-  
+
   private async getAllSWEvals(song: string, analysis: TimelineAnalysis,
       options: GdOptions, msaFile: string, numConns: number,
       maskThreshold: number) {
@@ -235,13 +235,13 @@ export class GdExperiment {
         t.find(n => n.version == i && n.time == j) != null);
       return index >= 0 ? tlGraphLabels[index] : c;
     }));
-    
+
     const original = chords.map(c => this.getEvaluation(c, "data/gd_chords/"+song+".json"));
     const tlModes = adjustedChords.map(c => this.getEvaluation(c, "data/gd_chords/"+song+".json"));
     const tlGraph = adjustedChords2.map(c => this.getEvaluation(c, "data/gd_chords/"+song+".json"));
     const msa = this.getEvaluation(tlModeLabels, "data/gd_chords/"+song+".json");
     const graph = this.getEvaluation(tlGraphLabels, "data/gd_chords/"+song+".json")
-    
+
     return {
       originalGround: _.mean(original.map(o => o.groundP)),
       originalSeq: _.mean(original.map(o => o.seqP)),
@@ -255,23 +255,23 @@ export class GdExperiment {
       graphSeq: graph.seqP
     }
   }
-  
+
   private getSweepConfigs<T>(configs: _.Dictionary<T[]>): _.Dictionary<T>[] {
     const product = cartesianProduct(_.values(configs));
     return product.map(p => _.zipObject(Object.keys(configs), p));
   }
-  
+
   private getMSAFolder(options: GdOptions) {
     return initDirRec(MSA_BASE+options.filebase.split('/').slice(-1)[0]+'/');
   }
-  
+
   async analyzeAllRaw(tlo: GdOptions) {
     mapSeries(this.getTunedSongs(), async s => {
       const [folders, options] = this.getSongFoldersAndOptions(tlo, s);
       return this.generateTimelineViaGaussianHMM(folders, options);
     });
   }
-  
+
   private getSongFoldersAndOptions(options: GdOptions, songname: string) {
     const folders = _.clone(GD_RAW);
     folders.audio += songname + "/";
@@ -281,12 +281,12 @@ export class GdExperiment {
     options.collectionName = songname.split('_').join(' ');
     return <[GdFolders,GdOptions]>[folders, options];
   }
-  
+
   async printOverallMSAStats(tlo: GdOptions) {
     const songs = this.getTunedSongs();
     const filebases = songs.map(s =>
       this.getSongFoldersAndOptions(tlo, s)[1].filebase);
-    
+
     const stats = await mapSeries(filebases, async f => this.getMSAStats(f+"-msa.json"));
     console.log("tracks", _.sum(stats.map(s => s.probableTracks)), "of",
       _.sum(stats.map(s => s.totalTracks)));
@@ -294,7 +294,7 @@ export class GdExperiment {
       _.sum(stats.map(s => s.totalStates)));
     console.log("trackP", _.mean(_.flatten(stats.map(s => s.trackPs))));
     console.log("stateP", _.mean(_.flatten(stats.map(s => s.statePs))));
-    
+
     const analyses = await mapSeries(songs, async s => {
       const [folders, options] = this.getSongFoldersAndOptions(tlo, s);
       options.audioFiles = await this.getGdVersionsQuick(folders.audio, options);
@@ -304,7 +304,7 @@ export class GdExperiment {
     const ratings = await mapSeries(analyses, async a => a.getPartitionRating());
     console.log("rating", _.mean(ratings), getMedian(ratings));
   }
-  
+
   printMSAStats(filepath: string, full?: boolean) {
     const stats = this.getMSAStats(filepath);
     if (full) {
@@ -315,12 +315,12 @@ export class GdExperiment {
     console.log("probable tracks:", stats.probableTracks, "of", stats.totalTracks);
     console.log("probable states:", stats.probableStates, "of", stats.totalStates);
   }
-  
+
   private printStats(name: string, values: number[]) {
     console.log(name+":", "["+_.min(values)+", "+_.max(values)+"]",
       _.mean(values), getStandardDeviation(values));
   }
-  
+
   getMSAStats(filepath: string) {
     const json = loadJsonFile(filepath);
     const msa: string[][] = json["msa"];
@@ -336,16 +336,16 @@ export class GdExperiment {
       logPs: logPs, trackPs: trackPs, statePs: statePs,
       probableTracks: numProbTracks, probableStates: numProbStates};
   }
-  
+
   async analyzeRaw(tlo: TimelineOptions) {
     this.generateTimelineViaGaussianHMM(GD_RAW, tlo);
   }
-  
+
   async analyzeTuned(tlo: TimelineOptions) {
     await this.tuneSongVersions(tlo, 440, GD_RAW.audio, GD_RAW.features, GD_TUNED.audio);
     this.generateTimelineViaGaussianHMM(GD_TUNED, tlo);
   }
-  
+
   private async generateTimelineViaGaussianHMM(folders: GdFolders, tlo: TimelineOptions) {
     tlo.audioFiles = await this.getGdVersionsQuick(folders.audio, tlo);
     console.log('saving raw sequences')
@@ -363,7 +363,7 @@ export class GdExperiment {
     await ta.saveSumSSMfromMSAResults();*/
     //ta.getStructure();
   }
-  
+
   private async generateTimelineFromGaussianHMM(folders: GdFolders, tlo: TimelineOptions) {
     tlo.audioFiles = await this.getGdVersionsQuick(folders.audio, tlo);
     console.log('saving raw sequences')
@@ -381,7 +381,7 @@ export class GdExperiment {
     await ta.saveSumSSMfromMSAResults();*/
     //ta.getStructure();
   }
-  
+
   /** shows that standard deviation of tuning frequency never goes below 2-3,
     * which is reached after one tuning step. due to noisy audio and features.
     * 440.1869824218302 4.402311809256126 {"E minor":87,"Eb minor":1,"G major":10,"F minor":1,"A major":1}
@@ -411,7 +411,7 @@ export class GdExperiment {
     const lastVersions = await this.getGdVersionsQuick(_.last(folders).audio, tlo);
     await this.getTuningFeatures(lastVersions, _.last(folders).features);
   }
-  
+
   private async tuneSongVersions(tlo: TimelineOptions, targetFreq: number,
       originalFolder: string, featuresFolder: string, tunedFolder: string) {
     const versions = await this.getGdVersionsQuick(originalFolder, tlo);
@@ -421,11 +421,11 @@ export class GdExperiment {
       targetFreq, tuningFeatures.keys[i], tuningFeatures.mostCommonKey));
     return tuningFeatures;
   }
-  
+
   private getGdVersionsQuick(folder: string, tlo: TimelineOptions) {
     return this.getGdVersions(tlo.collectionName, folder, tlo.maxVersions, tlo.extension);
   }
-  
+
   private async getTuningFeatures(audioFiles: string[], featuresFolder: string) {
     const features = new FeatureLoader(featuresFolder);
     const tuningFreqs: number[] =
@@ -435,7 +435,7 @@ export class GdExperiment {
     const mostCommonKey = <string>_.head(_(keys).countBy().entries().maxBy(_.last));
     return {tuningFreqs: tuningFreqs, keys: keys, mostCommonKey: mostCommonKey};
   }
-  
+
   async saveAllSongSequences(offset = 0, skip = 0, total = 10) {
     let songs: [string, GdVersion[]][] = _.toPairs(this.songMap);
     songs = _.reverse(_.sortBy(songs, s => s[1].length));
@@ -452,7 +452,7 @@ export class GdExperiment {
         .savePatternAndVectorSequences(GD_GRAPHS+songname, true);
     });
   }
-  
+
   private getBasicTimelineOptions(songname: string) {
     return {collectionName: songname,
       audioFiles: this.getGdVersions(songname, GD_RAW.audio),
@@ -465,7 +465,7 @@ export class GdExperiment {
     mapSeries(this.getTunedSongs(), folder => {
       GD_RAW.audio = '/Volumes/gspeed1/florian/musical-structure/thomas/'+folder+'/';
       const songname = folder.split('_').join(' ');
-      return new TimelineAnalysis(Object.assign(this.getBasicTimelineOptions(songname), 
+      return new TimelineAnalysis(Object.assign(this.getBasicTimelineOptions(songname),
         {filebase: DIR+songname, song: songname,
           extension: '.wav', count: 5, algorithm: AlignmentAlgorithm.SW,
           includeSelfAlignments: true})).saveMultiTimelineDecomposition();

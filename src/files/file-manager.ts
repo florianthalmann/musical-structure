@@ -1,6 +1,7 @@
 import * as fs from 'fs';
 import * as fse from 'fs-extra';
 import * as _ from 'lodash';
+import { join } from 'path';
 import { v4 as uuidv4 } from 'uuid';
 import { audioPathToDirName } from './util';
 
@@ -120,9 +121,8 @@ export function recGetFilesInFolder(folder: string, fileTypes: string[]): string
 
 /** returns the names of all folders contained in the given folder */
 export function getFoldersInFolder(folder: string): string[] {
-  return fs.readdirSync(folder, { withFileTypes: true })
-    .filter(dirent => dirent.isDirectory())
-    .map(dirent => dirent.name);
+  return fs.readdirSync(folder)
+    .filter(f => fs.lstatSync(join(folder, f)).isDirectory());
 }
 
 /** returns the names of all files of the given type contained in the given folder */
