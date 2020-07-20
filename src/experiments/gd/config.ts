@@ -8,7 +8,9 @@ interface GdFolders {
 
 export const GD_GRAPHS = initDirRec('results/gd/graphs/');
 
-export const DATA = '/media/florian/FastSSD/gd_tuned/';//'/Volumes/gspeed1/florian/musical_structure/data/'
+export const DATA = '/Volumes/FastSSD/gd_tuned/';
+//export const DATA = '/media/florian/FastSSD/gd_tuned/';
+//export const DATA = '/Volumes/gspeed1/florian/musical_structure/data/'
 export const GD_SONG_MAP = DATA+'audio/app_song_map.json';
 export const GD_RAW: GdFolders = { audio: DATA+'audio/',
   features: DATA+'features/', patterns: DATA+'patterns/' };
