@@ -1,15 +1,14 @@
 import * as fs from 'fs';
 import * as _ from 'lodash';
-import { pointsToIndices, StructureResult, MultiStructureResult, getCosiatec,
-  getSmithWaterman, getDualSmithWaterman, getMultiCosiatec, getSelfSimilarityMatrix,
-  Quantizer } from 'siafun';
-import { mapSeries, updateStatus, audioPathToDirName } from '../files/util';
+import { pointsToIndices, StructureResult, MultiStructureResult,
+  getSelfSimilarityMatrix, Quantizer } from 'siafun';
+import { mapSeries } from '../files/util';
 import { loadJsonFile, saveJsonFile, saveTextFile, loadTextFile } from '../files/file-manager';
 import { NodeGroupingOptions } from '../graphs/graph-analysis';
 import { loadGraph, DirectedGraph } from '../graphs/graph-theory';
 import { GraphPartition } from '../graphs/graph-partition';
-import { getOptionsWithCaching, getSiaOptions, getSwOptions,
-  FullSIAOptions, FullSWOptions, FeatureOptions } from '../files/options';
+import { getSiaOptions, getSwOptions, FullSIAOptions, FullSWOptions,
+  FeatureOptions } from '../files/options';
 import { FeatureLoader } from '../files/feature-loader';
 import { createSimilarityPatternGraph, getPatternGroupNFs, getNormalFormsMap,
   getConnectednessByVersion, PatternNode } from '../analysis/pattern-analysis';
@@ -23,12 +22,8 @@ import { getMostCommonPoints } from '../analysis/pattern-histograms';
 import { toIndexSeqMap } from '../graphs/util';
 import { pcSetToLabel } from '../files/theory';
 import { getMedian, getMode } from './util';
-
-export enum AlignmentAlgorithm {
-  SIA,
-  SW,
-  BOTH
-}
+import { AlignmentAlgorithm, Alignments, AlignmentOptions, extractAlignments, getMultiSWs,
+  getMultiCosiatecs, getSmithWatermanFromAudio, getCosiatecFromAudio } from './alignments';
 
 export interface TimelineOptions {
   filebase?: string,
@@ -40,7 +35,6 @@ export interface TimelineOptions {
   multinomial?: boolean,
   includeSelfAlignments?: boolean,
   maxVersions?: number,
-  maxPointsLength?: number,
   audioFiles?: string[],
   featuresFolder?: string,
   patternsFolder?: string
@@ -53,13 +47,6 @@ interface MultinomialSequences {
 
 interface RawSequences {
   data: number[][][]
-}
-
-interface Alignments {
-  versionTuples: [number, number][],
-  alignments: MultiStructureResult[],
-  versions: string[],
-  versionPoints: any[][][]
 }
 
 interface VisualsPoint {
@@ -81,7 +68,7 @@ export class TimelineAnalysis {
   
   private siaOptions: FullSIAOptions;
   private points: Promise<any[][][]>;
-  private alignments: Promise<Alignments>;
+  private alignments: Alignments;
   private alignmentGraph: DirectedGraph<SegmentNode>;
   
   constructor(private tlo: TimelineOptions, private swOptions?: FullSWOptions) {
@@ -264,8 +251,19 @@ export class TimelineAnalysis {
   }
 
   private async getAlignments() {
-    if (!this.alignments) this.alignments = this.extractAlignments();
+    if (!this.alignments)
+      this.alignments = extractAlignments(await this.getAlignmentOptions());
     return this.alignments;
+  }
+  
+  private async getAlignmentOptions(numTuplesPerFile?: number, tupleSize?: number): Promise<AlignmentOptions> {
+    return Object.apply(this.tlo, {
+      points: await this.getPoints(),
+      swOptions: this.swOptions,
+      siaOptions: this.siaOptions,
+      numTuplesPerFile: numTuplesPerFile,
+      tupleSize: tupleSize
+    });
   }
   
   private async getAlignmentGraph() {
@@ -275,34 +273,6 @@ export class TimelineAnalysis {
         alignments.versionTuples, alignments.alignments, false);
     }
     return this.alignmentGraph;
-  }
-  
-  private async extractAlignments() {
-    let tuples = <[number,number][]>_.flatten(_.range(this.tlo.count)
-      .map(c => this.getMultiConfig(2, c, this.tlo.maxVersions)
-      .map(pair => pair.map(s => this.tlo.audioFiles.indexOf(s)))));
-    if (this.tlo.algorithm === AlignmentAlgorithm.BOTH) tuples = _.concat(tuples, tuples);
-    const multis: MultiStructureResult[] = [];
-    if (_.includes([AlignmentAlgorithm.SIA, AlignmentAlgorithm.BOTH], this.tlo.algorithm)) {
-      multis.push(..._.flatten(await this.getMultiCosiatecsForSong(this.tlo.count, this.tlo.maxVersions)));
-    }
-    if (_.includes([AlignmentAlgorithm.SW, AlignmentAlgorithm.BOTH], this.tlo.algorithm)) {
-      multis.push(..._.flatten(await this.getMultiSWs(this.tlo.count, this.tlo.maxVersions)));
-    }
-    if (this.tlo.includeSelfAlignments) {
-      if (_.includes([AlignmentAlgorithm.SIA, AlignmentAlgorithm.BOTH], this.tlo.algorithm)) {
-        const autos = await this.getCosiatecFromAudio();
-        multis.push(...autos.map(a => Object.assign(a, {points2: a.points})));
-        tuples.push(...<[number,number][]>this.tlo.audioFiles.map((_,i) => [i,i]));
-      }
-      if (_.includes([AlignmentAlgorithm.SW, AlignmentAlgorithm.BOTH], this.tlo.algorithm)) {
-        const autos = await this.getSmithWatermanFromAudio();
-        multis.push(...autos.map(a => Object.assign(a, {points2: a.points})));
-        tuples.push(...<[number,number][]>this.tlo.audioFiles.map((_,i) => [i,i]));
-      }
-    }
-    return {versionTuples: tuples, alignments: multis,
-      versions: this.tlo.audioFiles, versionPoints: await this.getPoints()};
   }
   
   //segments by version
@@ -366,30 +336,16 @@ export class TimelineAnalysis {
 
   async saveMultiSWPatternGraph(filebase: string, count = 1) {
     const MIN_OCCURRENCE = 1;
-    const multis = await this.getMultiSWs(count);
+    const multis = await getMultiSWs(await this.getAlignmentOptions(count));
     multis.map((h,i) =>
       createSimilarityPatternGraph(h, false, filebase+'-multi'+i+'-graph.json', MIN_OCCURRENCE));
-  }
-
-  private async getMultiSWs(count: number, maxVersions?: number) {
-    return mapSeries(_.range(count), async i => {
-      console.log('working on ' + this.tlo.collectionName + ' - multi ' + i);
-      return this.getMultiSW(i, maxVersions);
-    });
-  }
-
-  private async getMultiCosiatecsForSong(count: number, maxVersions?: number) {
-    return mapSeries(_.range(count), async i => {
-      console.log('working on ' + this.tlo.collectionName + ' - multi ' + i);
-      return this.getMultiCosiatecs(2, i, maxVersions);
-    })
   }
 
   async saveMultiPatternGraphs(filebase: string, size = 2, count = 1) {
     const MIN_OCCURRENCE = 2;
     await mapSeries(_.range(count), async i => {
       console.log('working on ' + this.tlo.collectionName + ' - multi ' + i);
-      const results = await this.getMultiCosiatecs(size, i);
+      const results = await getMultiCosiatecs(i, await this.getAlignmentOptions(count, size));
       createSimilarityPatternGraph(results, false, filebase+'-multi'+size+'-'+i+'-graph.json', MIN_OCCURRENCE);
     })
   }
@@ -422,7 +378,7 @@ export class TimelineAnalysis {
     const graphFile = filebase+"-graph.json";
     console.log("\n"+this.tlo.collectionName+" "+this.tlo.audioFiles.length+"\n")
 
-    const results = await this.getSmithWatermanFromAudio();
+    const results = getSmithWatermanFromAudio(await this.getAlignmentOptions());
 
     const MIN_OCCURRENCE = 2;
     const PATTERN_TYPES = 20;
@@ -465,7 +421,7 @@ export class TimelineAnalysis {
     console.log("\n"+this.tlo.collectionName+" "+this.tlo.audioFiles.length+"\n")
 
     const points = await this.getPoints();
-    const results = await this.getCosiatecFromAudio();
+    const results = getCosiatecFromAudio(await this.getAlignmentOptions());
     results.forEach(r => this.removeNonParallelOccurrences(r));
 
     const MIN_OCCURRENCE = 2;
@@ -474,7 +430,9 @@ export class TimelineAnalysis {
     if (tryDoubletime) {
       const doubleOptions = Object.assign(_.clone(this.siaOptions), {doubletime: true});
       const doublePoints = await this.getPoints(doubleOptions);
-      const doubleResults = await this.getCosiatecFromAudio(doublePoints);
+      const doubleAO = await this.getAlignmentOptions();
+      doubleAO.points = doublePoints;
+      const doubleResults = await getCosiatecFromAudio(doubleAO);
       doubleResults.forEach(r => this.removeNonParallelOccurrences(r));
 
       const graph = createSimilarityPatternGraph(results.concat(doubleResults), false, null, MIN_OCCURRENCE);
@@ -504,7 +462,7 @@ export class TimelineAnalysis {
   }
 
   async savePatternSequences(file: string) {//, hubSize: number, appendix = '') {
-    const results = await this.getCosiatecFromAudio();
+    const results = await getCosiatecFromAudio(await this.getAlignmentOptions());
     results.forEach(r => this.removeNonParallelOccurrences(r));
     const sequences = await this.getPatternSequences(this.tlo.audioFiles,
       await this.getPoints(), results, {maxDistance: 3}, 10);
@@ -569,113 +527,10 @@ export class TimelineAnalysis {
     return new Quantizer(options.quantizerFunctions).getQuantizedPoints(points);
   }
   
-  async getSmithWatermanFromAudio() {
-    const points = await this.getPoints();
-    return mapSeries(this.tlo.audioFiles, async (a,i) => {
-      updateStatus('  ' + (i+1) + '/' + this.tlo.audioFiles.length);
-      if (!this.tlo.maxPointsLength || points.length < this.tlo.maxPointsLength) {
-        const sw = getSmithWaterman(points[i], getOptionsWithCaching(a, this.swOptions));
-        sw.matrices = null; sw.segmentMatrix = null;
-        return sw;
-      }
-    });
-  }
-
-  async getCosiatecFromAudio(points?: any[][][]) {
-    points = points || await this.getPoints();
-    return mapSeries(this.tlo.audioFiles, async (a,i) => {
-      updateStatus('  ' + (i+1) + '/' + this.tlo.audioFiles.length);
-      if (!this.tlo.maxPointsLength || points.length < this.tlo.maxPointsLength) {
-        return getCosiatec(points[i], getOptionsWithCaching(a, this.siaOptions));
-      }
-    });
-  }
-
-  private async getMultiSW(index: number, count?: number) {
-    const tuples = this.getMultiConfig(2, index, count);
-    const points = await this.getPoints();
-    return mapSeries(tuples, async (tuple,i) => {
-      updateStatus('  ' + (i+1) + '/' + tuples.length);
-      const currentPoints = tuple.map(a => points[this.tlo.audioFiles.indexOf(a)]);
-      if (currentPoints[0] && currentPoints[1]) {
-        return getDualSmithWaterman(currentPoints[0], currentPoints[1],
-          getOptionsWithCaching(this.getMultiCacheDir(...tuple), this.swOptions));
-      }
-      return getDualSmithWaterman([], [], getOptionsWithCaching(this.getMultiCacheDir(...tuple), this.swOptions));
-    });
-  }
-
-  private async getMultiCosiatecs(size: number, index: number, count?: number) {
-    const points = await this.getPoints();
-    const tuples = this.getMultiConfig(size, index, count);
-    return mapSeries(tuples, async (tuple,i) => {
-      updateStatus('  ' + (i+1) + '/' + tuples.length);
-      const currentPoints = tuple.map(a => points[this.tlo.audioFiles.indexOf(a)]);
-      return getMultiCosiatec(currentPoints,
-        getOptionsWithCaching(this.getMultiCacheDir(...tuple), this.siaOptions));
-    })
-  }
-
-  /*private async getSlicedMultiCosiatec(name: string, size: number, index: number, audioFiles: string[]) {
-    const pairs = getMultiConfig(name, size, index, audioFiles);
-    //TODO UPDATE PATH!!!!
-    const options = getBestOptions(initDirRec(GD_PATTERNS+'/multi'+index));
-    return _.flatten(await mapSeries(pairs, async (pair,i) => {
-      updateStatus('  ' + (i+1) + '/' + pairs.length);
-      const points = await getPointsForAudioFiles(pair, options);
-      const slices = points.map(p => getSlices(p));
-      const multis = _.zip(...slices).map(s => s[0].concat(s[1]));
-      return multis.map(h => {
-        return getInducerWithCaching(pair[0], h, options).getCosiatec();
-      });
-    }))
-  }
-
-  private getSlices<T>(array: T[]) {
-    const start = array.slice(0, array.length/2);
-    const middle = array.slice(array.length/4, 3*array.length/4);
-    const end = array.slice(array.length/2);
-    return [start, middle, end];
-  }*/
-  
   private async getPoints(featureOptions = this.tlo.featureOptions) {
     if (!this.points) this.points = new FeatureLoader(this.tlo.featuresFolder)
       .getPointsForAudioFiles(this.tlo.audioFiles, featureOptions);
     return this.points;
-  }
-
-  private getMultiCacheDir(...audio: string[]) {
-    let names = audio.map(audioPathToDirName)
-    //only odd chars if too long :)
-    if (audio.length > 3) names = names.map(n => n.split('').filter((_,i)=>i%2==0).join(''));
-    return names.join('_X_');
-  }
-
-  private getMultiConfig(size: number, index: number, count = 0): string[][] {
-    const name = this.tlo.collectionName;
-    const maxLength = this.tlo.maxPointsLength || 0;
-    const file = this.tlo.patternsFolder+'multi-config.json';
-    const config: {} = loadJsonFile(file) || {};
-    if (!config[name]) config[name] = {};
-    if (!config[name][size]) config[name][size] = {};
-    if (!config[name][size][maxLength]) config[name][size][maxLength] = {};
-    if (!config[name][size][maxLength][count]) config[name][size][maxLength][count] = [];
-    if (!config[name][size][maxLength][count][index]) {
-      config[name][size][maxLength][count][index] = this.getRandomTuples(this.tlo.audioFiles, size);
-      if (config[name][size][maxLength][count][index].length > 0) //only write if successful
-        saveJsonFile(file, config);
-    }
-    return config[name][size][maxLength][count][index];
-  }
-
-  private getRandomTuples<T>(array: T[], size = 2): T[][] {
-    const tuples: T[][] = [];
-    while (array.length >= size) {
-      const tuple = _.sampleSize(array, size);
-      tuples.push(tuple);
-      array = _.difference(array, tuple);
-    }
-    return tuples;
   }
   
 }
