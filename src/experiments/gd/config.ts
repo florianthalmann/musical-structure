@@ -6,7 +6,9 @@ interface GdFolders {
   patterns: string
 }
 
-export const GD_GRAPHS = initDirRec('results/gd/graphs/');
+export const GD_RESULTS = initDirRec('results/gd/');
+export const GD_SWEEPS = initDirRec(GD_RESULTS+'sweeps/');
+export const GD_GRAPHS = initDirRec(GD_RESULTS+'graphs/');
 
 export const DATA = '/Volumes/FastSSD/gd_tuned/';
 //export const DATA = '/media/florian/FastSSD/gd_tuned/';

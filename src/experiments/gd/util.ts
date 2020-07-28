@@ -1,4 +1,7 @@
 import * as _ from 'lodash';
+import { QUANT_FUNCS as QF } from 'siafun';
+import { FEATURES } from '../../files/feature-extractor';
+import { mapSeries } from '../../files/util';
 import { getFoldersInFolder, recGetFilesInFolder } from '../../files/file-manager';
 import { FeatureLoader } from '../../files/feature-loader';
 import { FeatureOptions } from '../../files/options';
@@ -21,7 +24,24 @@ export function getTunedSongs(excludeWronglyAnnotated = true) {
   }
 }
 
-export function getTunedAudioFiles(song: string, count = Infinity) {
+export function getBeatwiseChords(songs: string[], numVersions = Infinity) {
+  return getFeatureSequences(songs, numVersions, {
+    selectedFeatures: [FEATURES.MADMOM_BEATS, FEATURES.GO_CHORDS],
+    quantizerFunctions: [QF.ORDER(), QF.IDENTITY()]
+  });
+}
+
+export function getFeatureSequences(songs: string[], numVersions: number,
+    options: FeatureOptions): Promise<number[][][][][]> {
+  const audio = songs.map(s => getTunedAudioFiles(s, numVersions));
+  return mapSeries(audio, a => getPoints(a, options));
+}
+
+export function getVersions(songs: string[], count = Infinity) {
+  return songs.map(s => getTunedAudioFiles(s, count));
+}
+
+function getTunedAudioFiles(song: string, count = Infinity) {
   return recGetFilesInFolder(GD_RAW.audio+song+'/', ['wav']).slice(0, count);
 }
 
