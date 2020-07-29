@@ -30,13 +30,13 @@ export class DymoStructureInducer {
   async addStructureToDymo(dymoUri, options) {
     var surfaceDymos = await this.getAllParts([dymoUri]);
     var points = await this.toVectors(surfaceDymos, false, true);
-    var patterns = getCosiatecIndexOccurrences(points, options).occurrences;
-    patterns = patterns.filter(p => p[0].length > 1);
-    printPatterns(_.cloneDeep(patterns));
-    printPatternSegments(_.cloneDeep(patterns));
-    const hierarchy = new Hierarchizer().inferHierarchyFromPatterns(patterns);
+    var occs = getCosiatecIndexOccurrences(points, options).occurrences;
+    occs = occs.filter(p => p[0].length > 1);
+    printPatterns(_.cloneDeep(occs));
+    printPatternSegments(_.cloneDeep(occs));
+    const hierarchy = new Hierarchizer().inferHierarchyFromPatternOccurrences(occs);
     //console.log(JSON.stringify(patterns));
-    await this.createStructure(patterns, dymoUri, surfaceDymos);
+    await this.createStructure(occs, dymoUri, surfaceDymos);
   }
 
   private async createStructure(occurrences: number[][][], dymoUri, surfaceDymos) {

@@ -1,9 +1,14 @@
 import { initDirRec } from '../../files/file-manager';
+import { TimelineOptions } from '../../analysis/timeline-analysis';
 
-interface GdFolders {
+export interface GdFolders {
   audio: string,
   features: string,
   patterns: string
+}
+
+export interface GdOptions extends TimelineOptions {
+  appendix: string
 }
 
 export const GD_RESULTS = initDirRec('results/gd/');
@@ -16,8 +21,6 @@ export const DATA = '/Volumes/FastSSD/gd_tuned/';
 export const GD_SONG_MAP = DATA+'audio/app_song_map.json';
 export const GD_RAW: GdFolders = { audio: DATA+'audio/',
   features: DATA+'features/', patterns: DATA+'patterns/' };
-export const GD_TUNED: GdFolders = { audio: DATA+'gd_retuned/',//no longer used
-  features: DATA+'gd_retuned_features/', patterns: DATA+'gd_retuned_patterns/' };
 export const MSA_BASE = DATA+'msa/';
 
 export const swBest = {

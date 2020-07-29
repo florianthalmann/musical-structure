@@ -1,8 +1,8 @@
 import * as _ from 'lodash';
 //import { saveGdHists } from './histograms';
 import { QUANT_FUNCS as QF } from 'siafun';
-import { GdExperiment } from './run-gd';
-import { AlignmentAlgorithm } from './analysis/timeline-analysis';
+//import { GdExperiment } from './run-gd';
+import { AlignmentAlgorithm } from './analysis/alignments';
 import { FEATURES } from './files/feature-extractor';
 
 
@@ -59,10 +59,10 @@ options.filebase = RESULTS_PATH;
 options.extension = ".wav";
 //new GdExperiment().analyzeAllRaw(options);
 //new GdExperiment().sweepMSA(options, ["cosmic_charlie"]);
-const song = 'casey_jones';
+const song = 'estimated_prophet';
 //new GdExperiment().evaluate("data/gd_chords/"+song+"_output.json", "data/gd_chords/"+song+".json");
 //new GdExperiment().evaluateSeparateChords(options, ["china_doll"], RESULTS_PATH+"_stats-overall.json")
-new GdExperiment().completionTest(song, options);
+//new GdExperiment().completionTest(song, options);
 /*new GdExperiment().fullSweep(options,
   //["casey_jones", "china_doll", "cosmic_charlie"], RESULTS_PATH+"_stats-models2.json");
   [song], RESULTS_PATH+"_stats-beats.json");

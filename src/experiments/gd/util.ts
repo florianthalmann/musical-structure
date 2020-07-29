@@ -1,11 +1,43 @@
+import * as fs from 'fs';
 import * as _ from 'lodash';
 import { QUANT_FUNCS as QF } from 'siafun';
 import { FEATURES } from '../../files/feature-extractor';
 import { mapSeries } from '../../files/util';
-import { getFoldersInFolder, recGetFilesInFolder } from '../../files/file-manager';
+import { getFoldersInFolder, recGetFilesInFolder, initDirRec,
+  loadJsonFile } from '../../files/file-manager';
 import { FeatureLoader } from '../../files/feature-loader';
 import { FeatureOptions } from '../../files/options';
-import { GD_RAW } from './config';
+import { getThomasTuningRatio } from '../../files/tuning';
+import { GD_SONG_MAP, GD_RAW, MSA_BASE, GdOptions, GdFolders } from './config';
+
+interface GdVersion {
+  recording: string,
+  track: string
+}
+
+export function getSongFoldersAndOptions(options: GdOptions, songname: string) {
+  const folders = _.clone(GD_RAW);
+  folders.audio += songname + "/";
+  console.log(folders.audio)
+  options = _.clone(options);
+  options.filebase += songname + options.appendix;
+  options.collectionName = songname.split('_').join(' ');
+  return <[GdFolders,GdOptions]>[folders, options];
+}
+
+export function getMSAFolder(options: GdOptions) {
+  return initDirRec(MSA_BASE+options.filebase.split('/').slice(-1)[0]+'/');
+}
+
+export function saveDataset(path: string) {
+  const songs = getTunedSongs();
+  const versions = getVersions(songs).map(vs => vs.map(v =>
+    v.split('/').slice(-2).join('/').replace('.wav', '.mp3')));
+  const tunings = versions.map(vs => vs.map(v =>
+    getThomasTuningRatio(v.split('/')[0], v.split('/')[1].replace('.mp3',''))));
+  const versionsWithTuning = versions.map((v,i) => _.zipObject(v, tunings[i]));
+  fs.writeFileSync(path, JSON.stringify(_.zipObject(songs, versionsWithTuning)));
+}
 
 export function getTunedSongs(excludeWronglyAnnotated = true) {
   try {
@@ -41,8 +73,12 @@ export function getVersions(songs: string[], count = Infinity) {
   return songs.map(s => getTunedAudioFiles(s, count));
 }
 
-function getTunedAudioFiles(song: string, count = Infinity) {
+export function getTunedAudioFiles(song: string, count = Infinity) {
   return recGetFilesInFolder(GD_RAW.audio+song+'/', ['wav']).slice(0, count);
+}
+
+export function getOriginalAudioFiles(song: string, count = Infinity) {
+  return recGetFilesInFolder(GD_RAW.audio+song+'/', ['mp3']).slice(0, count);
 }
 
 export function getPoints(audioFiles: string[], options: FeatureOptions) {
@@ -60,4 +96,16 @@ export function toHistogram<T>(vals: T[], allVals: T[]) {
   const grouped = _.groupBy(vals, v => JSON.stringify(v));
   return allVals.map(v => JSON.stringify(v))
     .map(v => grouped[v] ? grouped[v].length : 0);
+}
+
+export function getSongMap() {
+  try {
+    const json = loadJsonFile(GD_SONG_MAP);
+    if (!json) throw new Error();
+    const songMap = new Map<string, GdVersion[]>();
+    _.mapValues(json, (recs, song) => songMap.set(song,
+      _.flatten(_.map(recs, (tracks, rec) =>
+        _.map(tracks, track => ({recording: rec, track: track.filename}))))));
+    return songMap;
+  } catch (e) { console.log('failed to load song map'); }
 }

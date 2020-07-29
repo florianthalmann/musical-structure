@@ -1,7 +1,6 @@
 import * as fs from 'fs';
 import * as _ from 'lodash';
-import { pointsToIndices, StructureResult, MultiStructureResult,
-  getSelfSimilarityMatrix, Quantizer } from 'siafun';
+import { pointsToIndices, StructureResult, getSelfSimilarityMatrix, Quantizer } from 'siafun';
 import { mapSeries } from '../files/util';
 import { loadJsonFile, saveJsonFile, saveTextFile, loadTextFile } from '../files/file-manager';
 import { NodeGroupingOptions } from '../graphs/graph-analysis';

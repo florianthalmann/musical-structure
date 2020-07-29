@@ -1,11 +1,12 @@
 import * as _ from 'lodash';
 import { getSmithWaterman, QUANT_FUNCS as QF, inferHierarchyFromTypeSequence,
-  removeAlignmentMatrixOverlaps } from 'siafun';
+  inferHierarchyFromMatrix } from 'siafun';
 import { DirectedGraph, Node } from '../graphs/graph-theory';
 import { GraphPartition } from '../graphs/graph-partition';
 import { SegmentNode } from './types';
 import { getMode } from './util';
 import { pcSetToLabel } from '../files/theory';
+import { saveJsonFile } from '../files/file-manager';
 
 export enum METHOD {
   MSA_HIERARCHY,
@@ -14,7 +15,7 @@ export enum METHOD {
 }
 
 export function inferStructureFromTimeline(timeline: GraphPartition<SegmentNode>,
-    method: METHOD = METHOD.MSA_SW_HIERARCHY): SegmentNode[][] {
+    method: METHOD = METHOD.MSA_GRAPH_HIERARCHY): SegmentNode[][] {
   switch(method) {
     case METHOD.MSA_HIERARCHY:
       return inferStructureFromTimelineSimple(timeline);
@@ -63,6 +64,7 @@ export function inferStructureFromTimelineWithAlignmentGraph(
   const timelineTypes = getTypesFromTimelineModes(partitions);
   
   //const hybridMatrix = sum(maskMatrix(timeline.getConnectionMatrix()), getSWMatrix(timelineTypes));
+  saveJsonFile('results/completion-test/large-matrix4.json', getSWMatrix(timelineTypes))
   
   let sectionsByTypes = getNonOverlappingSections(maskMatrix(timeline.getConnectionMatrix()));
   console.log("types", JSON.stringify(sectionsByTypes));
@@ -71,15 +73,16 @@ export function inferStructureFromTimelineWithAlignmentGraph(
   
   const types = _.uniq(_.flatten(sectionTypeLabels));
   const sectionTypeTypes = sectionTypeLabels.map(t => t.map(l => types.indexOf(l)));
-  const repeats = sectionTypeTypes.slice(1,2).map(t =>
+  /*const repeats = sectionTypeTypes.slice(1,2).map(t =>
     getNonOverlappingSections(getSWMatrix(t)))[0];
+  //console.log(JSON.stringify(getSWMatrix(sectionTypeTypes[1])));
   const hr = inferHierarchyFromSectionGroups(repeats, true);
   console.log("repeats", JSON.stringify(hr))
   
   const repl2 = h => h.reduce((r,s) => Array.isArray(s) ? _.concat(r, [repl2(s)])
     : _.concat(r, sectionTypeLabels.slice(1,2)[s]), []);
   //console.log(JSON.stringify(sections.length))
-  console.log(JSON.stringify(repl2(hr)));
+  console.log(JSON.stringify(repl2(hr)));*/
   
   /*const divideArray = (a: any[], pos: number[]) => {
     return a.reduce<number[][]>((b,v,i) => {
@@ -132,7 +135,7 @@ export function inferStructureFromTimelineWithAlignmentGraph(
 
 function getSWMatrix(types: number[], minSegLength = 2, nLongest?: number) {
   return getSmithWaterman(types.map((t,i) => [i,t]), {
-    //cacheDir: cacheDir,
+    cacheDir: 'results/completion-test/sw-ep/',
     quantizerFunctions: [QF.ORDER(), QF.IDENTITY()],
     maxIterations: 1,//true,
     fillGaps: true, //turn off for similarity graphs!!
@@ -142,9 +145,9 @@ function getSWMatrix(types: number[], minSegLength = 2, nLongest?: number) {
     //endThreshold: 0,
     onlyDiagonals: true,
     nLongest: nLongest,
-    //maxGapSize: 1,
-    //maxGaps: 0,
-    //minDistance: 0
+    //maxGapSize: 0,
+    //maxGaps: 5,
+    //minDistance: 3
   }).segmentMatrix;
 }
 
@@ -181,8 +184,11 @@ function replaceInHierarchy(hierarchy: any[], elements: any[]) {
 }
 
 //from structure graph or from matrix...
+//TODO REWRITE!! NOW WITH REAL HIEARCHY INFERENCE!!!
 function getNonOverlappingSections(matrix: number[][]): number[][][] {
-  matrix = removeAlignmentMatrixOverlaps(matrix);
+  //matrix = removeAlignmentMatrixOverlaps(matrix);
+  saveJsonFile('results/completion-test/large-matrix-ep.json', matrix);
+  //console.log("siafun hierarchy", JSON.stringify(inferHierarchyFromMatrix(matrix)));
   //large number of maxes equivalent to connected components
   return getSectionGroupsFromTimelineMatrix(matrix, 1000);
 }
