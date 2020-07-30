@@ -24,20 +24,20 @@ export function loadSequences(path: string): number[][][] {
 }
 
 export async function saveMultinomialSequences(points: any[][][], path: string, force?: boolean) {
-  if (force || !fs.existsSync(path+'-points.json')) {
-    saveJsonFile(path+'-points.json', await toMultinomialSequences(points));
+  if (force || !fs.existsSync(path)) {
+    saveJsonFile(path, await toMultinomialSequences(points));
   }
 }
 
-export async function getIndividualChordSequences(points: any[][][], path: string, force?: boolean) {
-  if (force || !fs.existsSync(path+'-chords.json')) {
+export async function saveChordLabelSequences(points: any[][][], path: string, force?: boolean) {
+  if (force || !fs.existsSync(path)) {
     const chords = points.map(ps => ps.map(p => pcSetToLabel(p.slice(1)[0])));
     console.log(JSON.stringify(chords.map(cs => cs.filter(c => c === "Dm").length)))
     const lengths = chords.map(cs => cs.length);
     const median = getMedian(lengths);
     const index = _.findIndex(lengths, l => l == median);
     console.log(JSON.stringify(chords[index].filter(c => c === "Dm").length));
-    saveJsonFile(path+'-chords.json', chords);
+    saveJsonFile(path, chords);
   }
 }
 

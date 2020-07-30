@@ -5,7 +5,7 @@ import { extractAlignments, AlignmentAlgorithm } from '../../analysis/alignments
 import { FullSWOptions, FeatureOptions } from '../../files/options';
 import { mapSeries } from '../../files/util';
 import { pcSetToLabel } from '../../files/theory';
-import { saveRawSequences } from '../../files/sequences';
+import { saveMultinomialSequences } from '../../files/sequences';
 import { getStandardChordSequence } from '../../files/leadsheets';
 import { getTimelineModeLabels, getTimelineSectionModeLabels,
   getPartitionFromMSAResult } from '../../analysis/timeline-analysis';
@@ -56,9 +56,9 @@ async function run() {
     const points = await getPoints(versions, FEATURE_CONFIG);
     
     console.log('saving feature sequences')
-    const pointsFile = FILEBASE+s+"-points.json";
-    saveRawSequences(points, pointsFile);
-    const msaFile = await hmmAlign(pointsFile, FILEBASE+"-msa.json", MSA_CONFIG);
+    const seqsFile = FILEBASE+s+"-seqs.json";
+    saveMultinomialSequences(points, seqsFile);
+    const msaFile = await hmmAlign(seqsFile, FILEBASE+s+'-', MSA_CONFIG);
     const originalChords = points.map(ps => ps.map(p => pcSetToLabel(p.slice(1)[0])));
     
     const alignments = extractAlignments({
@@ -70,7 +70,7 @@ async function run() {
       swOptions: SW_CONFIG,
       numTuplesPerFile: NUM_ALIGNMENTS,
       tupleSize: 2
-    })
+    });
     
     const tlModeLabels = await getTimelineModeLabels(points, msaFile, alignments);
     const tlGraphLabels = await getTimelineSectionModeLabels(points, msaFile,

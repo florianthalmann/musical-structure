@@ -1,6 +1,6 @@
 import itertools, math, json, sys
 import numpy as np
-from pomegranate import HiddenMarkovModel, DiscreteDistribution, MultivariateGaussianDistribution, from_json, State
+from pomegranate import HiddenMarkovModel, DiscreteDistribution, MultivariateGaussianDistribution, State#, from_json
 
 INITIAL_EMPHASIS = 10 #emphasis of values of initializing sequence
 LR_DECAY = 0.0
@@ -31,10 +31,10 @@ class ProfileHMM(object):
         with open(path, 'w') as f:
             f.write(self.model.to_json())
     
-    def load_from_json(self, path):
-        with open(path) as f:
-            self.model = from_json(f.read())
-        return self
+    # def load_from_json(self, path):
+    #     with open(path) as f:
+    #         self.model = from_json(f.read())
+    #     return self
     
     def get_startprob(self, n_states):
         return np.array([1/3 if i < 3 else 0 for i in range(n_states)])

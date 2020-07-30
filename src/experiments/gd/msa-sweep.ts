@@ -10,7 +10,7 @@ import { getStandardDeviation, getMedian } from '../../analysis/util';
 import { hmmAlign, MSAOptions, getModel, MSA_LENGTH } from '../../models/models';
 import { Experiment } from '../../files/experiment';
 import { saveRawSequences, saveMultinomialSequences,
-  saveIndividualChordSequences } from '../../files/sequences';
+  saveChordLabelSequences } from '../../files/sequences';
 import { GdOptions } from './config';
 import { getTunedSongs, getSongFoldersAndOptions, getMSAFolder,
   getTunedAudioFiles, getPoints } from './util';
@@ -66,7 +66,7 @@ async function fullSweep(tlo: GdOptions, songs = getTunedSongs(), statsFile: str
     const pointsFile = options.filebase+"-points.json";
     if (options.multinomial) saveMultinomialSequences(points, pointsFile, true);
     else saveRawSequences(points, pointsFile);
-    saveIndividualChordSequences(points, options.filebase+"-chords.json", true);
+    saveChordLabelSequences(points, options.filebase+"-chords.json", true);
 
     const swColumns = _.clone(swOptions);
     delete swColumns.selectedFeatures;//these are either logged in song field or irrelevant...
@@ -83,7 +83,7 @@ async function fullSweep(tlo: GdOptions, songs = getTunedSongs(), statsFile: str
         const msaFile = await hmmAlign(pointsFile, getMSAFolder(options),
           msaConfigs[i]);
         const stats = getMSAStats(msaFile);
-        const rating = await getRatingsFromMSAResult(points, msaFile);
+        const rating = await getRatingsFromMSAResult(points, msaFile, alignments);
         const allSWEvals = await getAllSWEvals(song, points, options,
           msaFile, sectionConfig.numConns, sectionConfig.maskThreshold);
         console.log(allSWEvals)
