@@ -10,7 +10,7 @@ import { FeatureOptions } from '../../files/options';
 import { getThomasTuningRatio } from '../../files/tuning';
 import { GD_SONG_MAP, GD_RAW, MSA_BASE, GdOptions, GdFolders } from './config';
 
-interface GdVersion {
+export interface GdVersion {
   recording: string,
   track: string
 }

@@ -2,26 +2,28 @@ import * as fs from 'fs';
 import * as _ from 'lodash';
 import { pointsToIndices, StructureResult, getSelfSimilarityMatrix, Quantizer } from 'siafun';
 import { mapSeries } from '../files/util';
-import { loadJsonFile, saveJsonFile, saveTextFile, loadTextFile } from '../files/file-manager';
+import { loadJsonFile, saveJsonFile, loadTextFile } from '../files/file-manager';
 import { NodeGroupingOptions } from '../graphs/graph-analysis';
-import { loadGraph, DirectedGraph } from '../graphs/graph-theory';
+import { loadGraph } from '../graphs/graph-theory';
 import { GraphPartition } from '../graphs/graph-partition';
 import { getSiaOptions, getSwOptions, FullSIAOptions, FullSWOptions,
   FeatureOptions } from '../files/options';
-import { FeatureLoader } from '../files/feature-loader';
 import { createSimilarityPatternGraph, getPatternGroupNFs, getNormalFormsMap,
-  getConnectednessByVersion, PatternNode } from '../analysis/pattern-analysis';
+  PatternNode } from '../analysis/pattern-analysis';
 import { getTimelineFromAlignments, getTimelineFromMSA, getMSAPartitions,
   createSegmentGraphFromAlignments } from '../analysis/segment-analysis';
-import { getSequenceRatingWithFactors, getSequenceRatingFromMatrix } from '../analysis/sequence-heuristics';
+import { getSequenceRatingWithFactors, getSequenceRatingFromMatrix
+  } from '../analysis/sequence-heuristics';
 import { SegmentNode } from '../analysis/types';
-import { inferStructureFromTimeline, getSectionGroupsFromTimelineMatrix } from '../analysis/structure-analysis';
+import { inferStructureFromTimeline, getSectionGroupsFromTimelineMatrix
+  } from '../analysis/structure-analysis';
 import { getThomasTuningRatio } from '../files/tuning';
 import { getMostCommonPoints } from '../analysis/pattern-histograms';
 import { toIndexSeqMap } from '../graphs/util';
 import { pcSetToLabel } from '../files/theory';
-import { getMedian, getMode } from './util';
-import { AlignmentAlgorithm, Alignments, AlignmentOptions, extractAlignments, getMultiSWs,
+import { loadSequences } from '../files/sequences';
+import { getMode } from './util';
+import { AlignmentAlgorithm, Alignments, AlignmentOptions, getMultiSWs,
   getMultiCosiatecs, getSmithWatermanFromAudio, getCosiatecFromAudio } from './alignments';
 
 export interface TimelineOptions {
@@ -39,15 +41,6 @@ export interface TimelineOptions {
   patternsFolder?: string
 }
 
-interface MultinomialSequences {
-  data: number[][],
-  labels: string[]
-}
-
-interface RawSequences {
-  data: number[][][]
-}
-
 interface VisualsPoint {
   version: number,
   time: number,
@@ -63,92 +56,106 @@ interface Segment {
   duration: number
 }
 
+export async function getRatingsFromMSAResult(points: any[][][], msaFile: string,
+    alignments: Alignments) {
+  return getSequenceRatingWithFactors(await getPartitionFromMSAResult(points, msaFile, alignments));
+}
+
+export async function getTimelineFromMSAResult(points: any[][][], msaFile: string,
+    alignments: Alignments, minSegSizeProp = 0.1) {
+  let timeline = await getPartitionFromMSAResult(points, msaFile, alignments);
+  const maxPartSize = timeline.getMaxPartitionSize();
+  timeline.removeSmallPartitions(minSegSizeProp*maxPartSize);
+  return timeline;
+}
+
+export async function getPartitionFromMSAResult(points: any[][][],
+    msaFile: string, alignments: Alignments) {
+  const graph = await getAlignmentGraph(alignments);
+  const msa = loadMSA(msaFile);
+  //const matrixBase = tlo.filebase+'/'+msaFile.split('/').slice(-1)[0].replace('.json','');
+  return getTimelineFromMSA(msa, points,
+    alignments.versionTuples, alignments.alignments, graph);
+}
+
+export async function getTimelineModeLabels(points: any[][][], msaFile: string,
+    alignments: Alignments, minSegSizeProp = 0.1) {
+  return (await getTimelineFromMSAResult(points, msaFile, alignments, minSegSizeProp))
+    .getPartitions()
+    .map(t => pcSetToLabel(getMode(t.map(n => n.point.slice(1)))));
+}
+
+export async function getTimelineSectionModeLabels(points: any[][][],
+    msaFile: string, alignments: Alignments, numConns: number,
+    minSegSizeProp = 0.1, maskThreshold = 0.2) {
+  const timeline = await getTimelineFromMSAResult(points, msaFile, alignments, minSegSizeProp);
+  const sections = getSectionGroupsFromTimelineMatrix(timeline.getConnectionMatrix(), numConns,
+    //'results/msa-sweep-beats-test/china_doll100g0mb/conn-matrix.json',
+    undefined, maskThreshold);
+  const tlParts = timeline.getPartitions();
+  const sectionTypeLabels = sections.map(s => _.zip(...s).map(is =>
+    pcSetToLabel(getMode(_.flatten(is.map(i => tlParts[i].map(t => t.point.slice(1))))))));
+  //console.log(JSON.stringify(sectionTypeLabels))
+  const timelineLabels = tlParts.map(t =>
+    pcSetToLabel(getMode(t.map(n => n.point.slice(1)))));
+  //console.log(JSON.stringify(timelineLabels))
+  sections.forEach((type,i) => type.forEach(sec =>
+    sec.forEach((seg,j) => timelineLabels[seg] = sectionTypeLabels[i][j])));
+  //console.log(JSON.stringify(timelineLabels))
+  return timelineLabels;
+}
+
+function loadMSA(file: string, fasta?: boolean): string[][] {
+  if (fasta) {
+    const fasta = loadTextFile(file.replace('json','fa')).split(">").slice(1)
+      .map(f => f.split("\n").slice(1).join(''));
+    return fasta.map(f => f.split('').map((c,i) => c === '-' ? "" : "M"+i));
+  } else {
+    let json = loadJsonFile(file);
+    return json["msa"] ? json["msa"] : json;
+  }
+}
+
+async function getAlignmentGraph(alignments: Alignments) {
+  return createSegmentGraphFromAlignments(
+      alignments.versionTuples, alignments.alignments, false);
+}
+
+
+
+
 export class TimelineAnalysis {
   
   private siaOptions: FullSIAOptions;
-  private points: Promise<any[][][]>;
-  private alignments: Alignments;
-  private alignmentGraph: DirectedGraph<SegmentNode>;
   
-  constructor(private tlo: TimelineOptions, private swOptions?: FullSWOptions) {
+  constructor(private points: any[][][], private tlo: TimelineOptions, private swOptions?: FullSWOptions) {
     this.siaOptions = getSiaOptions(tlo.patternsFolder, tlo.featureOptions);
     this.swOptions = this.swOptions
       || getSwOptions(tlo.patternsFolder, tlo.featureOptions);
   }
 
   async saveSimilarityMatrices() {
-    const sequences = (await this.getPoints())
-      .map(s => s.map(p => p[1]).filter(p=>p));
+    const sequences = this.points.map(s => s.map(p => p[1]).filter(p=>p));
     const matrixes = sequences.map(s => getSelfSimilarityMatrix(s));
     saveJsonFile(this.tlo.filebase+'-ssm.json', matrixes);
   }
-  
-  async saveMultinomialSequences(force?: boolean) {
-    if (force || !fs.existsSync(this.tlo.filebase+'-points.json')) {
-      saveJsonFile(this.tlo.filebase+'-points.json',
-        await this.getMultinomialSequences());
-    }
-  }
 
-  async saveIndividualChordSequences(force?: boolean) {
-    if (force || !fs.existsSync(this.tlo.filebase+'-chords.json')) {
-      const points = await this.getPoints();
-      const chords = points.map(ps => ps.map(p => pcSetToLabel(p.slice(1)[0])));
-      console.log(JSON.stringify(chords.map(cs => cs.filter(c => c === "Dm").length)))
-      const lengths = chords.map(cs => cs.length);
-      const median = getMedian(lengths)
-      const index = _.findIndex(lengths, l => l == median);
-      console.log(JSON.stringify(chords[index].filter(c => c === "Dm").length))
-      saveJsonFile(this.tlo.filebase+'-chords.json', chords);
-    }
-  }
-
-  async saveFastaSequences(force?: boolean) {
-    if (force || !fs.existsSync(this.tlo.filebase+'.fa')) {
-      const data = (await this.getMultinomialSequences()).data;//[16,25])).data;
-      const fasta = _.flatten(data.map((d,i) => [">version"+i,
-        d.map(p => String.fromCharCode(65+p)).join('')])).join("\n");
-      saveTextFile(this.tlo.filebase+'.fa', fasta);
-    }
-  }
-  
-  private async getMultinomialSequences(exclude?: number[]): Promise<MultinomialSequences> {
-    let points = await this.getPoints();
-    /*points.forEach(p => console.log(JSON.stringify(
-      _.reverse(_.sortBy(
-        _.map(_.groupBy(p.map(s => JSON.stringify(s.slice(1)))), (v,k) => [k,v.length])
-    , a => a[1])).slice(0,3))));*/
-    points = exclude ? points.filter((_v,i) => !_.includes(exclude, i)) : points;
-    const values = points.map(s => s.map(p => JSON.stringify(p.slice(1))));
-    const distinct = _.uniq(_.flatten(values));
-    const data = values.map(vs => vs.map(v => distinct.indexOf(v)));
-    return {data: data, labels: distinct};
-  }
-
-  async saveRawSequences(force?: boolean) {
-    if (force || !fs.existsSync(this.tlo.filebase+'-points.json')) {
-      const points = await this.getPoints();
-      const sequences = {data: points.map(s => s.map(p => p[1]).filter(p=>p))};
-      saveJsonFile(this.tlo.filebase+'-points.json', sequences);
-    }
-  }
-
-  async saveTimelineFromMSAResults(file?: string, fasta?: boolean, force?: boolean) {
+  async saveTimelineFromMSAResults(file: string, alignments: Alignments,
+      fasta?: boolean, force?: boolean) {
     if (force || !fs.existsSync(this.tlo.filebase+'-output.json')) {
-      const points = await this.getPoints();
-      const msa = this.loadMSA(file, fasta);
-      const alignments = await this.getAlignments();
+      const points = this.points;
+      const msa = loadMSA(file, fasta);
       const timeline = getTimelineFromMSA(msa, points, alignments.versionTuples,
         alignments.alignments);
       await this.saveOutput(timeline, alignments.versions);
-      await this.saveTimelineVisuals(timeline);
+      await this.saveTimelineVisuals(timeline, alignments);
     }
   }
   
   async saveSumSSMfromMSAResults(fasta?: boolean, force?: boolean) {
     if (force || !fs.existsSync(this.tlo.filebase+'-sssm.json')) {
-      const points = this.loadPoints(this.tlo.filebase+'-points.json');
-      const msa = this.loadMSA(undefined, fasta);
+      const points = loadSequences(this.tlo.filebase+'-points.json');
+      const msa = loadMSA(undefined, fasta);
       const partitions = getMSAPartitions(msa, points)//.filter(p => p.length > 10);
       const ssms = points.map(s => getSelfSimilarityMatrix(s));
       const sssm = partitions.map(p => partitions.map(q =>
@@ -158,27 +165,6 @@ export class TimelineAnalysis {
           return s && t ? ssms[i][s.time][t.time] : 1
         }), _.multiply, 1)));
       saveJsonFile(this.tlo.filebase+'-sssm.json', sssm);
-    }
-  }
-  
-  private loadPoints(path: string): number[][][] {
-    let loaded = loadJsonFile(path);
-    if (loaded.labels) {
-      const sequences = <MultinomialSequences>loaded;
-      const labelPoints = sequences.labels.map(l => _.flatten(<number[]>JSON.parse(l)));
-      return sequences.data.map(s => s.map(p => labelPoints[p]));
-    }
-    return (<RawSequences>loaded).data;
-  }
-  
-  private loadMSA(file = this.tlo.filebase+'-msa.json', fasta?: boolean): string[][] {
-    if (fasta) {
-      const fasta = loadTextFile(file.replace('json','fa')).split(">").slice(1)
-        .map(f => f.split("\n").slice(1).join(''));
-      return fasta.map(f => f.split('').map((c,i) => c === '-' ? "" : "M"+i));
-    } else {
-      let json = loadJsonFile(file);
-      return json["msa"] ? json["msa"] : json;
     }
   }
   
@@ -193,71 +179,18 @@ export class TimelineAnalysis {
     return getSequenceRatingFromMatrix(matrix, partitionSizes);
   }
 
-  async getRatingsFromMSAResult(msaFile: string) {
-    return getSequenceRatingWithFactors(await this.getPartitionFromMSAResult(msaFile));
-  }
-  
-  async getPartitionFromMSAResult(msaFile: string) {
-    const points = await this.getPoints();
-    const alignments = await this.getAlignments();
-    const graph = await this.getAlignmentGraph();
-    const msa = this.loadMSA(msaFile);
-    //const matrixBase = this.tlo.filebase+'/'+msaFile.split('/').slice(-1)[0].replace('.json','');
-    return getTimelineFromMSA(msa, points,
-      alignments.versionTuples, alignments.alignments, graph);
-  }
-  
-  async getTimelineFromMSAResult(msaFile: string, minSegSizeProp = 0.1) {
-    let timeline = await this.getPartitionFromMSAResult(msaFile);
-    const maxPartSize = timeline.getMaxPartitionSize();
-    timeline.removeSmallPartitions(minSegSizeProp*maxPartSize);
-    return timeline;
-  }
-
-  async getTimelineModeLabels(msaFile: string, minSegSizeProp = 0.1) {
-    return (await this.getTimelineFromMSAResult(msaFile, minSegSizeProp))
-      .getPartitions()
-      .map(t => pcSetToLabel(getMode(t.map(n => n.point.slice(1)))));
-  }
-  
-  async getTimelineSectionModeLabels(msaFile: string, numConns: number,
-      minSegSizeProp = 0.1, maskThreshold = 0.2) {
-    const timeline = await this.getTimelineFromMSAResult(msaFile, minSegSizeProp);
-    const sections = getSectionGroupsFromTimelineMatrix(timeline.getConnectionMatrix(), numConns,
-      //'results/msa-sweep-beats-test/china_doll100g0mb/conn-matrix.json',
-      undefined, maskThreshold);
-    const tlParts = timeline.getPartitions();
-    const sectionTypeLabels = sections.map(s => _.zip(...s).map(is =>
-      pcSetToLabel(getMode(_.flatten(is.map(i => tlParts[i].map(t => t.point.slice(1))))))));
-    //console.log(JSON.stringify(sectionTypeLabels))
-    const timelineLabels = tlParts.map(t =>
-      pcSetToLabel(getMode(t.map(n => n.point.slice(1)))));
-    //console.log(JSON.stringify(timelineLabels))
-    sections.forEach((type,i) => type.forEach(sec =>
-      sec.forEach((seg,j) => timelineLabels[seg] = sectionTypeLabels[i][j])));
-    //console.log(JSON.stringify(timelineLabels))
-    return timelineLabels;
-  }
-
-  async saveMultiTimelineDecomposition() {
+  async saveMultiTimelineDecomposition(alignments: Alignments) {
     //if (!fs.existsSync(tlo.filebase+'-output.json')) {
-      const alignments = await this.getAlignments();
       const timeline = getTimelineFromAlignments(alignments.versionTuples,
         alignments.alignments);
       await this.saveOutput(timeline, alignments.versions);
-      await this.saveTimelineVisuals(timeline);
+      await this.saveTimelineVisuals(timeline, alignments);
     //}
-  }
-
-  private async getAlignments() {
-    if (!this.alignments)
-      this.alignments = extractAlignments(await this.getAlignmentOptions());
-    return this.alignments;
   }
   
   private async getAlignmentOptions(numTuplesPerFile?: number, tupleSize?: number): Promise<AlignmentOptions> {
     return Object.apply(this.tlo, {
-      points: await this.getPoints(),
+      points: this.points,
       swOptions: this.swOptions,
       siaOptions: this.siaOptions,
       numTuplesPerFile: numTuplesPerFile,
@@ -265,18 +198,9 @@ export class TimelineAnalysis {
     });
   }
   
-  private async getAlignmentGraph() {
-    if (!this.alignmentGraph) {
-      const alignments = await this.getAlignments();
-      this.alignmentGraph = createSegmentGraphFromAlignments(
-        alignments.versionTuples, alignments.alignments, false);
-    }
-    return this.alignmentGraph;
-  }
-  
   //segments by version
   private async getSegments(): Promise<Segment[][]> {
-    const points = await this.getPoints();
+    const points = this.points;
     return points.map((v,i) => v.map((_p,j) =>
       ({start: points[i][j][0][0],
         duration: points[i][j+1] ? points[i][j+1][0][0]-points[i][j][0][0] : 1})));
@@ -296,11 +220,11 @@ export class TimelineAnalysis {
     saveJsonFile(this.tlo.filebase+'-output.json', json);
   }
   
-  async saveTimelineVisuals(timeline: GraphPartition<SegmentNode>, path?: string) {
-    const points = await this.getPoints();
+  async saveTimelineVisuals(timeline: GraphPartition<SegmentNode>,
+      alignments: Alignments, path?: string) {
+    const points = this.points;
     const segments = await this.getSegments();
     const segmentsByType = inferStructureFromTimeline(timeline);
-    const alignments = await this.getAlignments();
     const visuals = _.flatten(points.map((v,i) =>
       v.map((_p,t) => {
         const type = segmentsByType.findIndex(s =>
@@ -316,7 +240,7 @@ export class TimelineAnalysis {
   
   async analyzeTimeline(timeline: GraphPartition<SegmentNode>) {
     const segmentsByType = inferStructureFromTimeline(timeline);
-    const points = await this.getPoints();
+    const points = this.points;
     const segments = points.map((v,i) => v.map((_p,j) =>
       ({start: points[i][j][0][0],
         duration: points[i][j+1] ? points[i][j+1][0][0]-points[i][j][0][0] : 1})));
@@ -406,7 +330,7 @@ export class TimelineAnalysis {
 
     const grouping: NodeGroupingOptions<PatternNode> = { maxDistance: 4, condition: (n,_c) => n.size > 6};
     const patsec = _.flatten(await this.getPatternSequences(this.tlo.audioFiles,
-      await this.getPoints(), results, grouping, PATTERN_TYPES, MIN_OCCURRENCE, graphFile));
+      this.points, results, grouping, PATTERN_TYPES, MIN_OCCURRENCE, graphFile));
     //patsec.forEach(s => s.version = s.version*2);
 
     //TODO TAKE MOST CONNECTED ONES :)
@@ -419,15 +343,15 @@ export class TimelineAnalysis {
     const graphFile = filebase+"-graph.json";
     console.log("\n"+this.tlo.collectionName+" "+this.tlo.audioFiles.length+"\n")
 
-    const points = await this.getPoints();
+    const points = this.points;
     const results = getCosiatecFromAudio(await this.getAlignmentOptions());
     results.forEach(r => this.removeNonParallelOccurrences(r));
 
     const MIN_OCCURRENCE = 2;
     const PATTERN_TYPES = 20;
 
-    if (tryDoubletime) {
-      const doubleOptions = Object.assign(_.clone(this.siaOptions), {doubletime: true});
+    /*if (tryDoubletime) {
+      const doubleOptions = Object.assign(_.clone(this.tlo.featureOptions), {doubletime: true});
       const doublePoints = await this.getPoints(doubleOptions);
       const doubleAO = await this.getAlignmentOptions();
       doubleAO.points = doublePoints;
@@ -446,7 +370,7 @@ export class TimelineAnalysis {
           results[i] = doubleResults[i];
         }
       });
-    }
+    }*/
 
     /*const vecsec = _.flatten(await getVectorSequences(versions, points, options, PATTERN_TYPES));
     vecsec.forEach(s => s.version = s.version*2+1);*/
@@ -464,7 +388,7 @@ export class TimelineAnalysis {
     const results = await getCosiatecFromAudio(await this.getAlignmentOptions());
     results.forEach(r => this.removeNonParallelOccurrences(r));
     const sequences = await this.getPatternSequences(this.tlo.audioFiles,
-      await this.getPoints(), results, {maxDistance: 3}, 10);
+      this.points, results, {maxDistance: 3}, 10);
     saveJsonFile(file, _.flatten(sequences));
     //visuals.map(v => v.join('')).slice(0, 10).forEach(v => console.log(v));
   }
@@ -503,7 +427,7 @@ export class TimelineAnalysis {
 
   async saveVectorSequences(file: string, typeCount?: number) {
     const sequences = await this.getVectorSequences(this.tlo.audioFiles,
-      await this.getPoints(), this.siaOptions, typeCount);
+      this.points, this.siaOptions, typeCount);
     saveJsonFile(file, _.flatten(sequences));
   }
 
@@ -524,12 +448,6 @@ export class TimelineAnalysis {
   
   private quantize(points: any[][], options: FeatureOptions) {
     return new Quantizer(options.quantizerFunctions).getQuantizedPoints(points);
-  }
-  
-  private async getPoints(featureOptions = this.tlo.featureOptions) {
-    if (!this.points) this.points = new FeatureLoader(this.tlo.featuresFolder)
-      .getPointsForAudioFiles(this.tlo.audioFiles, featureOptions);
-    return this.points;
   }
   
 }
