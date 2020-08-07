@@ -10,7 +10,7 @@
     "audio-server": "http-server /Volumes/FastSSD --port 3001",
     "visuals-server": "browser-sync plots/d3 -b \"Google Chrome\" -w",
     "visuals": "concurrently \"npm run audio-server\" \"npm run visuals-server\"",
-    "ts-node": "ts-node"
+    "ts-node": "node --max_old_space_size=8192 -r ts-node/register"
   },
   "repository": {
     "type": "git",

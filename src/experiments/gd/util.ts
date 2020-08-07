@@ -8,11 +8,32 @@ import { getFoldersInFolder, recGetFilesInFolder, initDirRec,
 import { FeatureLoader } from '../../files/feature-loader';
 import { FeatureOptions } from '../../files/options';
 import { getThomasTuningRatio } from '../../files/tuning';
-import { GD_SONG_MAP, GD_RAW, MSA_BASE, GdOptions, GdFolders } from './config';
+import { extractAlignments, AlignmentAlgorithm } from '../../analysis/alignments';
+import { GD_SONG_MAP, GD_RAW, MSA_BASE, GdOptions, GdFolders, SW_BEST } from './config';
 
 export interface GdVersion {
   recording: string,
   track: string
+}
+
+const BEATWISE_CHORDS: FeatureOptions = {
+  selectedFeatures: [FEATURES.MADMOM_BEATS, FEATURES.GO_CHORDS],
+  quantizerFunctions: [QF.ORDER(), QF.IDENTITY()]
+}
+
+export function getBeatwiseChordSWAlignments(song: string, points: any[][][],
+    versions: string[], numPairings = 0) {
+  return extractAlignments({
+    collectionName: song,
+    patternsFolder: GD_RAW.patterns,
+    algorithm: AlignmentAlgorithm.SW,
+    points: points,
+    audioFiles: versions,
+    swOptions: Object.apply(SW_BEST, BEATWISE_CHORDS),
+    includeSelfAlignments: true,
+    numTuplesPerFile: numPairings,
+    tupleSize: 2
+  });
 }
 
 export function getSongFoldersAndOptions(options: GdOptions, songname: string) {
@@ -57,10 +78,7 @@ export function getTunedSongs(excludeWronglyAnnotated = true) {
 }
 
 export function getBeatwiseChords(songs: string[], numVersions = Infinity) {
-  return getFeatureSequences(songs, numVersions, {
-    selectedFeatures: [FEATURES.MADMOM_BEATS, FEATURES.GO_CHORDS],
-    quantizerFunctions: [QF.ORDER(), QF.IDENTITY()]
-  });
+  return getFeatureSequences(songs, numVersions, BEATWISE_CHORDS);
 }
 
 export function getFeatureSequences(songs: string[], numVersions: number,

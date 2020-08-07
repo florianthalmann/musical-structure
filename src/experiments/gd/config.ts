@@ -23,7 +23,7 @@ export const GD_RAW: GdFolders = { audio: DATA+'audio/',
   features: DATA+'features/', patterns: DATA+'patterns/' };
 export const MSA_BASE = DATA+'msa/';
 
-export const swBest = {
+export const SW_BEST = {
   maxIterations: 1,//true,
   //similarityThreshold: .95,
   minSegmentLength: 16, //only take segments longer than this
@@ -32,5 +32,6 @@ export const swBest = {
   maxGapSize: 4,
   //maxGaps: 5,
   maxGapRatio: 0.25,
-  minDistance: 4
+  minDistance: 4,
+  cacheDir: GD_RAW.patterns
 }

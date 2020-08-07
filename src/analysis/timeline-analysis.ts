@@ -1,13 +1,13 @@
 import * as fs from 'fs';
 import * as _ from 'lodash';
-import { pointsToIndices, StructureResult, getSelfSimilarityMatrix, Quantizer } from 'siafun';
+import { pointsToIndices, StructureResult, getSelfSimilarityMatrix, Quantizer,
+  OpsiatecOptions, SmithWatermanOptions } from 'siafun';
 import { mapSeries } from '../files/util';
 import { loadJsonFile, saveJsonFile, loadTextFile } from '../files/file-manager';
 import { NodeGroupingOptions } from '../graphs/graph-analysis';
 import { loadGraph } from '../graphs/graph-theory';
 import { GraphPartition } from '../graphs/graph-partition';
-import { getSiaOptions, getSwOptions, FullSIAOptions, FullSWOptions,
-  FeatureOptions } from '../files/options';
+import { getSiaOptions, getSwOptions, FeatureOptions } from '../files/options';
 import { createSimilarityPatternGraph, getPatternGroupNFs, getNormalFormsMap,
   PatternNode } from '../analysis/pattern-analysis';
 import { getTimelineFromAlignments, getTimelineFromMSA, getMSAPartitions,
@@ -126,9 +126,9 @@ async function getAlignmentGraph(alignments: Alignments) {
 
 export class TimelineAnalysis {
   
-  private siaOptions: FullSIAOptions;
+  private siaOptions: OpsiatecOptions;
   
-  constructor(private points: any[][][], private tlo: TimelineOptions, private swOptions?: FullSWOptions) {
+  constructor(private points: any[][][], private tlo: TimelineOptions, private swOptions?: SmithWatermanOptions) {
     this.siaOptions = getSiaOptions(tlo.patternsFolder, tlo.featureOptions);
     this.swOptions = this.swOptions
       || getSwOptions(tlo.patternsFolder, tlo.featureOptions);
@@ -427,27 +427,22 @@ export class TimelineAnalysis {
 
   async saveVectorSequences(file: string, typeCount?: number) {
     const sequences = await this.getVectorSequences(this.tlo.audioFiles,
-      this.points, this.siaOptions, typeCount);
+      this.points, typeCount);
     saveJsonFile(file, _.flatten(sequences));
   }
 
   private async getVectorSequences(audio: string[], points: any[][],
-      options: FullSIAOptions, typeCount = 3): Promise<VisualsPoint[][]> {
-    const quantPoints = points.map(p => this.quantize(p, options));
-    const atemporalPoints = quantPoints.map(v => v.map(p => p.slice(1)));
+      typeCount = 3): Promise<VisualsPoint[][]> {
+    const atemporalPoints = points.map(v => v.map(p => p.slice(1)));
     const pointMap = toIndexSeqMap(atemporalPoints, JSON.stringify);
     const mostCommon = getMostCommonPoints(_.flatten(atemporalPoints));
-    const sequences = quantPoints.map((v,i) => v.map((p,j) =>
+    const sequences = points.map((v,i) => v.map((p,j) =>
       ({version:i, time:j, type:0, point:p, path: audio[i],
         start: points[i][j][0][0],
         duration: points[i][j+1] ? points[i][j+1][0][0]-points[i][j][0][0] : 1})));
     mostCommon.slice(0, typeCount).forEach((p,i) =>
       pointMap[JSON.stringify(p)].forEach(([v, p]) => sequences[v][p].type = i+1));
     return sequences;
-  }
-  
-  private quantize(points: any[][], options: FeatureOptions) {
-    return new Quantizer(options.quantizerFunctions).getQuantizedPoints(points);
   }
   
 }

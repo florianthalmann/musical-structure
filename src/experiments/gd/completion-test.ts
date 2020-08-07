@@ -1,22 +1,23 @@
-
-import { TimelineAnalysis } from '../../analysis/timeline-analysis';
-import { getSwOptions } from '../../files/options';
+import { initDirRec } from '../../files/file-manager';
+import { saveMultinomialSequences } from '../../files/sequences';
+import { getPartitionFromMSAResult } from '../../analysis/timeline-analysis';
 import { hmmAlign } from '../../models/models';
-import { getSongFoldersAndOptions, getMSAFolder, getTunedAudioFiles } from './util';
-import { GdOptions } from './config';
+import { getBeatwiseChords, getBeatwiseChordSWAlignments,
+  getTunedAudioFiles } from './util';
 
-async function completionTest(song: string, tlo: GdOptions) {
-  let [folders, options] = getSongFoldersAndOptions(tlo, song);
-  options.audioFiles = getTunedAudioFiles(song, tlo.count);
-  options = Object.assign(options,
-    {featuresFolder: folders.features, patternsFolder: folders.patterns});
-  const swOptions = getSwOptions(folders.patterns, options.featureOptions);
-  const analysis = new TimelineAnalysis(options, swOptions);
-  const pointsFile = options.filebase+"-points.json";
-  const msaFile = await hmmAlign(pointsFile, getMSAFolder(options));
-  const timeline = await analysis.getTimelineFromMSAResult(msaFile);
+const RESULTS = initDirRec('./results/completion-test2/');
+
+completionTest("box_of_rain");
+
+async function completionTest(song: string) {
+  const versions = getTunedAudioFiles(song, 100);
+  const points = (await getBeatwiseChords([song]))[0];
+  const seqsFile = RESULTS+song+"-seqs.json";
+  await saveMultinomialSequences(points, seqsFile);
+  const msaFile = await hmmAlign(seqsFile, RESULTS);
+  const alignments = getBeatwiseChordSWAlignments(song, points, versions, 0);
+  const timeline = getPartitionFromMSAResult(points, msaFile, alignments);
   //console.log(_.flatten(timeline.getPartitions()).length)
-  await analysis.saveTimelineVisuals(timeline);
   /*const segsByTypes = await analysis.getStructure(timeline);
   const graph = timeline.getGraph();
   const missing = _.differenceBy(graph.getNodes(), _.flatten(segsByTypes), n => n.id);

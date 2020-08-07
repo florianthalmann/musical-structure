@@ -1,9 +1,10 @@
 import * as _ from 'lodash';
 import { getCosiatec, getMultiCosiatec, getSmithWaterman, getDualSmithWaterman,
-  MultiStructureResult, IterativeSmithWatermanResult } from 'siafun';
+  MultiStructureResult, IterativeSmithWatermanResult, SmithWatermanOptions,
+  OpsiatecOptions } from 'siafun';
 import { updateStatus, audioPathToDirName } from '../files/util';
 import { saveJsonFile, loadJsonFile } from '../files/file-manager';
-import { FullSWOptions, FullSIAOptions, getOptionsWithCaching } from '../files/options';
+import { getOptionsWithCaching } from '../files/options';
 
 export enum AlignmentAlgorithm {
   SIA,
@@ -17,8 +18,8 @@ export interface AlignmentOptions {
   audioFiles: string[],
   points: any[][][],
   patternsFolder: string,
-  swOptions?: FullSWOptions,
-  siaOptions?: FullSIAOptions,
+  swOptions?: SmithWatermanOptions,
+  siaOptions?: OpsiatecOptions,
   maxVersions?: number, //for multi sw or cosiatec
   numTuplesPerFile?: number, //for multi sw or cosiatec
   tupleSize?: number, //for multi sw or cosiatec
@@ -65,7 +66,8 @@ export function getSmithWatermanFromAudio(options: AlignmentOptions) {
     updateStatus('  ' + (i+1) + '/' + options.audioFiles.length);
     const sw: IterativeSmithWatermanResult
       = getSmithWaterman(options.points[i], getOptionsWithCaching(a, options.swOptions));
-    sw.matrices = null; sw.segmentMatrix = null; //reduce size for cache
+    sw.matrices = null; sw.segmentMatrix = null;
+    (<any>sw).affinityMatrix = null; (<any>sw).smoothedMatrix = null; //reduce size for cache
     return sw;
   });
 }

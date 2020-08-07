@@ -14,13 +14,8 @@ export interface FeatureOptions {
   transpose?: boolean
 }
 
-export interface FullSIAOptions extends OpsiatecOptions, FeatureOptions {}
-
-export interface FullSWOptions extends SmithWatermanOptions, FeatureOptions {}
-
-const STANDARD_OPTIONS: FullSIAOptions = {
+const STANDARD_OPTIONS: OpsiatecOptions = {
   quantizerFunctions: null,
-  selectedFeatures: [],
   overlapping: true,
   optimizationDimension: 0,
   loggingLevel: -1,
@@ -29,9 +24,8 @@ const STANDARD_OPTIONS: FullSIAOptions = {
   //minHeuristicValue: .1,
 }
 
-const SW_OPTIONS: FullSWOptions = {
+const SW_OPTIONS: SmithWatermanOptions = {
   quantizerFunctions: null,
-  selectedFeatures: null,
   maxIterations: 1,//true,
   fillGaps: true, //turn off for similarity graphs!!
   //similarityThreshold: .95,
@@ -138,13 +132,11 @@ export function getSummaryOptions(features: FeatureConfig[], dims: number,
 }
 
 export function getOptions(features: FeatureConfig[], quantizerFuncs: ArrayMap[],
-  doubletime?: boolean, heuristic?: CosiatecHeuristic, resultsDir?: string, dims = ''): FullSIAOptions {
+  doubletime?: boolean, heuristic?: CosiatecHeuristic, resultsDir?: string, dims = ''): OpsiatecOptions {
   const options = _.clone(STANDARD_OPTIONS);
-  options.selectedFeatures = features;
   options.quantizerFunctions = quantizerFuncs;
   options.selectionHeuristic = heuristic;
   options.optimizationHeuristic = heuristic;
-  options.doubletime = doubletime;
   addCacheDir(options, resultsDir, features, dims, doubletime);
   return options;
 }
