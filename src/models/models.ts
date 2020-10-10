@@ -37,7 +37,6 @@ export const STD_MSA_OPTIONS: MSAOptions = {
 export async function hmmAlign(pointsFile: string, outpath: string,
     options = STD_MSA_OPTIONS) {//undefined->non-flanked
   const outfile = outpath+getOutfilename(options);
-  console.log(outfile)
   if (!fs.existsSync(outfile))
     await execute('python src/models/multi_alignment.py '+
       ['"'+pointsFile+'"', '"'+outfile+'"', options.iterations, getModel(options),

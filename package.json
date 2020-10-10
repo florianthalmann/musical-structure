@@ -1,6 +1,6 @@
 {
   "name": "musical-structure",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "description": "",
   "main": "src/run.ts",
   "scripts": {
@@ -12,6 +12,9 @@
     "visuals": "concurrently \"npm run audio-server\" \"npm run visuals-server\"",
     "ts-node": "node --max_old_space_size=8192 -r ts-node/register"
   },
+  "files": [
+    "lib/"
+  ],
   "repository": {
     "type": "git",
     "url": "git+https://github.com/florianthalmann/musical-structure.git"
@@ -30,7 +33,7 @@
     "http-server": "^0.12.3",
     "ml-hclust": "^3.0.0",
     "ml-regression-simple-linear": "^2.0.2",
-    "siafun": "^0.3.10",
+    "siafun": "^0.3.13",
     "uuid": "^7.0.1"
   },
   "devDependencies": {

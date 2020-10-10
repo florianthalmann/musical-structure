@@ -89,6 +89,7 @@ def paperPlot2():
     data = data[data['numConns'] == 1]
     data = data[data['maskThreshold'] == 0.2]
     data = data[data['nLongest'] == 10]
+    fig = plt.figure(figsize=(2, 1.5), dpi=100)
     data.boxplot(column=['originalGround','tlGraphGround','graphGround'])#,'originalSeq','tlGraphSeq','graphSeq'])
     ax = plt.gca()
     ax.set_xticklabels(['(a)','(b)','(c)','(d)','(e)','(f)'])
@@ -119,5 +120,6 @@ paperValues()
 
 paperPlot2()
 
-plt.savefig('/Users/flo/Downloads/result3.pdf', facecolor='white', edgecolor='none')
-plt.show()
+plt.tight_layout()
+plt.savefig('/Users/flo/Downloads/result4.pdf', facecolor='white', edgecolor='none')
+#plt.show()

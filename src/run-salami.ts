@@ -1,12 +1,13 @@
 import * as fs from 'fs';
 import * as _ from 'lodash';
-import { getCosiatecOptionsString, getCosiatecIndexOccurrences, HEURISTICS } from 'siafun';
+import { getCosiatecOptionsString, getCosiatecIndexOccurrences, HEURISTICS,
+  OpsiatecOptions } from 'siafun';
 import { FeatureExtractor } from './files/feature-extractor';
 import { FeatureLoader } from './files/feature-loader';
 import { Annotation, getAnnotations } from './files/salami-parser';
 import { mapSeries, printPatterns, cartesianProduct, updateStatus } from './files/util';
 import { mapToTimegrid, normalize } from './analysis/pattern-analysis';
-import { FullSIAOptions, getOptionsWithCaching, getJohanBarsOptions,
+import { getOptionsWithCaching, getJohanBarsOptions, FeatureOptions,
   getChromaBeatsOptions, getVariations } from './files/options';
 import { evaluate } from './eval';
 
@@ -17,7 +18,7 @@ const SALAMI_RESULTS = 'results/salami/'//'/Volumes/FastSSD/salami/';
 const SALAMI_FEATURES = 'data/salami_features';
 
 
-//NEXT: chroma3bars and chroma4bars with new heuristics!!!!
+/*//NEXT: chroma3bars and chroma4bars with new heuristics!!!!
 export async function dayJob() {
   const options = getJohanBarsOptions(SALAMI_RESULTS, HEURISTICS.COVERAGE);
   options.cacheDir = SALAMI_RESULTS+'johanbars/'
@@ -33,7 +34,7 @@ export function nightJob() {
   runBatchSalami(options, variations, [], 700);
 }
 
-export async function runBatchSalami(basis: FullSIAOptions, variations: [string, any[]][], exclude: number[], maxLength?: number) {
+export async function runBatchSalami(basis: OpsiatecOptions, variations: [string, any[]][], exclude: number[], maxLength?: number) {
   await mapSeries(cartesianProduct(variations.map(v => v[1])), async combo => {
     const currentOptions = Object.assign({}, basis);
     combo.forEach((c: any, i: number) => currentOptions[variations[i][0]] = c);
@@ -48,7 +49,7 @@ export async function runBatchSalami(basis: FullSIAOptions, variations: [string,
 
 }
 
-async function runSalami(options: FullSIAOptions, evalFile: string, exclude: number[], maxLength?: number) {
+async function runSalami(options: FeatureOptions, evalFile: string, exclude: number[], maxLength?: number) {
   console.log('gathering files and parsing annotations');
   //gather available files and annotations
   let files = fs.readdirSync(SALAMI_AUDIO).filter(f => f.indexOf(".mp3") > 0)
@@ -68,32 +69,32 @@ async function runSalami(options: FullSIAOptions, evalFile: string, exclude: num
   fs.writeFileSync(evalFile, JSON.stringify(result));
 }
 
-async function evaluateSalamiFile(filename: number, groundtruth: Annotation[], options: FullSIAOptions, maxLength = 0) {
+async function evaluateSalamiFile(filename: number, groundtruth: Annotation[], options: FeatureOptions, maxLength = 0) {
   updateStatus('  working on SALAMI file ' + filename);
   
-  if (options.loggingLevel >= 0) console.log('    extracting and parsing features', filename);
+  //if (options.loggingLevel >= 0) console.log('    extracting and parsing features', filename);
   const audio = SALAMI_AUDIO+filename+'.mp3';
   const features = await new FeatureExtractor(SALAMI_FEATURES)
     .getFeatureFiles(audio, options.selectedFeatures);
   const featureLoader = new FeatureLoader(SALAMI_FEATURES);
   
-  const timegrid = featureLoader
+  /*const timegrid = featureLoader
     .getVampValues(features.segmentations[0], features.segConditions[0])
     .map(v => v.time);
   
-  if (options.loggingLevel >= 0) console.log('    mapping annotations to timegrid', filename);
+  //if (options.loggingLevel >= 0) console.log('    mapping annotations to timegrid', filename);
   //map ground patterns to timegrid
   groundtruth.forEach(ps =>
     ps.patterns = normalize(mapToTimegrid(ps.times, ps.patterns, timegrid, true)));
   
-  if (options.loggingLevel >= 0) console.log('    inferring structure', filename);
-  const points = featureLoader.getPoints(features, options);
+  //if (options.loggingLevel >= 0) console.log('    inferring structure', filename);
+  const points = featureLoader.getPointsFromAudio(audio, options);
   
   if (!maxLength || points.length < maxLength) {
     const result = getCosiatecIndexOccurrences(points, getOptionsWithCaching(audio, options));
     const occurrences = result.occurrences;
     
-    if (options.loggingLevel >= 0) console.log('    evaluating', filename);
+    //if (options.loggingLevel >= 0) console.log('    evaluating', filename);
     const evals = {};
     evals["numpoints"] = points.length;
     evals["numcosiatec"] = occurrences.length;
@@ -105,15 +106,15 @@ async function evaluateSalamiFile(filename: number, groundtruth: Annotation[], o
       evals[i]["accuracy"] = evaluate(g.patterns, occurrences);
     });
     
-    if (options.loggingLevel > 1) {
+    /*if (options.loggingLevel > 1) {
       groundtruth.map(p => p.patterns).concat([occurrences]).forEach(p => {
         console.log('\n')
         printPatterns(_.cloneDeep(p));
         //printPatternSegments(_.cloneDeep(p));
       });
       console.log(evals);
-    }
+    }*
     
     return evals;
-  }
-}
+  }*
+}*/

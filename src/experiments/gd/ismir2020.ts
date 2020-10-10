@@ -2,22 +2,22 @@ import * as _ from 'lodash';
 import { QUANT_FUNCS as QF, getSimpleSmithWatermanPath, SmithWatermanOptions } from 'siafun';
 import { FeatureOptions, FeatureLoader, FEATURES as FS,
   extractAlignments, AlignmentAlgorithm, Alignments } from '../../index';
-import { recGetFilesInFolder, loadJsonFile, saveJsonFile } from '../../files/file-manager';
-import { mapSeries } from '../../files/util';
-import { pcSetToLabel } from '../../files/theory';
-import { saveMultinomialSequences } from '../../files/sequences';
-import { getStandardChordSequence } from '../../files/leadsheets';
+import { recGetFilesInFolder, loadJsonFile, saveJsonFile } from '../../index';
+import { mapSeries } from '../../index';
+import { pcSetToLabel } from '../../index';
+import { saveMultinomialSequences } from '../../index';
+import { getStandardChordSequence } from '../../index';
 import { getTimelineModeLabels, getTimelineSectionModeLabels,
-  getPartitionFromMSAResult } from '../../analysis/timeline-analysis';
-import { SegmentNode } from '../../analysis/types';
-import { hmmAlign, MSAOptions, MSA_LENGTH } from '../../models/models';
+  getPartitionFromMSAResult } from '../../index';
+import { SegmentNode } from '../../index';
+import { hmmAlign, MSAOptions, MSA_LENGTH } from '../../index';
 
 
-const DATASET = '../fifteen-songs-dataset/';
-const AUDIO = '/Volumes/FastSSD/gd_tuned/audio/'//DATASET+'tuned_audio/';
-const FEATURES = '/Volumes/FastSSD/gd_tuned/features/'//'./features/';
-const PATTERNS = './patterns2/';
-const RESULTS = './results2/';
+const DATASET = '../fifteen-songs-dataset2/';
+const AUDIO = DATASET+'tuned_audio/';
+const FEATURES = DATASET+'features/';
+const PATTERNS = './patterns3/';
+const RESULTS = './results3/';
 
 
 const MSA_CONFIG: MSAOptions　= {
@@ -40,14 +40,14 @@ const SW_CONFIG: SmithWatermanOptions = {
   minSegmentLength: 16,
   nLongest: 10,
   maxGapSize: 4,
-  //maxGapRatio: 0.25,
+  maxGapRatio: 0.25,
   minDistance: 4,
   cacheDir: PATTERNS
 }
 
 const MAX_VERSIONS = 100;
-const SELF_ALIGNMENTS = false;
-const PAIRWISE_ALIGNMENTS = 5;
+const SELF_ALIGNMENTS = true;
+const PAIRWISE_ALIGNMENTS = 0//5;
 const NUM_CONNECTIONS = 1;
 const MASK_THRESHOLD = .1;
 
@@ -55,7 +55,7 @@ run();
 
 async function run() {
   const songs: string[] = _.keys(loadJsonFile(DATASET+'dataset.json'));
-  const results = await mapSeries(songs, async s => {
+  const results = await mapSeries(songs.slice(0,1), async s => {
     console.log('working on '+s);
     const versions = recGetFilesInFolder(AUDIO+s+'/', ['wav']).slice(-MAX_VERSIONS);
     const points = await new FeatureLoader(FEATURES)
@@ -66,6 +66,17 @@ async function run() {
     console.log('multiple sequence alignment')
     const msaFile = await hmmAlign(seqsFile, RESULTS+s+'-', MSA_CONFIG);
     console.log('pairwise and self alignments')
+    console.log({
+      collectionName: s,
+      patternsFolder: PATTERNS,
+      algorithm: AlignmentAlgorithm.SW,
+      points: points,
+      audioFiles: versions,
+      swOptions: SW_CONFIG,
+      includeSelfAlignments: SELF_ALIGNMENTS,
+      numTuplesPerFile: PAIRWISE_ALIGNMENTS,
+      tupleSize: 2
+    })
     const alignments = extractAlignments({
       collectionName: s,
       patternsFolder: PATTERNS,
@@ -89,6 +100,7 @@ async function getEvaluation(song: string, points: any[][][],
   const originalChords = points.map(ps => ps.map(p => pcSetToLabel(p.slice(1)[0])));
   //calculate labels of harmonic essence
   const msaModeLabels = await getTimelineModeLabels(points, msaFile, alignments);
+  console.log(msaModeLabels)
   const graphBasedLabels = await getTimelineSectionModeLabels(points, msaFile,
     alignments, NUM_CONNECTIONS, MASK_THRESHOLD);
   const timeline = (await getPartitionFromMSAResult(points, msaFile, alignments))

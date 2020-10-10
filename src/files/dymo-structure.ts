@@ -2,7 +2,7 @@ import * as math from 'mathjs';
 import * as _ from 'lodash';
 import { SuperDymoStore, uris } from 'dymo-core';
 import { getSmithWaterman, getStructure, getCosiatecIndexOccurrences,
-  IterativeSmithWatermanResult, Similarity, Quantizer, SmithWaterman, Hierarchizer } from 'siafun'
+  IterativeSmithWatermanResult, Quantizer, SmithWaterman } from 'siafun'
 import { mapSeries, printPatterns, printPatternSegments } from './util';
 
 export class DymoStructureInducer {
@@ -34,7 +34,7 @@ export class DymoStructureInducer {
     occs = occs.filter(p => p[0].length > 1);
     printPatterns(_.cloneDeep(occs));
     printPatternSegments(_.cloneDeep(occs));
-    const hierarchy = new Hierarchizer().inferHierarchyFromPatternOccurrences(occs);
+    //const hierarchy = new Hierarchizer().inferHierarchyFromPatternOccurrences(occs);
     //console.log(JSON.stringify(patterns));
     await this.createStructure(occs, dymoUri, surfaceDymos);
   }
@@ -83,7 +83,7 @@ export class DymoStructureInducer {
     [surfaceDymos, points] = <[string[], number[][]]>_.unzip(zipped);
     //console.log(JSON.stringify(new StructureInducer(points, options).getSmithWaterman()));
     let result = getSmithWaterman(points, options);
-    await this.createStructure(result.segments, dymoUri, surfaceDymos);
+    //await this.createStructure(result.segments, dymoUri, surfaceDymos);
     return result;
   }
 
@@ -127,7 +127,7 @@ export class DymoStructureInducer {
   }
 
   //adds similarity relationships to the subdymos of the given dymo in the given store
-  async addSimilaritiesTo(dymoUri, threshold) {
+  /*async addSimilaritiesTo(dymoUri, threshold) {
     var currentLevel = [dymoUri];
     while (currentLevel.length > 0) {
       if (currentLevel.length > 1) {
@@ -138,10 +138,10 @@ export class DymoStructureInducer {
       }
       currentLevel = await this.getAllParts(currentLevel);
     }
-  }
+  }*/
 
   //adds navigatable graph based on similarity relationships to the subdymos of the given dymo in the given store
-  async addSuccessionGraphTo(dymoUri, threshold) {
+  /*async addSuccessionGraphTo(dymoUri, threshold) {
     var currentLevel = [dymoUri];
     while (currentLevel.length > 0) {
       if (currentLevel.length > 1) {
@@ -163,7 +163,7 @@ export class DymoStructureInducer {
       }
       currentLevel = await this.getAllParts(currentLevel);
     }
-  }
+  }*/
 
   async getAllParts(dymoUris: string[]): Promise<string[]> {
     return _.flatten(await Promise.all(dymoUris.map(d => this.store.findParts(d))));
@@ -196,7 +196,7 @@ export class DymoStructureInducer {
         var feature = currentFeatures[j];
         //reduce all multidimensional vectors to one value
         if (reduce && feature.length > 1) {
-          feature = Similarity.reduce(feature);
+          //feature = Similarity.reduce(feature);
         }
         if (feature.length > 1) {
           if (noFlatten) {
