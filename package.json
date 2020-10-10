@@ -1,9 +1,11 @@
 {
   "name": "musical-structure",
-  "version": "0.1.0",
+  "version": "0.1.2",
   "description": "",
-  "main": "src/run.ts",
+  "main": "lib/index.js",
+  "files": [ "lib/" ],
   "scripts": {
+    "postinstall": "git clone https://github.com/florianthalmann/msa.git",
     "batch2": "node -r ts-node/register --max-old-space-size=8192 src/run.ts",
     "batch": "ts-node -O '{\"target\": \"es2015\"}' --max-old-space-size=8192 src/run.ts",
     "test": "ts-node node_modules/jasmine/bin/jasmine",
@@ -12,9 +14,6 @@
     "visuals": "concurrently \"npm run audio-server\" \"npm run visuals-server\"",
     "ts-node": "node --max_old_space_size=8192 -r ts-node/register"
   },
-  "files": [
-    "lib/"
-  ],
   "repository": {
     "type": "git",
     "url": "git+https://github.com/florianthalmann/musical-structure.git"

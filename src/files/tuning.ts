@@ -6,7 +6,7 @@ import { chromaticKeyDifference } from './theory';
 import { execute } from './util';
 
 const TUNING_FILE = 'results/gd/thomas-tunings.json';
-const TUNINGS = JSON.parse(fs.readFileSync(TUNING_FILE, 'utf8'));
+let TUNINGS;
 
 /** maxKeyDiff: only consider if difference within this range. makes this more
   * resilient to analytical errors, e.g. identification as (sub)dominant key */
@@ -27,6 +27,7 @@ export function actuallyTuneFile(audioFile: string, targetFile: string,
 }
 
 export function getThomasTuningRatio(recording: string, track: string) {
+  if (!TUNINGS) TUNINGS = JSON.parse(fs.readFileSync(TUNING_FILE, 'utf8'));
   if (TUNINGS[recording]) return TUNINGS[recording][track];
 }
 
